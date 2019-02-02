@@ -13,37 +13,33 @@ CFLAGS  += -std=c99 -DDISCORD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PI
 CC ?= gcc
 
 ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
-  DISCORD_TARGET = FAILNOPURPLE
-  DISCORD_DEST =
-  DISCORD_ICONS_DEST =
+  TARGET = FAILNOPURPLE
+  DEST =
 else
-  DISCORD_TARGET = libdiscord.so
-  DISCORD_DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=plugindir purple`
-  DISCORD_ICONS_DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=datadir purple`/pixmaps/pidgin/protocols
+  TARGET = libpipe.so
+  DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=plugindir purple`
   LOCALEDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir purple)/locale
 endif
 
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 PURPLE_COMPAT_FILES :=
-PURPLE_C_FILES := libdiscord.c $(C_FILES)
+PURPLE_C_FILES := libpipe.c $(C_FILES)
 
 .PHONY:	all FAILNOPURPLE clean
 
 LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
-all: $(DISCORD_TARGET)
+all: $(TARGET)
 
-libdiscord.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
+libpipe.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
 	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 json-glib-1.0 --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
-
 
 FAILNOPURPLE:
 	echo "You need libpurple development headers installed to be able to compile this plugin"
 
 clean:
 	rm -f $(DISCORD_TARGET)
-	rm -f discord*.png
 
 gdb:
 	gdb --args pidgin -c ~/.fake_purple -n -m

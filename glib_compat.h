@@ -23,6 +23,7 @@
 #define g_hash_table_contains(hash_table, key) g_hash_table_lookup_extended(hash_table, key, NULL, NULL)
 #endif /* 2.32.0 */
 
+/*
 static gboolean
 g_str_insensitive_equal(gconstpointer v1, gconstpointer v2)
 {
@@ -39,3 +40,4 @@ g_str_insensitive_hash(gconstpointer v)
 
 	return hash;
 }
+*/

@@ -1,5 +1,5 @@
 /*
- *   Discord plugin for libpurple
+ *   Pipe plugin for libpurple
  *   Copyright (C) 2016-2017  Eion Robb
  *   Copyright (C) 2017 Alyssa Rosenzweig
  *

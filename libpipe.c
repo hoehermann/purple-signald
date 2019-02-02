@@ -39,11 +39,11 @@
 #include "glib_compat.h"
 #include "purple_compat.h"
 
-#define DISCORD_PLUGIN_ID "prpl-hehoe-pipe"
-#ifndef DISCORD_PLUGIN_VERSION
-#define DISCORD_PLUGIN_VERSION "0.1"
+#define PIPE_PLUGIN_ID "prpl-hehoe-pipe"
+#ifndef PIPE_PLUGIN_VERSION
+#define PIPE_PLUGIN_VERSION "0.1"
 #endif
-#define DISCORD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-pipe"
+#define PIPE_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-pipe"
 
 static GRegex *some_regex = NULL;
 
@@ -185,13 +185,13 @@ static PurplePluginInfo info = {
 	0,								/* flags */
 	NULL,							/* dependencies */
 	PURPLE_PRIORITY_DEFAULT,		/* priority */
-	DISCORD_PLUGIN_ID,				/* id */
+	PIPE_PLUGIN_ID,				/* id */
     "Pipe",						/* name */
-	DISCORD_PLUGIN_VERSION,			/* version */
+	PIPE_PLUGIN_VERSION,			/* version */
 	"",								/* summary */
 	"",								/* description */
     "Hermann Hoehne <hoehermann@gmx.de>", /* author */
-	DISCORD_PLUGIN_WEBSITE,			/* homepage */
+	PIPE_PLUGIN_WEBSITE,			/* homepage */
 	libpurple2_plugin_load,			/* load */
 	libpurple2_plugin_unload,		/* unload */
 	NULL,							/* destroy */
@@ -205,7 +205,7 @@ static PurplePluginInfo info = {
 	NULL
 };
 
-PURPLE_INIT_PLUGIN(discord, plugin_init, info);
+PURPLE_INIT_PLUGIN(pipe, plugin_init, info);
 
 #else
 /* Purple 3 plugin load functions */

@@ -8,7 +8,7 @@ PLUGIN_VERSION ?= 0.1.$(shell date +%Y.%m.%d).git.$(GIT_REVISION_ID)
 CFLAGS	?= -O2 -g -pipe -Wall
 LDFLAGS ?= -Wl,-z,relro
 
-CFLAGS  += -std=c99 -DDISCORD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
+CFLAGS  += -std=c99 -DPIPE_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 
 CC ?= gcc
 
@@ -39,7 +39,7 @@ FAILNOPURPLE:
 	echo "You need libpurple development headers installed to be able to compile this plugin"
 
 clean:
-	rm -f $(DISCORD_TARGET)
+	rm -f $(TARGET)
 
 gdb:
 	gdb --args pidgin -c ~/.fake_purple -n -m

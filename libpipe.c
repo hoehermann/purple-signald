@@ -30,14 +30,7 @@
 #endif
 
 #ifdef ENABLE_NLS
-#      define GETTEXT_PACKAGE "purple-pipe-signal"
-#      include <glib/gi18n-lib.h>
-#	ifdef _WIN32
-#		ifdef LOCALEDIR
-#			unset LOCALEDIR
-#		endif
-#		define LOCALEDIR  wpurple_locale_dir()
-#	endif
+//
 #else
 #      define _(a) (a)
 #      define N_(a) (a)
@@ -123,8 +116,7 @@ plugin_init(PurplePlugin *plugin)
 {
 
 #ifdef ENABLE_NLS
-	bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR);
-	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
+//
 #endif
 
 	PurplePluginInfo *info;
@@ -217,4 +209,5 @@ PURPLE_INIT_PLUGIN(discord, plugin_init, info);
 
 #else
 /* Purple 3 plugin load functions */
+#perror This was never tested.
 #endif

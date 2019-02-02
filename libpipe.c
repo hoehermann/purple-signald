@@ -53,6 +53,52 @@ static GRegex *some_regex = NULL;
 	previously we used g_int64_hash() from glib, 
 	however libpurple requires positive integers */
 
+static const char *
+pipe_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
+{
+    return "pipe";
+}
+
+void
+pipe_login(PurpleAccount *account)
+{
+    PurpleConnection *pc = purple_account_get_connection(account);
+    PurpleConnectionFlags pc_flags;
+
+    pc_flags = purple_connection_get_flags(pc);
+    //pc_flags |= PURPLE_CONNECTION_FLAG_HTML;
+    pc_flags |= PURPLE_CONNECTION_FLAG_NO_FONTSIZE;
+    pc_flags |= PURPLE_CONNECTION_FLAG_NO_BGCOLOR;
+    purple_connection_set_flags(pc, pc_flags);
+
+    //da = g_new0(DiscordAccount, 1);
+    //purple_connection_set_protocol_data(pc, da);
+    purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
+}
+
+static void
+pipe_close(PurpleConnection *pc)
+{
+    //DiscordAccount *da = purple_connection_get_protocol_data(pc);
+    //g_free(da);
+}
+
+static int
+pipe_send_im(PurpleConnection *pc,
+#if PURPLE_VERSION_CHECK(3, 0, 0)
+                PurpleMessage *msg)
+{
+    const gchar *who = purple_message_get_recipient(msg);
+    const gchar *message = purple_message_get_contents(msg);
+#else
+                const gchar *who, const gchar *message, PurpleMessageFlags flags)
+{
+#endif
+    //DiscordAccount *da = purple_connection_get_protocol_data(pc);
+    //gchar *room_id = g_hash_table_lookup(da->one_to_ones_rev, who);
+    // send_message(da, to_int(room_id), message);
+    return 1;
+}
 
 static GList *
 pipe_add_account_options(GList *account_options)
@@ -144,15 +190,19 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->list_emblem = discord_list_emblem;
 	prpl_info->status_text = discord_status_text;
 	prpl_info->tooltip_text = discord_tooltip_text;
-	prpl_info->list_icon = discord_list_icon;
+    */
+    prpl_info->list_icon = pipe_list_icon;
+    /*
 	prpl_info->set_status = discord_set_status;
 	prpl_info->set_idle = discord_set_idle;
 	prpl_info->status_types = discord_status_types;
 	prpl_info->chat_info = discord_chat_info;
 	prpl_info->chat_info_defaults = discord_chat_info_defaults;
-	prpl_info->login = discord_login;
-	prpl_info->close = discord_close;
-	prpl_info->send_im = discord_send_im;
+    */
+    prpl_info->login = pipe_login;
+    prpl_info->close = pipe_close;
+    prpl_info->send_im = pipe_send_im;
+    /*
 	prpl_info->send_typing = discord_send_typing;
 	prpl_info->join_chat = discord_join_chat;
 	prpl_info->get_chat_name = discord_get_chat_name;

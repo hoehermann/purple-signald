@@ -33,7 +33,9 @@
 #      define N_(a) (a)
 #endif
 
-#include "glib_compat.h"
+//#include "glib_compat.h"
+//#include "json_compat.h"
+#include <json-glib/json-glib.h>
 #include "purple_compat.h"
 
 #define PIPE_PLUGIN_ID "prpl-hehoe-pipe"
@@ -67,15 +69,33 @@ pipe_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
-pipe_handle_input(const char * json)
+pipe_handle_input(const char * json, PipeAccount *da)
 {
-    /*
-     * 	JsonParser *parser = json_parser_new();
+    JsonParser *parser = json_parser_new();
     JsonNode *root;
-    gint64 opcode;
 
-    purple_debug_info("discord", "got frame data: %s\n", frame);
-    */
+    if (!json_parser_load_from_data(parser, json, -1, NULL)) {
+        purple_debug_error("pipe", "Error parsing input.\n");
+        return;
+    }
+
+    root = json_parser_get_root(parser);
+
+    if (root != NULL) {
+        JsonObject *obj = json_node_get_object(root);
+        const gchar *type = json_object_get_string_member(obj, "type");
+        const size_t TYPE_STR_MAX_LEN = 12;
+        if (!strncmp(type, "version", TYPE_STR_MAX_LEN)) {
+            purple_debug_error("pipe", "signald version ignored.\n");
+        } else if (!strncmp(type, "subscribed", TYPE_STR_MAX_LEN)) {
+            purple_debug_error("pipe", "Subscribed!\n");
+            purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
+        } else {
+            purple_debug_error("pipe", "Ignored message of unknown type.\n");
+        }
+    }
+
+    g_object_unref(parser);
 }
 
 void
@@ -92,8 +112,9 @@ pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info("pipe", "got newline delimeted message: %s", buf);
-            pipe_handle_input(buf);
+            pipe_handle_input(buf, da);
             *buf = 0;
+            b = buf;
         }
         if (b-buf+1 == BUFSIZE) {
             purple_debug_info("pipe", "message exceeded buffer size: %s\n", buf);
@@ -156,7 +177,7 @@ pipe_login(PurpleAccount *account)
     da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, pipe_read_cb, da);
 
     char subscribe_msg[128];
-    sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}", purple_account_get_username(account));
+    sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}\n", purple_account_get_username(account));
     int l = strlen(subscribe_msg);
     int w = write(fd, subscribe_msg, l);
     if (w != l) {
@@ -164,8 +185,6 @@ pipe_login(PurpleAccount *account)
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could write subscribtion message."));
         return;
     }
-
-    purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
 }
 
 static void

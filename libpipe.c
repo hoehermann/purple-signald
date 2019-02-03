@@ -67,9 +67,15 @@ pipe_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
-pipe_handle_input()
+pipe_handle_input(const char * json)
 {
+    /*
+     * 	JsonParser *parser = json_parser_new();
+    JsonNode *root;
+    gint64 opcode;
 
+    purple_debug_info("discord", "got frame data: %s\n", frame);
+    */
 }
 
 void
@@ -86,6 +92,8 @@ pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info("pipe", "got newline delimeted message: %s", buf);
+            pipe_handle_input(buf);
+            *buf = 0;
         }
         if (b-buf+1 == BUFSIZE) {
             purple_debug_info("pipe", "message exceeded buffer size: %s\n", buf);
@@ -103,14 +111,9 @@ pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             return;
         }
     }
-    purple_debug_info("pipe", "left in buffer: %s\n", buf);
-    /*
-     * 	JsonParser *parser = json_parser_new();
-    JsonNode *root;
-    gint64 opcode;
-
-    purple_debug_info("discord", "got frame data: %s\n", frame);
-    */
+    if (*buf) {
+        purple_debug_info("pipe", "left in buffer: %s\n", buf);
+    }
 }
 
 void
@@ -120,9 +123,10 @@ pipe_login(PurpleAccount *account)
     PurpleConnectionFlags pc_flags;
 
     pc_flags = purple_connection_get_flags(pc);
-    //pc_flags |= PURPLE_CONNECTION_FLAG_HTML;
-    pc_flags |= PURPLE_CONNECTION_FLAG_NO_FONTSIZE;
-    pc_flags |= PURPLE_CONNECTION_FLAG_NO_BGCOLOR;
+    pc_flags |= PURPLE_CONNECTION_NO_IMAGES;
+    pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
+    pc_flags |= PURPLE_CONNECTION_NO_NEWLINES;
+    pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
     PipeAccount *da = g_new0(PipeAccount, 1);

@@ -34,8 +34,7 @@
 #endif
 
 //#include "glib_compat.h"
-//#include "json_compat.h"
-#include <json-glib/json-glib.h>
+#include "json_compat.h"
 #include "purple_compat.h"
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
@@ -45,8 +44,6 @@
 #define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
 
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
-
-static GRegex *some_regex = NULL;
 
 typedef struct {
     PurpleAccount *account;
@@ -208,7 +205,10 @@ static void
 signald_close(PurpleConnection *pc)
 {
     SignaldAccount *da = purple_connection_get_protocol_data(pc);
+    purple_input_remove(da->watcher);
+    da->watcher = 0;
     close(da->fd);
+    da->fd = 0;
     g_free(da);
 }
 
@@ -238,9 +238,27 @@ signald_send_im(PurpleConnection *pc,
                 const gchar *who, const gchar *message, PurpleMessageFlags flags)
 {
 #endif
-    //DiscordAccount *da = purple_connection_get_protocol_data(pc);
-    //gchar *room_id = g_hash_table_lookup(da->one_to_ones_rev, who);
-    // send_message(da, to_int(room_id), message);
+    SignaldAccount *da = purple_connection_get_protocol_data(pc);
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "send");
+    json_object_set_string_member(data, "username", purple_account_get_username(da->account));
+    json_object_set_string_member(data, "recipientNumber", who);
+    json_object_set_string_member(data, "messageBody", message);
+    char *json = json_object_to_string(data);
+    int l = strlen(json)+2;
+    char *jsonn = malloc(l);
+    strcpy(jsonn, json);
+    jsonn[l-2] = '\n';
+    jsonn[l-1] = 0;
+    purple_debug_info("signald", "Sending:%s", jsonn);
+    int w = write(da->fd, jsonn, l);
+    free(jsonn);
+    g_free(json);
+    json_object_unref(data);
+    if (w != l) {
+        purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        return -errno;
+    }
     return 1;
 }
 
@@ -248,13 +266,6 @@ static GList *
 signald_add_account_options(GList *account_options)
 {
     PurpleAccountOption *option;
-
-    option = purple_account_option_string_new(
-                _("Command to execute as sub-process"),
-                "command",
-                ""
-                );
-    account_options = g_list_append(account_options, option);
 
     option = purple_account_option_string_new(
                 _("socket"),
@@ -282,15 +293,13 @@ signald_actions(
 static gboolean
 plugin_load(PurplePlugin *plugin, GError **error)
 {
-    some_regex = g_regex_new("&lt;#(\\d+)&gt;", G_REGEX_OPTIMIZE, 0, NULL);
 	return TRUE;
 }
 
 static gboolean
 plugin_unload(PurplePlugin *plugin, GError **error)
 {
-	purple_signals_disconnect_by_handle(plugin);
-    g_regex_unref(some_regex);
+    purple_signals_disconnect_by_handle(plugin);
 	return TRUE;
 }
 

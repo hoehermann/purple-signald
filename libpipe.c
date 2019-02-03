@@ -23,11 +23,8 @@
 #include <unistd.h>
 #endif
 #include <errno.h>
-
-#include <zlib.h>
-#ifndef z_const
-#	define z_const
-#endif
+#include <sys/socket.h> // for recv
+#include <sys/un.h> // for sockaddr_un
 
 #ifdef ENABLE_NLS
 //
@@ -45,7 +42,17 @@
 #endif
 #define PIPE_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-pipe"
 
+#define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
+
 static GRegex *some_regex = NULL;
+
+typedef struct {
+    PurpleAccount *account;
+    PurpleConnection *pc;
+
+    int fd;
+    guint watcher;
+} PipeAccount;
 
 /** libpurple requires unique chat id's per conversation.
 	we use a hash function to convert the 64bit conversation id
@@ -60,6 +67,53 @@ pipe_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
+pipe_handle_input()
+{
+
+}
+
+void
+pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
+{
+    PipeAccount *da;
+    da = data;
+    gssize read = 1;
+    const size_t BUFSIZE = 5000;
+    char buf[BUFSIZE];
+    char *b = buf;
+    while (read > 0) {
+        read = recv(da->fd, b++, 1, MSG_DONTWAIT);
+        if(b[-1] == '\n') {
+            *b = 0;
+            purple_debug_info("pipe", "got newline delimeted message: %s", buf);
+        }
+        if (b-buf+1 == BUFSIZE) {
+            purple_debug_info("pipe", "message exceeded buffer size: %s\n", buf);
+            b = buf;
+            // TODO: error out
+        }
+    }
+    if (read < 0)
+    {
+        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+            // message could be complete
+        } else {
+            //peer_connection_destroy(conn, OSCAR_DISCONNECT_LOST_CONNECTION, g_strerror(errno));
+            purple_debug_info("pipe", "recv error is %s\n",strerror(errno));
+            return;
+        }
+    }
+    purple_debug_info("pipe", "left in buffer: %s\n", buf);
+    /*
+     * 	JsonParser *parser = json_parser_new();
+    JsonNode *root;
+    gint64 opcode;
+
+    purple_debug_info("discord", "got frame data: %s\n", frame);
+    */
+}
+
+void
 pipe_login(PurpleAccount *account)
 {
     PurpleConnection *pc = purple_account_get_connection(account);
@@ -71,16 +125,66 @@ pipe_login(PurpleAccount *account)
     pc_flags |= PURPLE_CONNECTION_FLAG_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
-    //da = g_new0(DiscordAccount, 1);
-    //purple_connection_set_protocol_data(pc, da);
+    PipeAccount *da = g_new0(PipeAccount, 1);
+    purple_connection_set_protocol_data(pc, da);
+    da->account = account;
+    da->pc = pc;
+
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        purple_debug_info("pipe", "socket() error is %s\n", strerror(errno));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create to socket."));
+        return;
+    }
+
+    struct sockaddr_un address;
+    memset(&address, 0, sizeof(struct sockaddr_un));
+    address.sun_family = AF_UNIX;
+    strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+    if (connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un)) != 0)
+    {
+        purple_debug_info("pipe", "connect() error is %s\n", strerror(errno));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
+        return;
+    }
+    da->fd = fd;
+    da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, pipe_read_cb, da);
+
+    char subscribe_msg[128];
+    sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}", purple_account_get_username(account));
+    int l = strlen(subscribe_msg);
+    int w = write(fd, subscribe_msg, l);
+    if (w != l) {
+        purple_debug_info("pipe", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could write subscribtion message."));
+        return;
+    }
+
+    purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
 }
 
 static void
 pipe_close(PurpleConnection *pc)
 {
-    //DiscordAccount *da = purple_connection_get_protocol_data(pc);
-    //g_free(da);
+    PipeAccount *da = purple_connection_get_protocol_data(pc);
+    close(da->fd);
+    g_free(da);
+}
+
+static GList *
+pipe_status_types(PurpleAccount *account)
+{
+    GList *types = NULL;
+    PurpleStatusType *status;
+
+    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, "set-online", _("Online"), TRUE, FALSE, FALSE);
+    types = g_list_append(types, status);
+
+    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, "set-offline", _("Offline"), TRUE, TRUE, FALSE);
+    types = g_list_append(types, status);
+
+    return types;
 }
 
 static int
@@ -109,6 +213,13 @@ pipe_add_account_options(GList *account_options)
                 _("Command to execute as sub-process"),
                 "command",
                 ""
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_string_new(
+                _("socket"),
+                "socket",
+                SIGNALD_DEFAULT_SOCKET
                 );
     account_options = g_list_append(account_options, option);
 
@@ -160,11 +271,6 @@ libpurple2_plugin_unload(PurplePlugin *plugin)
 static void
 plugin_init(PurplePlugin *plugin)
 {
-
-#ifdef ENABLE_NLS
-//
-#endif
-
 	PurplePluginInfo *info;
 	PurplePluginProtocolInfo *prpl_info = g_new0(PurplePluginProtocolInfo, 1);
 
@@ -182,7 +288,7 @@ plugin_init(PurplePlugin *plugin)
     //
 #endif
 
-	prpl_info->options = OPT_PROTO_CHAT_TOPIC | OPT_PROTO_SLASH_COMMANDS_NATIVE | OPT_PROTO_UNIQUE_CHATNAME;
+    prpl_info->options = OPT_PROTO_NO_PASSWORD;
     prpl_info->protocol_options = pipe_add_account_options(prpl_info->protocol_options);
 
     /*
@@ -195,7 +301,9 @@ plugin_init(PurplePlugin *plugin)
     /*
 	prpl_info->set_status = discord_set_status;
 	prpl_info->set_idle = discord_set_idle;
-	prpl_info->status_types = discord_status_types;
+    */
+    prpl_info->status_types = pipe_status_types;
+    /*
 	prpl_info->chat_info = discord_chat_info;
 	prpl_info->chat_info_defaults = discord_chat_info_defaults;
     */

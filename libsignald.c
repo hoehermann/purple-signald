@@ -69,6 +69,15 @@ signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
+signald_process_message(SignaldAccount *da,
+        const gchar *username, const gchar *content, const gchar *timestamp_str)
+{
+    PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+    time_t timestamp = purple_str_to_time(timestamp_str, FALSE, NULL, NULL, NULL);
+    purple_serv_got_im(da->pc, username, content, flags, timestamp);
+}
+
+void
 signald_handle_input(const char * json, SignaldAccount *da)
 {
     JsonParser *parser = json_parser_new();
@@ -89,6 +98,13 @@ signald_handle_input(const char * json, SignaldAccount *da)
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_error("signald", "Subscribed!\n");
             purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
+        } else if (purple_strequal(type, "message")) {
+            obj = json_object_get_object_member(obj, "data");
+            const gchar *username = json_object_get_string_member(obj, "source");
+            const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: this probably means "time of delivery"
+            obj = json_object_get_object_member(obj, "dataMessage");
+            const gchar *message = json_object_get_string_member(obj, "message");
+            signald_process_message(da, username, message, timestamp_str);
         } else {
             purple_debug_error("signald", "Ignored message of unknown type.\n");
         }

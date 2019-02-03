@@ -92,22 +92,27 @@ signald_handle_input(const char * json, SignaldAccount *da)
         const gchar *type = json_object_get_string_member(obj, "type");
         if (purple_strequal(type, "version")) {
             purple_debug_error("signald", "signald version ignored.\n");
+        } else if (purple_strequal(type, "success")) {
+            purple_debug_error("signald", "Success noticed.\n");
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_error("signald", "Subscribed!\n");
             purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
         } else if (purple_strequal(type, "message")) {
             obj = json_object_get_object_member(obj, "data");
-            const gchar *username = json_object_get_string_member(obj, "source");
-            const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: this probably means "time of delivery"
-            obj = json_object_get_object_member(obj, "dataMessage");
-            const gchar *message = json_object_get_string_member(obj, "message");
-            signald_process_message(da, username, message, timestamp_str);
+            gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
+            if (isreceipt) {
+                purple_debug_error("signald", "Received reciept.\n");
+            } else {
+                const gchar *username = json_object_get_string_member(obj, "source");
+                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: this probably means "time of delivery"
+                obj = json_object_get_object_member(obj, "dataMessage");
+                const gchar *message = json_object_get_string_member(obj, "message");
+                signald_process_message(da, username, message, timestamp_str);
+            }
         } else {
             purple_debug_error("signald", "Ignored message of unknown type.\n");
         }
     }
-
-    // discord_process_message
 
     g_object_unref(parser);
 }
@@ -118,28 +123,30 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     SignaldAccount *da;
     da = data;
     gssize read = 1;
-    const size_t BUFSIZE = 5000;
+    const size_t BUFSIZE = 5000; // TODO: research actual maximum message size
     char buf[BUFSIZE];
     char *b = buf;
     while (read > 0) {
-        read = recv(da->fd, b++, 1, MSG_DONTWAIT);
+        read = recv(da->fd, b++, 1, MSG_DONTWAIT); // getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info("signald", "got newline delimeted message: %s", buf);
             signald_handle_input(buf, da);
+            // reset buffer
             *buf = 0;
             b = buf;
         }
         if (b-buf+1 == BUFSIZE) {
             purple_debug_info("signald", "message exceeded buffer size: %s\n", buf);
             b = buf;
-            // TODO: error out
+            // NOTE: incomplete message may be passed to handler
+            return;
         }
     }
     if (read < 0)
     {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-            // message could be complete
+            // assume message is complete and was handled
         } else {
             //peer_connection_destroy(conn, OSCAR_DISCONNECT_LOST_CONNECTION, g_strerror(errno));
             purple_debug_info("signald", "recv error is %s\n",strerror(errno));
@@ -191,6 +198,7 @@ signald_login(PurpleAccount *account)
     da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, da);
 
     char subscribe_msg[128];
+    // TODO: build json properly
     sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}\n", purple_account_get_username(account));
     int l = strlen(subscribe_msg);
     int w = write(fd, subscribe_msg, l);
@@ -239,18 +247,21 @@ signald_send_im(PurpleConnection *pc,
 {
 #endif
     SignaldAccount *da = purple_connection_get_protocol_data(pc);
+    // build json
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "send");
     json_object_set_string_member(data, "username", purple_account_get_username(da->account));
     json_object_set_string_member(data, "recipientNumber", who);
     json_object_set_string_member(data, "messageBody", message);
     char *json = json_object_to_string(data);
+    // append a newline
     int l = strlen(json)+2;
     char *jsonn = malloc(l);
     strcpy(jsonn, json);
     jsonn[l-2] = '\n';
     jsonn[l-1] = 0;
-    purple_debug_info("signald", "Sending:%s", jsonn);
+    //purple_debug_info("signald", "Sending:%s", jsonn);
+    // send json message
     int w = write(da->fd, jsonn, l);
     free(jsonn);
     g_free(json);

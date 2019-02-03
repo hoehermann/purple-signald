@@ -1,5 +1,5 @@
 /*
- *   Pipe plugin for libpurple
+ *   signald plugin for libpurple
  *   Copyright (C) 2016 hermann Höhne
  *
  *   This program is free software: you can redistribute it and/or modify
@@ -38,11 +38,11 @@
 #include <json-glib/json-glib.h>
 #include "purple_compat.h"
 
-#define PIPE_PLUGIN_ID "prpl-hehoe-pipe"
-#ifndef PIPE_PLUGIN_VERSION
-#define PIPE_PLUGIN_VERSION "0.1"
+#define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
+#ifndef SIGNALD_PLUGIN_VERSION
+#define SIGNALD_PLUGIN_VERSION "0.1"
 #endif
-#define PIPE_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-pipe"
+#define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
 
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
 
@@ -54,7 +54,7 @@ typedef struct {
 
     int fd;
     guint watcher;
-} PipeAccount;
+} SignaldAccount;
 
 /** libpurple requires unique chat id's per conversation.
 	we use a hash function to convert the 64bit conversation id
@@ -63,19 +63,19 @@ typedef struct {
 	however libpurple requires positive integers */
 
 static const char *
-pipe_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
+signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 {
-    return "pipe";
+    return "signald";
 }
 
 void
-pipe_handle_input(const char * json, PipeAccount *da)
+signald_handle_input(const char * json, SignaldAccount *da)
 {
     JsonParser *parser = json_parser_new();
     JsonNode *root;
 
     if (!json_parser_load_from_data(parser, json, -1, NULL)) {
-        purple_debug_error("pipe", "Error parsing input.\n");
+        purple_debug_error("signald", "Error parsing input.\n");
         return;
     }
 
@@ -84,24 +84,25 @@ pipe_handle_input(const char * json, PipeAccount *da)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
-        const size_t TYPE_STR_MAX_LEN = 12;
-        if (!strncmp(type, "version", TYPE_STR_MAX_LEN)) {
-            purple_debug_error("pipe", "signald version ignored.\n");
-        } else if (!strncmp(type, "subscribed", TYPE_STR_MAX_LEN)) {
-            purple_debug_error("pipe", "Subscribed!\n");
+        if (purple_strequal(type, "version")) {
+            purple_debug_error("signald", "signald version ignored.\n");
+        } else if (purple_strequal(type, "subscribed")) {
+            purple_debug_error("signald", "Subscribed!\n");
             purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
         } else {
-            purple_debug_error("pipe", "Ignored message of unknown type.\n");
+            purple_debug_error("signald", "Ignored message of unknown type.\n");
         }
     }
+
+    // discord_process_message
 
     g_object_unref(parser);
 }
 
 void
-pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
+signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 {
-    PipeAccount *da;
+    SignaldAccount *da;
     da = data;
     gssize read = 1;
     const size_t BUFSIZE = 5000;
@@ -111,13 +112,13 @@ pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         read = recv(da->fd, b++, 1, MSG_DONTWAIT);
         if(b[-1] == '\n') {
             *b = 0;
-            purple_debug_info("pipe", "got newline delimeted message: %s", buf);
-            pipe_handle_input(buf, da);
+            purple_debug_info("signald", "got newline delimeted message: %s", buf);
+            signald_handle_input(buf, da);
             *buf = 0;
             b = buf;
         }
         if (b-buf+1 == BUFSIZE) {
-            purple_debug_info("pipe", "message exceeded buffer size: %s\n", buf);
+            purple_debug_info("signald", "message exceeded buffer size: %s\n", buf);
             b = buf;
             // TODO: error out
         }
@@ -128,17 +129,17 @@ pipe_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             // message could be complete
         } else {
             //peer_connection_destroy(conn, OSCAR_DISCONNECT_LOST_CONNECTION, g_strerror(errno));
-            purple_debug_info("pipe", "recv error is %s\n",strerror(errno));
+            purple_debug_info("signald", "recv error is %s\n",strerror(errno));
             return;
         }
     }
     if (*buf) {
-        purple_debug_info("pipe", "left in buffer: %s\n", buf);
+        purple_debug_info("signald", "left in buffer: %s\n", buf);
     }
 }
 
 void
-pipe_login(PurpleAccount *account)
+signald_login(PurpleAccount *account)
 {
     PurpleConnection *pc = purple_account_get_connection(account);
     PurpleConnectionFlags pc_flags;
@@ -150,7 +151,7 @@ pipe_login(PurpleAccount *account)
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
-    PipeAccount *da = g_new0(PipeAccount, 1);
+    SignaldAccount *da = g_new0(SignaldAccount, 1);
     purple_connection_set_protocol_data(pc, da);
     da->account = account;
     da->pc = pc;
@@ -158,7 +159,7 @@ pipe_login(PurpleAccount *account)
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
-        purple_debug_info("pipe", "socket() error is %s\n", strerror(errno));
+        purple_debug_info("signald", "socket() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create to socket."));
         return;
     }
@@ -169,34 +170,34 @@ pipe_login(PurpleAccount *account)
     strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
     if (connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un)) != 0)
     {
-        purple_debug_info("pipe", "connect() error is %s\n", strerror(errno));
+        purple_debug_info("signald", "connect() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
         return;
     }
     da->fd = fd;
-    da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, pipe_read_cb, da);
+    da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, da);
 
     char subscribe_msg[128];
     sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}\n", purple_account_get_username(account));
     int l = strlen(subscribe_msg);
     int w = write(fd, subscribe_msg, l);
     if (w != l) {
-        purple_debug_info("pipe", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could write subscribtion message."));
         return;
     }
 }
 
 static void
-pipe_close(PurpleConnection *pc)
+signald_close(PurpleConnection *pc)
 {
-    PipeAccount *da = purple_connection_get_protocol_data(pc);
+    SignaldAccount *da = purple_connection_get_protocol_data(pc);
     close(da->fd);
     g_free(da);
 }
 
 static GList *
-pipe_status_types(PurpleAccount *account)
+signald_status_types(PurpleAccount *account)
 {
     GList *types = NULL;
     PurpleStatusType *status;
@@ -211,7 +212,7 @@ pipe_status_types(PurpleAccount *account)
 }
 
 static int
-pipe_send_im(PurpleConnection *pc,
+signald_send_im(PurpleConnection *pc,
 #if PURPLE_VERSION_CHECK(3, 0, 0)
                 PurpleMessage *msg)
 {
@@ -228,7 +229,7 @@ pipe_send_im(PurpleConnection *pc,
 }
 
 static GList *
-pipe_add_account_options(GList *account_options)
+signald_add_account_options(GList *account_options)
 {
     PurpleAccountOption *option;
 
@@ -250,7 +251,7 @@ pipe_add_account_options(GList *account_options)
 }
 
 static GList *
-pipe_actions(
+signald_actions(
 #if !PURPLE_VERSION_CHECK(3, 0, 0)
   PurplePlugin *plugin, gpointer context
 #else
@@ -312,7 +313,7 @@ plugin_init(PurplePlugin *plugin)
 #endif
 
     prpl_info->options = OPT_PROTO_NO_PASSWORD;
-    prpl_info->protocol_options = pipe_add_account_options(prpl_info->protocol_options);
+    prpl_info->protocol_options = signald_add_account_options(prpl_info->protocol_options);
 
     /*
 	prpl_info->get_account_text_table = discord_get_account_text_table;
@@ -320,19 +321,19 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->status_text = discord_status_text;
 	prpl_info->tooltip_text = discord_tooltip_text;
     */
-    prpl_info->list_icon = pipe_list_icon;
+    prpl_info->list_icon = signald_list_icon;
     /*
 	prpl_info->set_status = discord_set_status;
 	prpl_info->set_idle = discord_set_idle;
     */
-    prpl_info->status_types = pipe_status_types;
+    prpl_info->status_types = signald_status_types;
     /*
 	prpl_info->chat_info = discord_chat_info;
 	prpl_info->chat_info_defaults = discord_chat_info_defaults;
     */
-    prpl_info->login = pipe_login;
-    prpl_info->close = pipe_close;
-    prpl_info->send_im = pipe_send_im;
+    prpl_info->login = signald_login;
+    prpl_info->close = signald_close;
+    prpl_info->send_im = signald_send_im;
     /*
 	prpl_info->send_typing = discord_send_typing;
 	prpl_info->join_chat = discord_join_chat;
@@ -366,29 +367,29 @@ static PurplePluginInfo info = {
 	0,								/* flags */
 	NULL,							/* dependencies */
 	PURPLE_PRIORITY_DEFAULT,		/* priority */
-	PIPE_PLUGIN_ID,				/* id */
-    "Pipe",						/* name */
-	PIPE_PLUGIN_VERSION,			/* version */
+	SIGNALD_PLUGIN_ID,				/* id */
+    "signald",						/* name */
+	SIGNALD_PLUGIN_VERSION,			/* version */
 	"",								/* summary */
 	"",								/* description */
     "Hermann Hoehne <hoehermann@gmx.de>", /* author */
-	PIPE_PLUGIN_WEBSITE,			/* homepage */
+	SIGNALD_PLUGIN_WEBSITE,			/* homepage */
 	libpurple2_plugin_load,			/* load */
 	libpurple2_plugin_unload,		/* unload */
 	NULL,							/* destroy */
 	NULL,							/* ui_info */
 	NULL,							/* extra_info */
 	NULL,							/* prefs_info */
-    pipe_actions,				/* actions */
+    signald_actions,				/* actions */
 	NULL,							/* padding */
 	NULL,
 	NULL,
 	NULL
 };
 
-PURPLE_INIT_PLUGIN(pipe, plugin_init, info);
+PURPLE_INIT_PLUGIN(signald, plugin_init, info);
 
 #else
 /* Purple 3 plugin load functions */
-#perror This was never tested.
+#perror Purple 3 not supported.
 #endif

@@ -8,7 +8,7 @@ PLUGIN_VERSION ?= 0.1.$(shell date +%Y.%m.%d).git.$(GIT_REVISION_ID)
 CFLAGS	?= -O2 -g -pipe -Wall
 LDFLAGS ?= -Wl,-z,relro
 
-CFLAGS  += -std=c99 -DPIPE_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
+CFLAGS  += -std=c99 -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 
 CC ?= gcc
 
@@ -16,7 +16,7 @@ ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
   TARGET = FAILNOPURPLE
   DEST =
 else
-  TARGET = libpipe.so
+  TARGET = libsignald.so
   DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=plugindir purple`
   LOCALEDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir purple)/locale
 endif
@@ -24,7 +24,7 @@ endif
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 PURPLE_COMPAT_FILES :=
-PURPLE_C_FILES := libpipe.c $(C_FILES)
+PURPLE_C_FILES := libsignald.c $(C_FILES)
 
 .PHONY:	all FAILNOPURPLE clean
 
@@ -32,7 +32,7 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
 all: $(TARGET)
 
-libpipe.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
+libsignald.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
 	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 json-glib-1.0 --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
 
 FAILNOPURPLE:

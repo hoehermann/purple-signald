@@ -1,1 +1,1 @@
-# purple-pipe
+# purple-signald

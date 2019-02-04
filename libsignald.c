@@ -27,7 +27,7 @@
 #include <sys/un.h> // for sockaddr_un
 
 #ifdef ENABLE_NLS
-//
+// TODO: implement localisation
 #else
 #      define _(a) (a)
 #      define N_(a) (a)
@@ -149,6 +149,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             // assume message is complete and was handled
         } else {
             //peer_connection_destroy(conn, OSCAR_DISCONNECT_LOST_CONNECTION, g_strerror(errno));
+            // TODO: error out?
             purple_debug_info("signald", "recv error is %s\n",strerror(errno));
             return;
         }
@@ -179,6 +180,7 @@ signald_login(PurpleAccount *account)
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
+        purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_debug_info("signald", "socket() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create to socket."));
         return;
@@ -190,6 +192,7 @@ signald_login(PurpleAccount *account)
     strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
     if (connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un)) != 0)
     {
+        purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_debug_info("signald", "connect() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
         return;
@@ -203,8 +206,9 @@ signald_login(PurpleAccount *account)
     int l = strlen(subscribe_msg);
     int w = write(fd, subscribe_msg, l);
     if (w != l) {
+        purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could write subscribtion message."));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscribtion message."));
         return;
     }
 }

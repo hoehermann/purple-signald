@@ -179,6 +179,16 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
+gchar *
+append_newline(gchar *str)
+{
+    int desired_length = strlen(str)+2;
+    char *strn = g_malloc0(desired_length);
+    strcpy(strn, str);
+    strn[desired_length-2] = '\n';
+    return strn;
+}
+
 void
 signald_login(PurpleAccount *account)
 {
@@ -224,11 +234,16 @@ signald_login(PurpleAccount *account)
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
     // subscribe to the configured number
-    char subscribe_msg[128];
-    // TODO: build json properly
-    sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}\n", purple_account_get_username(account));
-    int l = strlen(subscribe_msg);
-    int w = write(fd, subscribe_msg, l);
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "subscribe");
+    json_object_set_string_member(data, "username", purple_account_get_username(account));
+    // TODO: create a "write json" helper function
+    char *json = json_object_to_string(data);
+    char *jsonn = append_newline(json);
+    g_free(json);
+    int l = strlen(jsonn);
+    int w = write(fd, jsonn, l);
+    g_free(jsonn);
     if (w != l) {
         purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
@@ -285,17 +300,13 @@ signald_send_im(PurpleConnection *pc,
     json_object_set_string_member(data, "recipientNumber", who);
     json_object_set_string_member(data, "messageBody", message);
     char *json = json_object_to_string(data);
-    // append a newline
-    int l = strlen(json)+2;
-    char *jsonn = malloc(l);
-    strcpy(jsonn, json);
-    jsonn[l-2] = '\n';
-    jsonn[l-1] = 0;
+    char *jsonn = append_newline(json);
+    g_free(json);
     //purple_debug_info("signald", "Sending:%s", jsonn);
     // send json message
+    int l = strlen(jsonn);
     int w = write(sa->fd, jsonn, l);
-    free(jsonn);
-    g_free(json);
+    g_free(jsonn);
     json_object_unref(data);
     if (w != l) {
         purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));

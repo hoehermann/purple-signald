@@ -45,6 +45,10 @@
 
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
 
+#define SIGNALD_STATUS_STR_ONLINE   "online"
+#define SIGNALD_STATUS_STR_OFFLINE   "offline"
+#define SIGNALD_STATUS_STR_MOBILE   "mobile"
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
@@ -53,16 +57,22 @@ typedef struct {
     guint watcher;
 } SignaldAccount;
 
-/** libpurple requires unique chat id's per conversation.
-	we use a hash function to convert the 64bit conversation id
-	into a platform-dependent chat id (worst case 32bit).
-	previously we used g_int64_hash() from glib, 
-	however libpurple requires positive integers */
-
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 {
     return "signald";
+}
+
+void
+signald_all_buddies_online(SignaldAccount *da)
+{
+    GSList *buddies = purple_find_buddies(da->account, NULL);
+    while (buddies != NULL) {
+        PurpleBuddy *buddy = buddies->data;
+        purple_prpl_got_user_status(da->account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
+        purple_prpl_got_user_status(da->account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+        buddies = g_slist_delete_link(buddies, buddies);
+    }
 }
 
 void
@@ -97,6 +107,9 @@ signald_handle_input(const char * json, SignaldAccount *da)
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_error("signald", "Subscribed!\n");
             purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
+            if (purple_account_get_bool(da->account, "fake-online", TRUE)) {
+                signald_all_buddies_online(da);
+            }
         } else if (purple_strequal(type, "message")) {
             obj = json_object_get_object_member(obj, "data");
             gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
@@ -230,11 +243,14 @@ signald_status_types(PurpleAccount *account)
     GList *types = NULL;
     PurpleStatusType *status;
 
-    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, "set-online", _("Online"), TRUE, FALSE, FALSE);
+    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, _("Online"), TRUE, FALSE, FALSE);
     types = g_list_append(types, status);
 
-    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, "set-offline", _("Offline"), TRUE, TRUE, FALSE);
+    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, SIGNALD_STATUS_STR_OFFLINE, _("Offline"), TRUE, TRUE, FALSE);
     types = g_list_append(types, status);
+
+    status = purple_status_type_new_full(PURPLE_STATUS_MOBILE, SIGNALD_STATUS_STR_MOBILE, NULL, FALSE, FALSE, TRUE);
+    types = g_list_prepend(types, status);
 
     return types;
 }
@@ -297,6 +313,13 @@ signald_add_account_options(GList *account_options)
                 _("socket"),
                 "socket",
                 SIGNALD_DEFAULT_SOCKET
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
+                _("Display all contacts as online after connecting to signald"),
+                "fake-online",
+                TRUE
                 );
     account_options = g_list_append(account_options, option);
 

@@ -46,7 +46,7 @@
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
 
 #define SIGNALD_STATUS_STR_ONLINE   "online"
-#define SIGNALD_STATUS_STR_OFFLINE   "offline"
+#define SIGNALD_STATUS_STR_OFFLINE  "offline"
 #define SIGNALD_STATUS_STR_MOBILE   "mobile"
 
 typedef struct {
@@ -71,26 +71,26 @@ signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
-signald_assume_all_buddies_online(SignaldAccount *da)
+signald_assume_all_buddies_online(SignaldAccount *sa)
 {
-    GSList *buddies = purple_find_buddies(da->account, NULL);
+    GSList *buddies = purple_find_buddies(sa->account, NULL);
     while (buddies != NULL) {
-        signald_assume_buddy_online(da->account, buddies->data);
+        signald_assume_buddy_online(sa->account, buddies->data);
         buddies = g_slist_delete_link(buddies, buddies);
     }
 }
 
 void
-signald_process_message(SignaldAccount *da,
+signald_process_message(SignaldAccount *sa,
         const gchar *username, const gchar *content, const gchar *timestamp_str)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
     time_t timestamp = purple_str_to_time(timestamp_str, FALSE, NULL, NULL, NULL);
-    purple_serv_got_im(da->pc, username, content, flags, timestamp);
+    purple_serv_got_im(sa->pc, username, content, flags, timestamp);
 }
 
 void
-signald_handle_input(const char * json, SignaldAccount *da)
+signald_handle_input(SignaldAccount *sa, const char * json)
 {
     JsonParser *parser = json_parser_new();
     JsonNode *root;
@@ -111,21 +111,22 @@ signald_handle_input(const char * json, SignaldAccount *da)
             purple_debug_error("signald", "Success noticed.\n");
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_error("signald", "Subscribed!\n");
-            purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
-            if (purple_account_get_bool(da->account, "fake-online", TRUE)) {
-                signald_assume_all_buddies_online(da);
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
+            if (purple_account_get_bool(sa->account, "fake-online", TRUE)) {
+                signald_assume_all_buddies_online(sa);
             }
         } else if (purple_strequal(type, "message")) {
             obj = json_object_get_object_member(obj, "data");
             gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
             if (isreceipt) {
+                // TODO: this could be displayed in the conversation window
                 purple_debug_error("signald", "Received reciept.\n");
             } else {
                 const gchar *username = json_object_get_string_member(obj, "source");
-                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: this probably means "time of delivery"
+                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: create time_t from integer timestamp as timestampISO probably means "time of delivery" instead of the time the message was sent
                 obj = json_object_get_object_member(obj, "dataMessage");
                 const gchar *message = json_object_get_string_member(obj, "message");
-                signald_process_message(da, username, message, timestamp_str);
+                signald_process_message(sa, username, message, timestamp_str);
             }
         } else {
             purple_debug_error("signald", "Ignored message of unknown type.\n");
@@ -138,18 +139,20 @@ signald_handle_input(const char * json, SignaldAccount *da)
 void
 signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 {
-    SignaldAccount *da;
-    da = data;
+    SignaldAccount *sa;
+    sa = data;
+    // this function essentially just reads bytes into a buffer until a newline is reached
+    // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
     gssize read = 1;
     const size_t BUFSIZE = 5000; // TODO: research actual maximum message size
     char buf[BUFSIZE];
     char *b = buf;
     while (read > 0) {
-        read = recv(da->fd, b++, 1, MSG_DONTWAIT); // getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
+        read = recv(sa->fd, b++, 1, MSG_DONTWAIT);
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info("signald", "got newline delimeted message: %s", buf);
-            signald_handle_input(buf, da);
+            signald_handle_input(sa, buf);
             // reset buffer
             *buf = 0;
             b = buf;
@@ -157,16 +160,15 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         if (b-buf+1 == BUFSIZE) {
             purple_debug_info("signald", "message exceeded buffer size: %s\n", buf);
             b = buf;
-            // NOTE: incomplete message may be passed to handler
+            // NOTE: incomplete message may be passed to handler during next call
             return;
         }
     }
     if (read < 0)
     {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-            // assume message is complete and was handled
+            // assume the message is complete and was probably handled
         } else {
-            //peer_connection_destroy(conn, OSCAR_DISCONNECT_LOST_CONNECTION, g_strerror(errno));
             // TODO: error out?
             purple_debug_info("signald", "recv error is %s\n",strerror(errno));
             return;
@@ -181,8 +183,9 @@ void
 signald_login(PurpleAccount *account)
 {
     PurpleConnection *pc = purple_account_get_connection(account);
-    PurpleConnectionFlags pc_flags;
 
+    // this protocoll does not support anything special right now
+    PurpleConnectionFlags pc_flags;
     pc_flags = purple_connection_get_flags(pc);
     pc_flags |= PURPLE_CONNECTION_NO_IMAGES;
     pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
@@ -190,12 +193,13 @@ signald_login(PurpleAccount *account)
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
-    SignaldAccount *da = g_new0(SignaldAccount, 1);
-    purple_connection_set_protocol_data(pc, da);
-    da->account = account;
-    da->pc = pc;
+    SignaldAccount *sa = g_new0(SignaldAccount, 1);
+    purple_connection_set_protocol_data(pc, sa);
+    sa->account = account;
+    sa->pc = pc;
 
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
+    // create a socket
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         purple_connection_set_state(pc, PURPLE_DISCONNECTED);
@@ -204,6 +208,7 @@ signald_login(PurpleAccount *account)
         return;
     }
 
+    // connect our socket to signald socket
     struct sockaddr_un address;
     memset(&address, 0, sizeof(struct sockaddr_un));
     address.sun_family = AF_UNIX;
@@ -215,9 +220,10 @@ signald_login(PurpleAccount *account)
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
         return;
     }
-    da->fd = fd;
-    da->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, da);
+    sa->fd = fd;
+    sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
+    // subscribe to the configured number
     char subscribe_msg[128];
     // TODO: build json properly
     sprintf(subscribe_msg, "{\"type\": \"subscribe\", \"username\": \"%s\"}\n", purple_account_get_username(account));
@@ -234,12 +240,12 @@ signald_login(PurpleAccount *account)
 static void
 signald_close(PurpleConnection *pc)
 {
-    SignaldAccount *da = purple_connection_get_protocol_data(pc);
-    purple_input_remove(da->watcher);
-    da->watcher = 0;
-    close(da->fd);
-    da->fd = 0;
-    g_free(da);
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    purple_input_remove(sa->watcher);
+    sa->watcher = 0;
+    close(sa->fd);
+    sa->fd = 0;
+    g_free(sa);
 }
 
 static GList *
@@ -271,11 +277,11 @@ signald_send_im(PurpleConnection *pc,
                 const gchar *who, const gchar *message, PurpleMessageFlags flags)
 {
 #endif
-    SignaldAccount *da = purple_connection_get_protocol_data(pc);
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     // build json
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "send");
-    json_object_set_string_member(data, "username", purple_account_get_username(da->account));
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     json_object_set_string_member(data, "recipientNumber", who);
     json_object_set_string_member(data, "messageBody", message);
     char *json = json_object_to_string(data);
@@ -287,7 +293,7 @@ signald_send_im(PurpleConnection *pc,
     jsonn[l-1] = 0;
     //purple_debug_info("signald", "Sending:%s", jsonn);
     // send json message
-    int w = write(da->fd, jsonn, l);
+    int w = write(sa->fd, jsonn, l);
     free(jsonn);
     g_free(json);
     json_object_unref(data);
@@ -306,9 +312,9 @@ signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
 #endif
                   )
 {
-    SignaldAccount *da = purple_connection_get_protocol_data(pc);
-    if (purple_account_get_bool(da->account, "fake-online", TRUE)) {
-        signald_assume_buddy_online(da->account, buddy);
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    if (purple_account_get_bool(sa->account, "fake-online", TRUE)) {
+        signald_assume_buddy_online(sa->account, buddy);
     }
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
 }
@@ -409,7 +415,7 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->set_status = discord_set_status;
 	prpl_info->set_idle = discord_set_idle;
     */
-    prpl_info->status_types = signald_status_types;
+    prpl_info->status_types = signald_status_types; // this actually needs to exist, else the protocol cannot be set to "online"
     /*
 	prpl_info->chat_info = discord_chat_info;
 	prpl_info->chat_info_defaults = discord_chat_info_defaults;

@@ -277,6 +277,17 @@ signald_send_im(PurpleConnection *pc,
     return 1;
 }
 
+static void
+signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
+#if PURPLE_VERSION_CHECK(3, 0, 0)
+                  ,
+                  const char *message
+#endif
+                  )
+{
+    // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
+}
+
 static GList *
 signald_add_account_options(GList *account_options)
 {
@@ -383,7 +394,9 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->chat_send = discord_chat_send;
 	prpl_info->set_chat_topic = discord_chat_set_topic;
 	prpl_info->get_cb_real_name = discord_get_real_name;
-	prpl_info->add_buddy = discord_add_buddy;
+    */
+    prpl_info->add_buddy = signald_add_buddy;
+    /*
 	prpl_info->remove_buddy = discord_buddy_remove;
 	prpl_info->group_buddy = discord_fake_group_buddy;
 	prpl_info->rename_group = discord_fake_group_rename;

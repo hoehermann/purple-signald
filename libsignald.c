@@ -64,13 +64,18 @@ signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 }
 
 void
-signald_all_buddies_online(SignaldAccount *da)
+signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
+{
+    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
+    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+}
+
+void
+signald_assume_all_buddies_online(SignaldAccount *da)
 {
     GSList *buddies = purple_find_buddies(da->account, NULL);
     while (buddies != NULL) {
-        PurpleBuddy *buddy = buddies->data;
-        purple_prpl_got_user_status(da->account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
-        purple_prpl_got_user_status(da->account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+        signald_assume_buddy_online(da->account, buddies->data);
         buddies = g_slist_delete_link(buddies, buddies);
     }
 }
@@ -108,7 +113,7 @@ signald_handle_input(const char * json, SignaldAccount *da)
             purple_debug_error("signald", "Subscribed!\n");
             purple_connection_set_state(da->pc, PURPLE_CONNECTION_CONNECTED);
             if (purple_account_get_bool(da->account, "fake-online", TRUE)) {
-                signald_all_buddies_online(da);
+                signald_assume_all_buddies_online(da);
             }
         } else if (purple_strequal(type, "message")) {
             obj = json_object_get_object_member(obj, "data");
@@ -301,6 +306,10 @@ signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
 #endif
                   )
 {
+    SignaldAccount *da = purple_connection_get_protocol_data(pc);
+    if (purple_account_get_bool(da->account, "fake-online", TRUE)) {
+        signald_assume_buddy_online(da->account, buddy);
+    }
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
 }
 
@@ -317,7 +326,7 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Display all contacts as online after connecting to signald"),
+                _("Display all contacts as online"),
                 "fake-online",
                 TRUE
                 );

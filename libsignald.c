@@ -39,7 +39,7 @@
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
 #ifndef SIGNALD_PLUGIN_VERSION
-#define SIGNALD_PLUGIN_VERSION "0.1"
+#define SIGNALD_PLUGIN_VERSION "0.1.1"
 #endif
 #define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
 
@@ -82,11 +82,13 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
 
 void
 signald_process_message(SignaldAccount *sa,
-        const gchar *username, const gchar *content, const gchar *timestamp_str)
+        const gchar *username, const gchar *content, const gchar *timestamp_str,
+        const gchar *groupid_str, const gchar *groupname)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
     time_t timestamp = purple_str_to_time(timestamp_str, FALSE, NULL, NULL, NULL);
-    purple_serv_got_im(sa->pc, username, content, flags, timestamp);
+    const gchar * sender = groupid_str && *groupid_str ? groupid_str : username;
+    purple_serv_got_im(sa->pc, sender, content, flags, timestamp);
 }
 
 void
@@ -108,6 +110,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         if (purple_strequal(type, "version")) {
             purple_debug_error("signald", "signald version ignored.\n");
         } else if (purple_strequal(type, "success")) {
+            // TODO: mark message as delayed (maybe do not echo) until success is reported
             purple_debug_error("signald", "Success noticed.\n");
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_error("signald", "Subscribed!\n");
@@ -120,13 +123,21 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
             if (isreceipt) {
                 // TODO: this could be displayed in the conversation window
+                // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
                 purple_debug_error("signald", "Received reciept.\n");
             } else {
                 const gchar *username = json_object_get_string_member(obj, "source");
                 const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: create time_t from integer timestamp as timestampISO probably means "time of delivery" instead of the time the message was sent
                 obj = json_object_get_object_member(obj, "dataMessage");
                 const gchar *message = json_object_get_string_member(obj, "message");
-                signald_process_message(sa, username, message, timestamp_str);
+                obj = json_object_get_object_member(obj, "groupInfo");
+                const gchar *groupid_str = NULL;
+                const gchar *groupname = NULL;
+                if (obj) {
+                    groupid_str = json_object_get_string_member(obj, "groupId");
+                    groupname = json_object_get_string_member(obj, "name");
+                }
+                signald_process_message(sa, username, message, timestamp_str, groupid_str, groupname);
             }
         } else {
             purple_debug_error("signald", "Ignored message of unknown type.\n");
@@ -297,7 +308,7 @@ signald_send_im(PurpleConnection *pc,
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "send");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, "recipientNumber", who);
+    json_object_set_string_member(data, who[0]=='+' ? "recipientNumber" : "recipientGroupId", who);
     json_object_set_string_member(data, "messageBody", message);
     char *json = json_object_to_string(data);
     char *jsonn = append_newline(json);

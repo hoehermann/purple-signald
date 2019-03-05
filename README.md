@@ -17,6 +17,7 @@ Tested on Ubuntu 18.04.
 
 ### Missing Features
 
+* signald configuration (i.e. initial number registration)
 * Integrating with the buddy list
 * Proper group chats (right now you can send and receive group messages, but you cannot tell which one of the group members is answering)
 * Anything beyond simple messaging, really

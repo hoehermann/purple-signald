@@ -39,7 +39,7 @@
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
 #ifndef SIGNALD_PLUGIN_VERSION
-#define SIGNALD_PLUGIN_VERSION "0.1.1"
+#error Must set SIGNALD_PLUGIN_VERSION in Makefile
 #endif
 #define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
 
@@ -507,5 +507,5 @@ PURPLE_INIT_PLUGIN(signald, plugin_init, info);
 
 #else
 /* Purple 3 plugin load functions */
-#perror Purple 3 not supported.
+#error Purple 3 not supported.
 #endif

@@ -102,6 +102,24 @@ signald_process_message(SignaldAccount *sa,
     purple_serv_got_im(sa->pc, sender, content, flags, timestamp);
 }
 
+
+
+void
+signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+    SignaldAccount *sa = (SignaldAccount *)user_data;
+    JsonObject *obj = json_node_get_object(element_node);
+    const char *username = json_object_get_string_member(obj, "number");
+    const char *alias = json_object_get_string_member(obj, "name");
+    signald_add_purple_buddy(sa, username, alias);
+}
+
+void
+signald_process_contact_list(SignaldAccount *sa, JsonArray *data)
+{
+    json_array_foreach_element(data, signald_process_contact, sa);
+}
+
 void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
@@ -155,6 +173,8 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s: %s\n", username, message);
                 signald_process_message(sa, username, message, timestamp, groupid_str, groupname);
             }
+        } else if (purple_strequal(type, "contact_list")) {
+            signald_process_contact_list(sa, json_object_get_array_member(obj, "data"));
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
@@ -283,8 +303,13 @@ signald_login(PurpleAccount *account)
     json_object_set_string_member(data, "username", purple_account_get_username(account));
     if (!signald_send_json(sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscribtion message."));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
+    json_object_set_string_member(data, "type", "list_contacts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not get contacts."));
+    }
+    json_object_unref(data);
 }
 
 static void

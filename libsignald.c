@@ -198,15 +198,32 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
-//TODO: Seems inefficient
-gchar *
-append_newline(gchar *str)
+
+gboolean
+signald_send_str(SignaldAccount *sa, char *s)
 {
-    int desired_length = strlen(str)+2;
-    char *strn = g_malloc0(desired_length);
-    strcpy(strn, str);
-    strn[desired_length-2] = '\n';
-    return strn;
+    int l = strlen(s);
+    int w = write(sa->fd, s, l);
+    if (w != l) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+
+gboolean
+signald_send_json(SignaldAccount *sa, JsonObject *data)
+{
+    gboolean success;
+    char *json = json_object_to_string(data);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Sending: %s\n", json);
+    success = signald_send_str(sa, json);
+    if (success) {
+        success = signald_send_str(sa, "\n");
+    }
+    g_free(json);
+    return success;
 }
 
 void
@@ -257,26 +274,15 @@ signald_login(PurpleAccount *account)
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "subscribe");
     json_object_set_string_member(data, "username", purple_account_get_username(account));
-    // TODO: create a "write json" helper function
-    char *json = json_object_to_string(data);
-    char *jsonn = append_newline(json);
-    g_free(json);
-    int l = strlen(jsonn);
-    int w = write(fd, jsonn, l);
-    g_free(jsonn);
-    if (w != l) {
+    if (!signald_send_json(sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscribtion message."));
-        return;
     }
 }
 
 static void
 signald_close(PurpleConnection *pc)
 {
-    // TODO: find out if this is needed here
-    //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     purple_input_remove(sa->watcher);
     sa->watcher = 0;
@@ -322,17 +328,7 @@ signald_send_im(PurpleConnection *pc,
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     json_object_set_string_member(data, who[0]=='+' ? "recipientNumber" : "recipientGroupId", who);
     json_object_set_string_member(data, "messageBody", message);
-    char *json = json_object_to_string(data);
-    char *jsonn = append_newline(json);
-    g_free(json);
-    purple_debug_info(SIGNALD_PLUGIN_ID, "Sending:%s", jsonn);
-    // send json message
-    int l = strlen(jsonn);
-    int w = write(sa->fd, jsonn, l);
-    g_free(jsonn);
-    json_object_unref(data);
-    if (w != l) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+    if (!signald_send_json(sa, data)) {
         return -errno;
     }
     return 1;

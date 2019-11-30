@@ -434,7 +434,7 @@ signald_send_im(PurpleConnection *pc,
                 if (!g_file_set_contents(tmp_fn, imgdata, size, &error)) {
                     purple_debug_error(SIGNALD_PLUGIN_ID, "Error: %s\n", error->message);
                 } else {
-                    chmod(tmp_fn, 0666);
+                    chmod(tmp_fn, 0644);
                     JsonObject *attachment = json_object_new();
                     json_object_set_string_member(attachment, "filename", tmp_fn);
 //                    json_object_set_string_member(attachment, "caption", "Caption");

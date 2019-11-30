@@ -241,7 +241,6 @@ signald_login(PurpleAccount *account)
     pc_flags = purple_connection_get_flags(pc);
     pc_flags |= PURPLE_CONNECTION_NO_IMAGES; //TODO: Images should be supported
     pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
-    pc_flags |= PURPLE_CONNECTION_NO_NEWLINES;
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
@@ -326,13 +325,16 @@ signald_send_im(PurpleConnection *pc,
                 const gchar *who, const gchar *message, PurpleMessageFlags flags)
 {
 #endif
+    char *plain = purple_unescape_html(message);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     // build json
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "send");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     json_object_set_string_member(data, who[0]=='+' ? "recipientNumber" : "recipientGroupId", who);
-    json_object_set_string_member(data, "messageBody", message);
+    json_object_set_string_member(data, "messageBody", plain);
+    g_free(plain);
     if (!signald_send_json(sa, data)) {
         return -errno;
     }

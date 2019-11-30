@@ -91,11 +91,10 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
 
 void
 signald_process_message(SignaldAccount *sa,
-        const gchar *username, const gchar *content, const gchar *timestamp_str,
+        const gchar *username, const gchar *content, time_t timestamp,
         const gchar *groupid_str, const gchar *groupname)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
-    time_t timestamp = purple_str_to_time(timestamp_str, FALSE, NULL, NULL, NULL);
     const gchar * sender = groupid_str && *groupid_str ? groupid_str : username;
     purple_serv_got_im(sa->pc, sender, content, flags, timestamp);
 }
@@ -137,12 +136,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 purple_debug_info(SIGNALD_PLUGIN_ID, "Received receipt.\n");
             } else {
                 const gchar *username = json_object_get_string_member(obj, "source");
-                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO");
-                // TODO: create time_t from integer timestamp as timestampISO probably means "time of delivery" instead of the time the message was sent
-                // NOTE: time_t is an integer timestamp, but which timezone?
                 // Signals integer timestamps are in milliseconds
                 // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
                 // serverTimestamp is when the server received the message
+                time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
                 obj = json_object_get_object_member(obj, "dataMessage");
                 const gchar *message = json_object_get_string_member(obj, "message");
                 obj = json_object_get_object_member(obj, "groupInfo");
@@ -153,7 +150,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                     groupname = json_object_get_string_member(obj, "name");
                 }
                 purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s: %s\n", username, message);
-                signald_process_message(sa, username, message, timestamp_str, groupid_str, groupname);
+                signald_process_message(sa, username, message, timestamp, groupid_str, groupname);
             }
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);

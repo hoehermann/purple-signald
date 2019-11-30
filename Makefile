@@ -17,8 +17,9 @@ ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
   DEST =
 else
   TARGET = libsignald.so
-  DEST = $(DESTDIR)`$(PKG_CONFIG) --variable=plugindir purple`
+  DEST = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=plugindir purple)/
   LOCALEDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir purple)/locale
+  PIXMAPDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir pidgin)/pixmaps/pidgin/protocols
 endif
 
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
@@ -26,7 +27,7 @@ CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 PURPLE_COMPAT_FILES :=
 PURPLE_C_FILES := libsignald.c $(C_FILES)
 
-.PHONY:	all FAILNOPURPLE clean
+.PHONY:	all FAILNOPURPLE clean install
 
 LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
@@ -44,3 +45,9 @@ clean:
 gdb:
 	gdb --args pidgin -c ~/.fake_purple -n -m
 
+install:
+	install -Dm644 "$(TARGET)" "$(DEST)$(TARGET)" 
+	install -Dm644 icons/11/signal.png "$(PIXMAPDIR)/11/signal.png" 
+	install -Dm644 icons/16/signal.png "$(PIXMAPDIR)/16/signal.png"
+	install -Dm644 icons/48/signal.png "$(PIXMAPDIR)/48/signal.png"
+	

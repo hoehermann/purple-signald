@@ -60,12 +60,13 @@ typedef struct {
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 {
-    return "signald";
+    return SIGNALD_PLUGIN_ID; //TODO: Create icon
 }
 
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s", buddy->name);
     purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
     purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
 }
@@ -98,7 +99,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     JsonNode *root;
 
     if (!json_parser_load_from_data(parser, json, -1, NULL)) {
-        purple_debug_error("signald", "Error parsing input.\n");
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error parsing input: %s\n", json);
         return;
     }
 
@@ -108,12 +109,13 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
         if (purple_strequal(type, "version")) {
-            purple_debug_error("signald", "signald version ignored.\n");
+            obj = json_object_get_object_member(obj, "data");
+            purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
         } else if (purple_strequal(type, "success")) {
             // TODO: mark message as delayed (maybe do not echo) until success is reported
-            purple_debug_error("signald", "Success noticed.\n");
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Success noticed.\n");
         } else if (purple_strequal(type, "subscribed")) {
-            purple_debug_error("signald", "Subscribed!\n");
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
             if (purple_account_get_bool(sa->account, "fake-online", TRUE)) {
                 signald_assume_all_buddies_online(sa);
@@ -124,11 +126,15 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             if (isreceipt) {
                 // TODO: this could be displayed in the conversation window
                 // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
-                purple_debug_error("signald", "Received reciept.\n");
+                purple_debug_info(SIGNALD_PLUGIN_ID, "Received receipt.\n");
             } else {
                 const gchar *username = json_object_get_string_member(obj, "source");
-                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO"); // TODO: create time_t from integer timestamp as timestampISO probably means "time of delivery" instead of the time the message was sent
+                const gchar *timestamp_str = json_object_get_string_member(obj, "timestampISO");
+                // TODO: create time_t from integer timestamp as timestampISO probably means "time of delivery" instead of the time the message was sent
                 // NOTE: time_t is an integer timestamp, but which timezone?
+                // Signals integer timestamps are in milliseconds
+                // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
+                // serverTimestamp is when the server received the message
                 obj = json_object_get_object_member(obj, "dataMessage");
                 const gchar *message = json_object_get_string_member(obj, "message");
                 obj = json_object_get_object_member(obj, "groupInfo");
@@ -138,10 +144,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                     groupid_str = json_object_get_string_member(obj, "groupId");
                     groupname = json_object_get_string_member(obj, "name");
                 }
+                purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s: %s\n", username, message);
                 signald_process_message(sa, username, message, timestamp_str, groupid_str, groupname);
             }
         } else {
-            purple_debug_error("signald", "Ignored message of unknown type.\n");
+            purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
     }
 
@@ -156,21 +163,21 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     // this function essentially just reads bytes into a buffer until a newline is reached
     // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
     gssize read = 1;
-    const size_t BUFSIZE = 5000; // TODO: research actual maximum message size
+    const size_t BUFSIZE = 500000; // TODO: research actual maximum message size
     char buf[BUFSIZE];
     char *b = buf;
     while (read > 0) {
         read = recv(sa->fd, b++, 1, MSG_DONTWAIT);
         if(b[-1] == '\n') {
             *b = 0;
-            purple_debug_info("signald", "got newline delimeted message: %s", buf);
+            purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", buf);
             signald_handle_input(sa, buf);
             // reset buffer
             *buf = 0;
             b = buf;
         }
         if (b-buf+1 == BUFSIZE) {
-            purple_debug_info("signald", "message exceeded buffer size: %s\n", buf);
+            purple_debug_error(SIGNALD_PLUGIN_ID, "message exceeded buffer size: %s\n", buf);
             b = buf;
             // NOTE: incomplete message may be passed to handler during next call
             return;
@@ -182,15 +189,16 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             // assume the message is complete and was probably handled
         } else {
             // TODO: error out?
-            purple_debug_info("signald", "recv error is %s\n",strerror(errno));
+            purple_debug_error(SIGNALD_PLUGIN_ID, "recv error is %s\n",strerror(errno));
             return;
         }
     }
     if (*buf) {
-        purple_debug_info("signald", "left in buffer: %s\n", buf);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", buf);
     }
 }
 
+//TODO: Seems inefficient
 gchar *
 append_newline(gchar *str)
 {
@@ -209,7 +217,7 @@ signald_login(PurpleAccount *account)
     // this protocol does not support anything special right now
     PurpleConnectionFlags pc_flags;
     pc_flags = purple_connection_get_flags(pc);
-    pc_flags |= PURPLE_CONNECTION_NO_IMAGES;
+    pc_flags |= PURPLE_CONNECTION_NO_IMAGES; //TODO: Images should be supported
     pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
     pc_flags |= PURPLE_CONNECTION_NO_NEWLINES;
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
@@ -225,7 +233,7 @@ signald_login(PurpleAccount *account)
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_debug_info("signald", "socket() error is %s\n", strerror(errno));
+        purple_debug_error(SIGNALD_PLUGIN_ID, "socket() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create to socket."));
         return;
     }
@@ -238,7 +246,7 @@ signald_login(PurpleAccount *account)
     if (connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un)) != 0)
     {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_debug_info("signald", "connect() error is %s\n", strerror(errno));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
         return;
     }
@@ -258,7 +266,7 @@ signald_login(PurpleAccount *account)
     g_free(jsonn);
     if (w != l) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscribtion message."));
         return;
     }
@@ -277,6 +285,7 @@ signald_close(PurpleConnection *pc)
     g_free(sa);
 }
 
+//TODO: Document what this function does
 static GList *
 signald_status_types(PurpleAccount *account)
 {
@@ -316,14 +325,14 @@ signald_send_im(PurpleConnection *pc,
     char *json = json_object_to_string(data);
     char *jsonn = append_newline(json);
     g_free(json);
-    //purple_debug_info("signald", "Sending:%s", jsonn);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Sending:%s", jsonn);
     // send json message
     int l = strlen(jsonn);
     int w = write(sa->fd, jsonn, l);
     g_free(jsonn);
     json_object_unref(data);
     if (w != l) {
-        purple_debug_info("signald", "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
         return -errno;
     }
     return 1;
@@ -419,12 +428,6 @@ plugin_init(PurplePlugin *plugin)
 	}
 
 	info->extra_info = prpl_info;
-#if PURPLE_MINOR_VERSION >= 5
-    //
-#endif
-#if PURPLE_MINOR_VERSION >= 8
-    //
-#endif
 
     prpl_info->options = OPT_PROTO_NO_PASSWORD;
     prpl_info->protocol_options = signald_add_account_options(prpl_info->protocol_options);

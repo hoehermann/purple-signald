@@ -33,9 +33,17 @@
 #      define N_(a) (a)
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wall"
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-W#pragma-messages"
+#endif
+
 //#include "glib_compat.h"
 #include "json_compat.h"
 #include "purple_compat.h"
+#pragma GCC diagnostic pop
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
 #ifndef SIGNALD_PLUGIN_VERSION

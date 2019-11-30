@@ -102,6 +102,34 @@ signald_process_message(SignaldAccount *sa,
     purple_serv_got_im(sa->pc, sender, content, flags, timestamp);
 }
 
+void
+signald_parse_message(SignaldAccount *sa, JsonObject *obj)
+{
+    gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
+    if (isreceipt) {
+        // TODO: this could be displayed in the conversation window
+        // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Received receipt.\n");
+    } else {
+        const gchar *username = json_object_get_string_member(obj, "source");
+        // Signals integer timestamps are in milliseconds
+        // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
+        // serverTimestamp is when the server received the message
+        time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
+        obj = json_object_get_object_member(obj, "dataMessage");
+        const gchar *message = json_object_get_string_member(obj, "message");
+        obj = json_object_get_object_member(obj, "groupInfo");
+        const gchar *groupid_str = NULL;
+        const gchar *groupname = NULL;
+        if (obj) {
+            groupid_str = json_object_get_string_member(obj, "groupId");
+            groupname = json_object_get_string_member(obj, "name");
+        }
+        purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s: %s\n", username, message);
+        signald_process_message(sa, username, message, timestamp, groupid_str, groupname);
+    }
+}
+
 
 
 void
@@ -149,30 +177,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 signald_assume_all_buddies_online(sa);
             }
         } else if (purple_strequal(type, "message")) {
-            obj = json_object_get_object_member(obj, "data");
-            gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
-            if (isreceipt) {
-                // TODO: this could be displayed in the conversation window
-                // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
-                purple_debug_info(SIGNALD_PLUGIN_ID, "Received receipt.\n");
-            } else {
-                const gchar *username = json_object_get_string_member(obj, "source");
-                // Signals integer timestamps are in milliseconds
-                // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
-                // serverTimestamp is when the server received the message
-                time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
-                obj = json_object_get_object_member(obj, "dataMessage");
-                const gchar *message = json_object_get_string_member(obj, "message");
-                obj = json_object_get_object_member(obj, "groupInfo");
-                const gchar *groupid_str = NULL;
-                const gchar *groupname = NULL;
-                if (obj) {
-                    groupid_str = json_object_get_string_member(obj, "groupId");
-                    groupname = json_object_get_string_member(obj, "name");
-                }
-                purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s: %s\n", username, message);
-                signald_process_message(sa, username, message, timestamp, groupid_str, groupname);
-            }
+            signald_parse_message(sa, json_object_get_object_member(obj, "data"));
         } else if (purple_strequal(type, "contact_list")) {
             signald_process_contact_list(sa, json_object_get_array_member(obj, "data"));
         } else {
@@ -262,9 +267,9 @@ signald_login(PurpleAccount *account)
     // this protocol does not support anything special right now
     PurpleConnectionFlags pc_flags;
     pc_flags = purple_connection_get_flags(pc);
-    pc_flags |= PURPLE_CONNECTION_NO_IMAGES; //TODO: Images should be supported
     pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
+    pc_flags |= PURPLE_CONNECTION_ALLOW_CUSTOM_SMILEY;
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);

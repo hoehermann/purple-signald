@@ -186,6 +186,4 @@ purple_message_destroy(PurpleMessage *message)
 #define purple_chat_get_alias(chat) g_object_get_data(G_OBJECT(chat), "alias")
 #define purple_protocol_action_get_connection(action) ((action)->connection)
 #define PURPLE_TYPE_STRING G_TYPE_STRING
-//TODO remove this when dx adds this to the PurpleMessageFlags enum
-#define PURPLE_MESSAGE_REMOTE_SEND 0x10000
 #endif

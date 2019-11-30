@@ -65,6 +65,9 @@ typedef struct {
     guint watcher;
 } SignaldAccount;
 
+static void
+signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias);
+
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 {
@@ -339,6 +342,36 @@ signald_send_im(PurpleConnection *pc,
         return -errno;
     }
     return 1;
+}
+
+#define SIGNAL_DEFAULT_GROUP "Buddies"
+static void
+signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias)
+{
+    GSList *buddies;
+
+    buddies = purple_find_buddies(sa->account, username);
+    if (buddies) {
+        //Already known => do nothing
+        //TODO: Update alias
+        g_slist_free(buddies);
+        return;
+    }
+    //TODO: Remove old buddies: purple_blist_remove_buddy(b);
+    //New buddy
+    purple_debug_error(SIGNALD_PLUGIN_ID, "signald_add_purple_buddy(): Adding '%s' with alias '%s'\n", username, alias);
+
+    PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
+    if (!g) {
+        g = purple_group_new(SIGNAL_DEFAULT_GROUP);
+        purple_blist_add_group(g, NULL);
+    }
+    PurpleBuddy *b = purple_buddy_new(sa->account, username, alias);
+
+    purple_blist_add_buddy(b, NULL, g, NULL);
+    purple_blist_alias_buddy(b, alias);
+
+    signald_assume_buddy_online(sa->account, b);
 }
 
 static void

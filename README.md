@@ -12,15 +12,22 @@ Tested on Ubuntu 18.04.
 
 * Receive messages
 * Send messages
-
+* Receive files
+* Receive images
+* Send images
+* Receive buddy list from server
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")  
 
 ### Missing Features
 
 * signald configuration (i.e. initial number registration)
-* Integrating with the buddy list
+* Synchonizing message sent from another device
+* Deleting buddies from the server
+* Updating contact details
+* Contact colors
+* Expiring messages
+* Messages with quotes
 * Proper group chats (right now you can send and receive group messages, but you cannot tell which one of the group members is answering)
-* Anything beyond simple messaging, really
 
 ![Group Chat](/groupchat.png?raw=true "Group Chat Screenshot")
 

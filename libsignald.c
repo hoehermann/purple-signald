@@ -104,7 +104,11 @@ signald_process_message(SignaldAccount *sa,
     }
     const gchar * sender = groupid_str && *groupid_str ? groupid_str : username;
     g_string_append(attachments, content);
-    purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
+    // Sometimes signald delivers empty messages with no attachments seemingly coming from my own number.
+    // Ignore these messages.
+    if (attachments->len) {
+        purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
+    }
 }
 
 void
@@ -118,7 +122,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         int img_id = purple_imgstore_add_with_id(g_memdup(purple_imgstore_get_data(img), size), size, NULL);
         g_string_append_printf(message, "<IMG ID=\"%d\"/><br/>", img_id);
     } else {
-        //TODO: Receive file using libpurple API
+        //TODO: Receive file using libpurple's file transfer API
         g_string_append_printf(message, "<a href=\"file://%s\">Attachment (type: %s)</a><br/>", fn, type);
     }
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);
@@ -142,7 +146,8 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
         const gchar *message = json_object_get_string_member(obj, "message");
         JsonArray *attachments = json_object_get_array_member(obj, "attachments");
         guint len = json_array_get_length(attachments);
-        GString *attachments_message = g_string_sized_new(len * 100); //Preallocate buffer
+        //Preallocate buffer, exact size doesn't matter. It grows automatically if it is too small
+        GString *attachments_message = g_string_sized_new(len * 100);
         for (guint i=0; i < len; i++) {
             signald_parse_attachment(sa, json_array_get_object_element(attachments, i), attachments_message);
         }
@@ -357,7 +362,6 @@ signald_close(PurpleConnection *pc)
     g_free(sa);
 }
 
-//TODO: Document what this function does
 static GList *
 signald_status_types(PurpleAccount *account)
 {
@@ -423,6 +427,7 @@ signald_send_im(PurpleConnection *pc,
             //TODO: This is not very secure. But attachment handling should be reworked in signald to allow sending them in the same stream as the message
             //Signal requires the filename to end with a known image extension. However it does not care if the extension matches the image format.
             //contentType is ignored completely.
+            //https://gitlab.com/thefinn93/signald/issues/11
 
             gint file = g_file_open_tmp("XXXXXX.png", &tmp_fn, &error);
             if (file == -1) {

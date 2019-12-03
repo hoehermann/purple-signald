@@ -299,7 +299,6 @@ signald_login(PurpleAccount *account)
     pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
     pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
     pc_flags |= PURPLE_CONNECTION_ALLOW_CUSTOM_SMILEY;
-    pc_flags |= PURPLE_CONNECTION_HTML;
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);

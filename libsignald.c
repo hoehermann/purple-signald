@@ -118,6 +118,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
     if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
+        // TODO: forward "access denied" error to UI
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
         size_t size = purple_imgstore_get_size(img);
         int img_id = purple_imgstore_add_with_id(g_memdup(purple_imgstore_get_data(img), size), size, NULL);

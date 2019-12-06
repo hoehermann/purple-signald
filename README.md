@@ -16,7 +16,10 @@ Tested on Ubuntu 18.04.
 * Receive images
 * Send images
 * Receive buddy list from server
-![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")  
+
+Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user.
+
+![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 
 ### Missing Features
 

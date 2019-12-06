@@ -41,7 +41,6 @@
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #endif
 
-//#include "glib_compat.h"
 #include "json_compat.h"
 #include "purple_compat.h"
 #pragma GCC diagnostic pop
@@ -78,9 +77,11 @@ signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
-    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
-    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+    if (purple_account_get_bool(account, "fake-online", TRUE)) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
+        purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
+        purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+    }
 }
 
 void
@@ -164,8 +165,6 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
     }
 }
 
-
-
 void
 signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
 {
@@ -207,9 +206,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
-            if (purple_account_get_bool(sa->account, "fake-online", TRUE)) {
-                signald_assume_all_buddies_online(sa);
-            }
+            signald_assume_all_buddies_online(sa);
         } else if (purple_strequal(type, "message")) {
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
         } else if (purple_strequal(type, "contact_list")) {
@@ -265,19 +262,17 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
-
 gboolean
 signald_send_str(SignaldAccount *sa, char *s)
 {
     int l = strlen(s);
     int w = write(sa->fd, s, l);
     if (w != l) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n",w,l,strerror(errno));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n", w, l, strerror(errno));
         return 0;
     }
     return 1;
 }
-
 
 gboolean
 signald_send_json(SignaldAccount *sa, JsonObject *data)
@@ -346,7 +341,7 @@ signald_login(PurpleAccount *account)
     }
     json_object_set_string_member(data, "type", "list_contacts");
     if (!signald_send_json(sa, data)) {
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not get contacts."));
+        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
     }
     json_object_unref(data);
 }
@@ -401,7 +396,7 @@ signald_send_im(PurpleConnection *pc,
 
     // Search for embedded images and attach them to the message. Remove the <img> tags.
     JsonArray *attachments = json_array_new();
-    GString *msg = g_string_new("");
+    GString *msg = g_string_new(""); // this shall hold the actual message body (without the <img> tags)
     GData *attribs;
     const char *start, *end, *last;
     last = message;
@@ -432,8 +427,9 @@ signald_send_im(PurpleConnection *pc,
             gint file = g_file_open_tmp("XXXXXX.png", &tmp_fn, &error);
             if (file == -1) {
                 purple_debug_error(SIGNALD_PLUGIN_ID, "Error: %s\n", error->message);
+                // TODO: show this error to the user
             } else {
-                close(file);
+                close(file); // will be re-opened by g_file_set_contents
                 error = NULL;
                 if (!g_file_set_contents(tmp_fn, imgdata, size, &error)) {
                     purple_debug_error(SIGNALD_PLUGIN_ID, "Error: %s\n", error->message);
@@ -461,12 +457,14 @@ signald_send_im(PurpleConnection *pc,
     }
 
     /* append any remaining message data */
-    if (last && *last)
+    if (last && *last) {
         g_string_append(msg, last);
+    }
 
     json_object_set_array_member(data, "attachments", attachments);
     char *plain = purple_unescape_html(msg->str);
     json_object_set_string_member(data, "messageBody", plain);
+    // TODO: check if json_object_set_string_member manages copies of the data it is given (else these would be read from free'd memory)
     g_string_free(msg, TRUE);
     g_free(plain);
     if (!signald_send_json(sa, data)) {
@@ -514,9 +512,7 @@ signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
                   )
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    if (purple_account_get_bool(sa->account, "fake-online", TRUE)) {
-        signald_assume_buddy_online(sa->account, buddy);
-    }
+    signald_assume_buddy_online(sa->account, buddy);
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
 }
 

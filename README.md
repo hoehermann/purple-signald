@@ -8,6 +8,11 @@ I never wrote code for use in Pidgin before. EionRobb's [purple-discord](https:/
 
 Tested on Ubuntu 18.04.
 
+### Known Issues
+
+There have been reports of incoming offline-messages getting lost. I have not figured out if they are lost in libpurple-signald or in signald itself.
+
+
 ### Features
 
 * Receive messages

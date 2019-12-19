@@ -29,7 +29,7 @@ Note: When signald is being run as a system service, downloaded files may not be
 ### Missing Features
 
 * signald configuration (i.e. initial number registration)
-* Synchonizing message sent from another device
+* Synchronizing messages sent from another device
 * Deleting buddies from the server
 * Updating contact details
 * Contact colors

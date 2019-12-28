@@ -22,7 +22,7 @@ There have been reports of incoming offline-messages getting lost. I have not fi
 * Send images
 * Receive buddy list from server
 
-Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user.
+Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
 
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 

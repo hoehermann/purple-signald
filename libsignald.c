@@ -57,6 +57,8 @@
 #define SIGNALD_STATUS_STR_OFFLINE  "offline"
 #define SIGNALD_STATUS_STR_MOBILE   "mobile"
 
+#define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
@@ -94,26 +96,48 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
     }
 }
 
+PurpleConversation *
+signald_find_conversation(const char *username, PurpleAccount *account) {
+    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(username, account);
+    if (imconv == NULL) {
+        imconv = purple_im_conversation_new(account, username);
+    }
+    PurpleConversation *conv = PURPLE_CONVERSATION(imconv);
+    if (conv == NULL) {
+        imconv = purple_conversations_find_im_with_account(username, account);
+        conv = PURPLE_CONVERSATION(imconv);
+    }
+    return conv;
+}
+
 void
 signald_process_message(SignaldAccount *sa,
-        const gchar *username, const gchar *content, time_t timestamp,
+        const gchar *sender, const gchar *content, time_t timestamp,
         const gchar *groupid_str, const gchar *groupname, GString *attachments)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
     if (attachments->len) {
         flags |= PURPLE_MESSAGE_IMAGES;
     }
-    const gchar * sender = groupid_str && *groupid_str ? groupid_str : username;
+    sender = groupid_str && *groupid_str ? groupid_str : sender;
     g_string_append(attachments, content);
     // Sometimes signald delivers empty messages with no attachments seemingly coming from my own number.
     // Ignore these messages.
     if (attachments->len) {
-        purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
+        if (purple_strequal(sender, purple_account_get_username(sa->account))) {
+            // special handling of messages sent by self incoming from remote
+            // copied from hoehermann/purple-gowhatsapp/libgowhatsapp.c
+            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+            PurpleConversation *conv = signald_find_conversation(sender, sa->account);
+            purple_conversation_write(conv, sender, attachments->str, flags, timestamp);
+        } else {
+            purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
+        }
     }
 }
 
 void
-signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
+signald_parse_attachment(JsonObject *obj, GString *message)
 {
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
@@ -130,40 +154,68 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);
 }
 
+GString *
+signald_prepare_attachments_message(JsonObject *obj) {
+    JsonArray *attachments = json_object_get_array_member(obj, "attachments");
+    guint len = json_array_get_length(attachments);
+    GString *attachments_message = g_string_sized_new(len * 100); // Preallocate buffer. Exact size doesn't matter. It grows automatically if it is too small
+    for (guint i=0; i < len; i++) {
+        signald_parse_attachment(json_array_get_object_element(attachments, i), attachments_message);
+    }
+    return attachments_message;
+}
+
 void
 signald_parse_message(SignaldAccount *sa, JsonObject *obj)
 {
-    gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
-    if (isreceipt) {
-        // TODO: this could be displayed in the conversation window
-        // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Received receipt.\n");
-    } else {
-        const gchar *username = json_object_get_string_member(obj, "source");
-        // Signals integer timestamps are in milliseconds
-        // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
-        // serverTimestamp is when the server received the message
-        time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
-        obj = json_object_get_object_member(obj, "dataMessage");
-        const gchar *message = json_object_get_string_member(obj, "message");
-        JsonArray *attachments = json_object_get_array_member(obj, "attachments");
-        guint len = json_array_get_length(attachments);
-        //Preallocate buffer, exact size doesn't matter. It grows automatically if it is too small
-        GString *attachments_message = g_string_sized_new(len * 100);
-        for (guint i=0; i < len; i++) {
-            signald_parse_attachment(sa, json_array_get_object_element(attachments, i), attachments_message);
-        }
-        obj = json_object_get_object_member(obj, "groupInfo");
+    // gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
+    // isReceipt() can be false even if message actually is a receipt
+    // TODO: optioally display receipt in the conversation window
+    // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+    const gchar *source = json_object_get_string_member(obj, "source");
+    if (source == NULL) {
+        source = SIGNALD_UNKNOWN_SOURCE_NUMBER;
+    }
+
+    // Signal's integer timestamps are in milliseconds
+    // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
+    // serverTimestamp is when the server received the message
+    time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
+
+    JsonObject *dataMessage = json_object_get_object_member(obj, "dataMessage");
+    if (dataMessage != NULL) {
+        const gchar *message = json_object_get_string_member(dataMessage, "message");
+
+        JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
         const gchar *groupid_str = NULL;
         const gchar *groupname = NULL;
-        if (obj) {
-            groupid_str = json_object_get_string_member(obj, "groupId");
-            groupname = json_object_get_string_member(obj, "name");
+        if (groupInfo) {
+            groupid_str = json_object_get_string_member(groupInfo, "groupId");
+            groupname = json_object_get_string_member(groupInfo, "name");
         }
-        purple_debug_info(SIGNALD_PLUGIN_ID, "New message from %s (%d attachments): %s %p\n", username, len, message, attachments);
-        signald_process_message(sa, username, message, timestamp, groupid_str, groupname, attachments_message);
+
+        GString *attachments_message = signald_prepare_attachments_message(dataMessage);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "New dataMessage from %s: %s\n", source, message);
+        signald_process_message(sa, source, message, timestamp, groupid_str, groupname, attachments_message);
         g_string_free(attachments_message, TRUE);
     }
+
+    JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
+    if (syncMessage != NULL) {
+        JsonObject *sentMessage = json_object_get_object_member(syncMessage, "sentMessage");
+        if (sentMessage != NULL) {
+            // TODO: find out how to handle syncMessages from group conversations
+            const gchar *groupid_str = NULL;
+            const gchar *groupname = NULL;
+
+            const gchar *message = json_object_get_string_member(sentMessage, "message");
+            GString *attachments_message = signald_prepare_attachments_message(sentMessage);
+            purple_debug_info(SIGNALD_PLUGIN_ID, "New sentMessage from %s: %s\n", source, message);
+            signald_process_message(sa, source, message, timestamp, groupid_str, groupname, attachments_message);
+            g_string_free(attachments_message, TRUE);
+        }
+    }
+
 }
 
 void
@@ -177,7 +229,7 @@ signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, 
 }
 
 void
-signald_process_contact_list(SignaldAccount *sa, JsonArray *data)
+signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
 {
     json_array_foreach_element(data, signald_process_contact, sa);
 }
@@ -211,7 +263,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "message")) {
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
         } else if (purple_strequal(type, "contact_list")) {
-            signald_process_contact_list(sa, json_object_get_array_member(obj, "data"));
+            signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
@@ -388,6 +440,9 @@ signald_send_im(PurpleConnection *pc,
 {
 #endif
     purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
+    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
+        return 0;
+    }
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
     JsonObject *data = json_object_new();

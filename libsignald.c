@@ -112,7 +112,7 @@ signald_find_conversation(const char *username, PurpleAccount *account) {
 
 void
 signald_process_message(SignaldAccount *sa,
-        const gchar *sender, const gchar *content, time_t timestamp,
+        const gchar *sender, const gchar *content, time_t timestamp, gboolean fromMe,
         const gchar *groupid_str, const gchar *groupname, GString *attachments)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
@@ -124,7 +124,7 @@ signald_process_message(SignaldAccount *sa,
     // Sometimes signald delivers empty messages with no attachments seemingly coming from my own number.
     // Ignore these messages.
     if (attachments->len) {
-        if (purple_strequal(sender, purple_account_get_username(sa->account))) {
+        if (fromMe) {
             // special handling of messages sent by self incoming from remote
             // copied from hoehermann/purple-gowhatsapp/libgowhatsapp.c
             flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
@@ -196,22 +196,24 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
 
         GString *attachments_message = signald_prepare_attachments_message(dataMessage);
         purple_debug_info(SIGNALD_PLUGIN_ID, "New dataMessage from %s: %s\n", source, message);
-        signald_process_message(sa, source, message, timestamp, groupid_str, groupname, attachments_message);
+        signald_process_message(sa, source, message, timestamp, FALSE, groupid_str, groupname, attachments_message);
         g_string_free(attachments_message, TRUE);
     }
 
     JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
     if (syncMessage != NULL) {
-        JsonObject *sentMessage = json_object_get_object_member(syncMessage, "sentMessage");
-        if (sentMessage != NULL) {
+        JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
+        if (sent != NULL) {
             // TODO: find out how to handle syncMessages from group conversations
             const gchar *groupid_str = NULL;
             const gchar *groupname = NULL;
 
-            const gchar *message = json_object_get_string_member(sentMessage, "message");
-            GString *attachments_message = signald_prepare_attachments_message(sentMessage);
+            const gchar *destination = json_object_get_string_member(sent, "destination");
+            JsonObject *sent_message = json_object_get_object_member(sent, "message");
+            const gchar *message = json_object_get_string_member(sent_message, "message");
+            GString *attachments_message = signald_prepare_attachments_message(sent_message);
             purple_debug_info(SIGNALD_PLUGIN_ID, "New sentMessage from %s: %s\n", source, message);
-            signald_process_message(sa, source, message, timestamp, groupid_str, groupname, attachments_message);
+            signald_process_message(sa, destination, message, timestamp, TRUE, groupid_str, groupname, attachments_message);
             g_string_free(attachments_message, TRUE);
         }
     }

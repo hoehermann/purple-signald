@@ -277,16 +277,15 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 void
 signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 {
-    SignaldAccount *sa;
-    sa = data;
+    SignaldAccount *sa = data;
     // this function essentially just reads bytes into a buffer until a newline is reached
     // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
-    gssize read = 1;
     const size_t BUFSIZE = 500000; // TODO: research actual maximum message size
     char buf[BUFSIZE];
     char *b = buf;
+    gssize read = recv(sa->fd, b, 1, MSG_DONTWAIT);
     while (read > 0) {
-        read = recv(sa->fd, b++, 1, MSG_DONTWAIT);
+        b += read;
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", buf);
@@ -301,9 +300,12 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             // NOTE: incomplete message may be passed to handler during next call
             return;
         }
+        read = recv(sa->fd, b, 1, MSG_DONTWAIT);
     }
-    if (read < 0)
-    {
+    if (read == 0) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Connection to signald lost."));
+    }
+    if (read < 0) {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
             // assume the message is complete and was probably handled
         } else {

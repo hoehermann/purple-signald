@@ -271,6 +271,15 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
+        } else if (purple_strequal(type, "unexpected_error")) {
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            const gchar *message = json_object_get_string_member(data, "message");
+            if (message && *message) {
+                    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
+                    // TODO: recognize "Attempted to connect to a non-existant user (…)" for account creation
+            } else {
+                purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
+            }
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }

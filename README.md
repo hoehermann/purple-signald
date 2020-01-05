@@ -10,8 +10,7 @@ Tested on Ubuntu 18.04.
 
 ### Known Issues
 
-There have been reports of incoming offline-messages getting lost. I have not figured out if they are lost in libpurple-signald or in signald itself.
-
+There have been reports of incoming offline-messages getting lost. As far as I observed, they are not lost but delayed and delivered after a restart of signald.
 
 ### Features
 

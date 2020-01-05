@@ -182,10 +182,11 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
     // serverTimestamp is when the server received the message
     time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
 
+    /* handle normal message (sent to this account) */
     JsonObject *dataMessage = json_object_get_object_member(obj, "dataMessage");
     if (dataMessage != NULL) {
-        const gchar *message = json_object_get_string_member(dataMessage, "message");
-
+        // get optional group information
+        // TODO: remove redundancy
         JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
         const gchar *groupid_str = NULL;
         const gchar *groupname = NULL;
@@ -193,26 +194,30 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
             groupid_str = json_object_get_string_member(groupInfo, "groupId");
             groupname = json_object_get_string_member(groupInfo, "name");
         }
-
+        const gchar *message = json_object_get_string_member(dataMessage, "message");
         GString *attachments_message = signald_prepare_attachments_message(dataMessage);
         purple_debug_info(SIGNALD_PLUGIN_ID, "New dataMessage from %s: %s\n", source, message);
         signald_process_message(sa, source, message, timestamp, FALSE, groupid_str, groupname, attachments_message);
         g_string_free(attachments_message, TRUE);
     }
 
+    /* handle sync message (sent from this account via other device) */
     JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
     if (syncMessage != NULL) {
         JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
         if (sent != NULL) {
-            // TODO: find out how to handle syncMessages from group conversations
+            const gchar *destination = json_object_get_string_member(sent, "destination");
+            JsonObject *dataMessage = json_object_get_object_member(sent, "message");
+            JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
             const gchar *groupid_str = NULL;
             const gchar *groupname = NULL;
-
-            const gchar *destination = json_object_get_string_member(sent, "destination");
-            JsonObject *sent_message = json_object_get_object_member(sent, "message");
-            const gchar *message = json_object_get_string_member(sent_message, "message");
-            GString *attachments_message = signald_prepare_attachments_message(sent_message);
-            purple_debug_info(SIGNALD_PLUGIN_ID, "New sentMessage from %s: %s\n", source, message);
+            if (groupInfo) {
+                groupid_str = json_object_get_string_member(groupInfo, "groupId");
+                groupname = json_object_get_string_member(groupInfo, "name");
+            }
+            const gchar *message = json_object_get_string_member(dataMessage, "message");
+            GString *attachments_message = signald_prepare_attachments_message(dataMessage);
+            purple_debug_info(SIGNALD_PLUGIN_ID, "New sentMessage from self to %s: %s\n", destination, message);
             signald_process_message(sa, destination, message, timestamp, TRUE, groupid_str, groupname, attachments_message);
             g_string_free(attachments_message, TRUE);
         }

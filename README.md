@@ -1,5 +1,21 @@
 # purple-signald
 
+This is a forked version of the [signald plugin for pidgin](https://github.com/hoehermann/libpurple-signald). In contrast to the original version, this fork 
+
+* does not require a new registration of the user (i.e. mobil number) but is based on linking to the signal app via QR code and
+* starts the underlying [signald daemon](https://git.callpipe.com/finn/signald) by itself
+
+Following software must be installed:
+
+* [signald](https://git.callpipe.com/finn/signald)
+* qrencode (on Debian/Ubuntu, just use  
+  `sudo apt install qrencode`
+
+
+##Original Readme
+
+**This is the original readme file of the signald plugin.**
+
 A libpurple/Pidgin plugin for [signald](https://git.callpipe.com/finn/signald) (signal, formerly textsecure).
 
 signald is written by Finn Herzfeld.

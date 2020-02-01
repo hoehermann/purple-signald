@@ -168,7 +168,7 @@ purple_message_destroy(PurpleMessage *message)
 #ifdef purple_notify_error
 #undef purple_notify_error
 #endif
-#define purple_notify_error(handle, title, primary, secondary, cpar)  \
+#define purple_notify_error(handle, title, primary, secondary)  \
 	purple_notify_message((handle), PURPLE_NOTIFY_MSG_ERROR, (title), \
 						  (primary), (secondary), NULL, NULL)
 

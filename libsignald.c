@@ -43,32 +43,8 @@
 
 #include "json_compat.h"
 #include "purple_compat.h"
-#pragma GCC diagnostic pop
+#include "libsignald.h"
 
-#define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
-#ifndef SIGNALD_PLUGIN_VERSION
-#error Must set SIGNALD_PLUGIN_VERSION in Makefile
-#endif
-#define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
-
-#define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
-
-#define SIGNALD_STATUS_STR_ONLINE   "online"
-#define SIGNALD_STATUS_STR_OFFLINE  "offline"
-#define SIGNALD_STATUS_STR_MOBILE   "mobile"
-
-#define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
-
-typedef struct {
-    PurpleAccount *account;
-    PurpleConnection *pc;
-
-    int fd;
-    guint watcher;
-} SignaldAccount;
-
-static void
-signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias);
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -242,6 +218,79 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
 }
 
 void
+signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
+{
+  if (purple_strequal (type, "linking_uri")) {
+    // linking uri is provided, create the qr-code 
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *uri = json_object_get_string_member(data, "uri");
+    purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
+
+    remove (SIGNALD_TMP_QRFILE);
+
+    char qr_command[SIGNALD_QRCREATE_MAXLEN];
+    sprintf (qr_command, SIGNALD_QRCREATE_CMD, uri);
+    int ok = system (qr_command);
+
+    struct stat file_stat;
+    if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0))
+    {
+      char text[strlen (qr_command) + 50];
+      sprintf (text, "QR code creation failed:\n%s", qr_command);
+      purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+      return;
+    }
+    // FIXME: Is there a way to show the qr code by pidgin?
+    // FIXME: Is there a way to close this notification when the link
+    //        was successful?
+    purple_notify_formatted (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, "", 
+        "Please use the signal app for linking the pidgin account to "
+        "your signal app. Use the link below to open the QR-code and then use"
+        "the Singal app (Settings, Linked Devices, Add Device) for scanning"
+        "the QR-code.<br><br>"
+        "<center><a href=\"" SIGNALD_TMP_QRFILE_URI "\">QR-code</a></center>",
+        NULL, NULL);
+  }
+
+  else if (purple_strequal (type, "linking_successful")) {
+    remove (SIGNALD_TMP_QRFILE);
+    purple_notify_info (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
+                       "Linking successful!\n"
+                       "You can close all related  notification dialogs."); 
+    // subscribe to the configured number
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "subscribe");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    if (!signald_send_json (sa, data)) {
+        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
+    json_object_set_string_member(data, "type", "list_contacts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    }
+    json_object_unref(data);
+  }
+
+  else if (purple_strequal (type, "linking_error")) {
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *msg = json_object_get_string_member(data, "message");
+    char text[strlen (msg) + 30];
+    sprintf (text, "Linking not successful!\n%s", msg);
+    purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+    remove (SIGNALD_TMP_QRFILE);
+  }
+
+  else
+  {
+    char text[256];
+    sprintf (text, "Unknown message realted to linking:\n%s", type);
+    purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+  }
+}
+
+void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
     JsonParser *parser = json_parser_new();
@@ -269,6 +318,8 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_assume_all_buddies_online(sa);
         } else if (purple_strequal(type, "message")) {
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
+        } else if (! strncmp (type, SIGNALD_LINK_TYPE, strlen (SIGNALD_LINK_TYPE))) {
+            signald_parse_linking (sa, obj, type);
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
         } else if (purple_strequal(type, "unexpected_error")) {
@@ -362,6 +413,13 @@ signald_send_json(SignaldAccount *sa, JsonObject *data)
 void
 signald_login(PurpleAccount *account)
 {
+    // Start signald 
+    // FIXME: Is there a way to stop this when we disconnect?
+    const char *home = getenv ("HOME");
+    char cmd[256];
+    sprintf (cmd, SIGNALD_START, home);
+    system (cmd);
+
     PurpleConnection *pc = purple_account_get_connection(account);
 
     // this protocol does not support anything special right now
@@ -376,7 +434,7 @@ signald_login(PurpleAccount *account)
     purple_connection_set_protocol_data(pc, sa);
     sa->account = account;
     sa->pc = pc;
-
+    
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
     // create a socket
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -392,27 +450,35 @@ signald_login(PurpleAccount *account)
     memset(&address, 0, sizeof(struct sockaddr_un));
     address.sun_family = AF_UNIX;
     strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
-    if (connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un)) != 0)
+
+    // Try to connect but give signald some time
+    int try = 0;
+    int err = -1;
+    while ((err != 0) && (try <= SIGNALD_TIME_OUT))
+      err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
+
+    if (err)
     {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
-        return;
+      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+      purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));
+      purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
+      return;
     }
+ 
     sa->fd = fd;
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
-    // subscribe to the configured number
+    // Link Pidgin to the master device. This fails, if the user is already
+    // known. Therefore, remove the related user data from signald configuration 
+    const char *username = purple_account_get_username(account);
+    sprintf (cmd, SIGNALD_DATA_FILE, home, username);
+    remove (cmd);
+
     JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "subscribe");
-    json_object_set_string_member(data, "username", purple_account_get_username(account));
+    json_object_set_string_member(data, "type", "link");
     if (!signald_send_json(sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-    json_object_set_string_member(data, "type", "list_contacts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
     }
     json_object_unref(data);
 }

@@ -221,6 +221,7 @@ void
 signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 {
   if (purple_strequal (type, "linking_uri")) {
+
     // linking uri is provided, create the qr-code 
     JsonObject *data = json_object_get_object_member(obj, "data");
     const gchar *uri = json_object_get_string_member(data, "uri");
@@ -240,40 +241,56 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
       purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
       return;
     }
-    // FIXME: Is there a way to show the qr code by pidgin?
-    // FIXME: Is there a way to close this notification when the link
-    //        was successful?
-    purple_notify_formatted (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, "", 
-        "Please use the signal app for linking the pidgin account to "
-        "your signal app. Use the link below to open the QR-code and then use"
-        "the Singal app (Settings, Linked Devices, Add Device) for scanning"
-        "the QR-code.<br><br>"
-        "<center><a href=\"" SIGNALD_TMP_QRFILE_URI "\">QR-code</a></center>",
-        NULL, NULL);
+
+    // show qr code as forked process
+    int pid = fork ();
+    if (pid == 0)
+    {
+      // Child: Save pid for later killing the process
+      char pid_file[256];
+      sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+      signald_save_pidfile (pid_file);
+
+      // Start the daemon
+      execlp ("feh", "feh", "--info", SIGNALD_QR_MSG, SIGNALD_TMP_QRFILE,
+              (char *) NULL);
+    }
   }
 
   else if (purple_strequal (type, "linking_successful")) {
+    // Linking was successful
+    char pid_file[256];
+    sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+    signald_kill_process (pid_file);
+    purple_notify_close_with_handle (purple_notify_get_handle ());
+
     remove (SIGNALD_TMP_QRFILE);
-    purple_notify_info (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
-                       "Linking successful!\n"
-                       "You can close all related  notification dialogs."); 
 
     signald_subscribe (sa);
   }
 
   else if (purple_strequal (type, "linking_error")) {
+    // Error: Linking was not successful
     JsonObject *data = json_object_get_object_member(obj, "data");
     const gchar *msg = json_object_get_string_member(data, "message");
     char text[strlen (msg) + 30];
     sprintf (text, "Linking not successful!\n%s", msg);
     purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+
+    char pid_file[256];
+    sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+    signald_kill_process (pid_file);
+    purple_notify_close_with_handle (purple_notify_get_handle ());
+
     remove (SIGNALD_TMP_QRFILE);
+
+    json_object_unref(data);
   }
 
   else
   {
     char text[256];
-    sprintf (text, "Unknown message realted to linking:\n%s", type);
+    sprintf (text, "Unknown message related to linking:\n%s", type);
     purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
   }
 }

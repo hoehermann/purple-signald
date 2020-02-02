@@ -30,15 +30,17 @@
 
 #define SIGNALD_TIME_OUT 6
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
-#define SIGNALD_DATA_PATH "%s/.purple/plugins/signald"
+#define SIGNALD_DATA_PATH "%s/plugins/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
+#define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"
 #define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET " -d " SIGNALD_DATA_PATH " &"
 
 #define SIGNALD_TMP_QRFILE "/tmp/signald_link_purple_qrcode.png"
 #define SIGNALD_TMP_QRFILE_URI "file://"SIGNALD_TMP_QRFILE
-#define SIGNALD_QRCREATE_CMD "qrencode -s 5 -o " SIGNALD_TMP_QRFILE " '%s'"
-#define SIGNALD_QRCREATE_MAXLEN 256
-
+#define SIGNALD_PID_FILE_QR SIGNALD_DATA_PATH "/pidqr"
+#define SIGNALD_QRCREATE_CMD "qrencode -s 6 -o " SIGNALD_TMP_QRFILE " '%s'"
+#define SIGNALD_QRCREATE_MAXLEN 512
+#define SIGNALD_QR_MSG "echo Link by scanning QR with Signal App"
 #define SIGNALD_LINK_TYPE "linking_"
 
 #define SIGNALD_STATUS_STR_ONLINE   "online"

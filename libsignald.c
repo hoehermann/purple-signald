@@ -411,14 +411,50 @@ signald_send_json(SignaldAccount *sa, JsonObject *data)
 }
 
 void
+signald_save_pidfile (const char *pid_file_name)
+{
+  int pid = getpid ();
+  FILE *pid_file = fopen (pid_file_name, "w");
+  if (pid_file)
+  {
+    fprintf (pid_file, "%d\n", pid);
+    fclose (pid_file);
+  }
+}
+
+void
+signald_kill_process (const char *pid_file_name)
+{
+  pid_t pid;
+  FILE *pid_file = fopen (pid_file_name, "r");
+  if (pid_file)
+  {
+    fscanf (pid_file, "%d\n", &pid);
+    fclose (pid_file);
+  }
+  kill (pid, SIGTERM);
+  remove (pid_file_name);
+}
+
+void
 signald_login(PurpleAccount *account)
 {
-    // Start signald 
-    // FIXME: Is there a way to stop this when we disconnect?
-    const char *home = getenv ("HOME");
-    char cmd[256];
-    sprintf (cmd, SIGNALD_START, home);
-    system (cmd);
+    // Start signald as a forked process
+    int pid = fork ();
+    if (pid == 0)
+    {
+      // The child, redirect it to signald
+
+      // Save pid for later killing the daemon
+      char str[256];
+      sprintf (str, SIGNALD_PID_FILE, purple_user_dir ());
+      signald_save_pidfile (str);
+
+      // Start the daemon
+      sprintf (str, SIGNALD_DATA_PATH, purple_user_dir ());
+      execlp ("signald", "signald", "-s", SIGNALD_DEFAULT_SOCKET,
+                                    "-d", str, (char *) NULL);
+    }
 
     PurpleConnection *pc = purple_account_get_connection(account);
 
@@ -492,6 +528,11 @@ signald_close(PurpleConnection *pc)
     close(sa->fd);
     sa->fd = 0;
     g_free(sa);
+
+    // Kill signald daemon and remove its pid file
+    char pid_file[256];
+    sprintf (pid_file, SIGNALD_PID_FILE, purple_user_dir ());
+    signald_kill_process (pid_file);
 }
 
 static GList *
@@ -528,7 +569,6 @@ signald_send_im(PurpleConnection *pc,
         return 0;
     }
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "send");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));

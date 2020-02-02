@@ -58,5 +58,12 @@ typedef struct {
 static void
 signald_add_purple_buddy (SignaldAccount *sa, const char *username, const char *alias);
 
-gboolean
-signald_send_json (SignaldAccount *sa, JsonObject *data);
+gboolean signald_send_json (SignaldAccount *sa, JsonObject *data);
+
+void signald_do_link_cb (gpointer data, int choice);
+
+void signald_subscribe (SignaldAccount *sa);
+
+void signald_save_pidfile (const char *pid_file_name);
+
+void signald_kill_process (const char *pid_file_name);

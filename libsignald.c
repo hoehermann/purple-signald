@@ -257,20 +257,8 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
     purple_notify_info (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
                        "Linking successful!\n"
                        "You can close all related  notification dialogs."); 
-    // subscribe to the configured number
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "subscribe");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    if (!signald_send_json (sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
 
-    json_object_set_string_member(data, "type", "list_contacts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
-    }
-    json_object_unref(data);
+    signald_subscribe (sa);
   }
 
   else if (purple_strequal (type, "linking_error")) {
@@ -504,19 +492,62 @@ signald_login(PurpleAccount *account)
     sa->fd = fd;
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
+    const char *username = purple_account_get_username(account);
+
+    purple_request_action (sa->pc, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
+                           "Is pidgin already linked to the signal app?",
+                           1, sa->account, username, NULL, sa, 2,
+                           "_Yes", signald_do_link_cb,
+                           "_No", signald_do_link_cb);
+}
+
+void
+signald_do_link_cb (gpointer data, int choice)
+{
+  SignaldAccount *sa = data;
+
+  const char *username = purple_account_get_username(sa->account);
+
+  if (choice == 0)
+  {
     // Link Pidgin to the master device. This fails, if the user is already
     // known. Therefore, remove the related user data from signald configuration 
-    const char *username = purple_account_get_username(account);
-    sprintf (cmd, SIGNALD_DATA_FILE, home, username);
-    remove (cmd);
+    char user_file[256];
+    sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
+    remove (user_file);
 
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "link");
     if (!signald_send_json(sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
     json_object_unref(data);
+  }
+  else
+  {
+    // Already linked, subscribe
+    signald_subscribe (sa);
+  }
+}
+
+void
+signald_subscribe (SignaldAccount *sa)
+{
+  // subscribe to the configured number
+  JsonObject *data = json_object_new();
+  json_object_set_string_member(data, "type", "subscribe");
+  json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+  if (!signald_send_json (sa, data)) {
+      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+  }
+
+  json_object_set_string_member(data, "type", "list_contacts");
+  if (!signald_send_json(sa, data)) {
+      purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+  }
+  json_object_unref(data);
 }
 
 static void

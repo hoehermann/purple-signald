@@ -496,7 +496,11 @@ signald_login(PurpleAccount *account)
     int try = 0;
     int err = -1;
     while ((err != 0) && (try <= SIGNALD_TIME_OUT))
+    {
       err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
+      try++;
+      sleep (1);
+    }
 
     if (err)
     {

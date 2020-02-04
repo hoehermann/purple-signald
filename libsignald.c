@@ -516,11 +516,45 @@ signald_login(PurpleAccount *account)
 
     const char *username = purple_account_get_username(account);
 
-    purple_request_action (sa->pc, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
-                           "Is pidgin already linked to the signal app?",
-                           1, sa->account, username, NULL, sa, 2,
-                           "_Yes", signald_do_link_cb,
-                           "_No", signald_do_link_cb);
+    // FIXME: Get state, i.e., do we need to link or register?
+    //        How can this be done?
+
+    if (purple_account_get_bool(account, "link", TRUE))
+    {
+      // Link to a master account. Ask user if we are still linked.
+      // FIXME: Is there a way to get the link state programmatically 
+      purple_request_action (sa->pc, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
+                             "Is this device already linked to the signal app?",
+                             0, sa->account, username, NULL, sa, 2,
+                             "_Yes", signald_do_link_cb,
+                             "_No", signald_do_link_cb);
+    }
+    else
+    {
+      // FIXME: Check if username is already registered.
+
+      // Register username (phone number) as new signal account, which
+      // requires a registration. From the signald readme:
+      // {"type": "register", "username": "+12024561414"}
+      // {"type": "verify", "username": "+12024561414", "code": "000-000"}
+
+      // FIXME: uncomment the following, when completed
+
+      //JsonObject *data = json_object_new();
+      //json_object_set_string_member(data, "type", "register");
+      //json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+
+      //if (!signald_send_json(sa, data)) {
+          ////purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+          //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+      //}
+      //json_object_unref(data);
+
+      // FIXME: add verification dialog
+
+      // Already registered, subscribe
+      signald_subscribe (sa);
+    }
 }
 
 void
@@ -767,6 +801,13 @@ signald_add_account_options(GList *account_options)
                 _("socket"),
                 "socket",
                 SIGNALD_DEFAULT_SOCKET
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
+                _("Link to an existing account"),
+                "link",
+                TRUE
                 );
     account_options = g_list_append(account_options, option);
 

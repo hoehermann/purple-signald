@@ -222,7 +222,7 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 {
   if (purple_strequal (type, "linking_uri")) {
 
-    // linking uri is provided, create the qr-code 
+    // linking uri is provided, create the qr-code
     JsonObject *data = json_object_get_object_member(obj, "data");
     const gchar *uri = json_object_get_string_member(data, "uri");
     purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
@@ -476,7 +476,7 @@ signald_login(PurpleAccount *account)
     purple_connection_set_protocol_data(pc, sa);
     sa->account = account;
     sa->pc = pc;
-    
+
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
     // create a socket
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -510,7 +510,7 @@ signald_login(PurpleAccount *account)
       purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
       return;
     }
- 
+
     sa->fd = fd;
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
@@ -522,7 +522,7 @@ signald_login(PurpleAccount *account)
     if (purple_account_get_bool(account, "link", TRUE))
     {
       // Link to a master account. Ask user if we are still linked.
-      // FIXME: Is there a way to get the link state programmatically 
+      // FIXME: Is there a way to get the link state programmatically
       purple_request_action (sa->pc, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
                              "Is this device already linked to the signal app?",
                              0, sa->account, username, NULL, sa, 2,

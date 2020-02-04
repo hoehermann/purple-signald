@@ -444,7 +444,7 @@ signald_kill_process (const char *pid_file_name)
 void
 signald_login(PurpleAccount *account)
 {
-    // Start signald as a forked process
+    // Start signald daemon as a forked process
     int pid = fork ();
     if (pid == 0)
     {
@@ -492,14 +492,14 @@ signald_login(PurpleAccount *account)
     address.sun_family = AF_UNIX;
     strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
 
-    // Try to connect but give signald some time
+    // Try to connect but give signald some time (it was started in background)
     int try = 0;
     int err = -1;
     while ((err != 0) && (try <= SIGNALD_TIME_OUT))
     {
       err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
       try++;
-      sleep (1);
+      sleep (1);    // altogether wait SIGNALD_TIME_OUT seconds
     }
 
     if (err)

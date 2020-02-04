@@ -37,7 +37,6 @@
 #define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET " -d " SIGNALD_DATA_PATH " &"
 
 #define SIGNALD_TMP_QRFILE "/tmp/signald_link_purple_qrcode.png"
-#define SIGNALD_TMP_QRFILE_URI "file://"SIGNALD_TMP_QRFILE
 #define SIGNALD_PID_FILE_QR SIGNALD_DATA_PATH "/pidqr"
 #define SIGNALD_QRCREATE_CMD "qrencode -s 6 -o " SIGNALD_TMP_QRFILE " '%s'"
 #define SIGNALD_QRCREATE_MAXLEN 512

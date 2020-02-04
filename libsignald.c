@@ -576,6 +576,16 @@ static void
 signald_close(PurpleConnection *pc)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+    // unsubscribe to the configured number
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "unsubscribe");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    if (!signald_send_json (sa, data)) {
+      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
     purple_input_remove(sa->watcher);
     sa->watcher = 0;
     close(sa->fd);

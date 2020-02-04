@@ -705,7 +705,6 @@ signald_send_im(PurpleConnection *pc,
     return 1;
 }
 
-#define SIGNAL_DEFAULT_GROUP "Buddies"
 static void
 signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias)
 {

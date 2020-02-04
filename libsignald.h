@@ -24,6 +24,7 @@
 #error Must set SIGNALD_PLUGIN_VERSION in Makefile
 #endif
 #define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
+#define SIGNAL_DEFAULT_GROUP "Signal"
 
 #define SIGNALD_DIALOG_TITLE "Signal Protocol"
 #define SIGNALD_DIALOG_LINK "Link to Signal App"

@@ -30,7 +30,7 @@
 #define SIGNALD_DIALOG_LINK "Link to Signal App"
 
 #define SIGNALD_TIME_OUT 6
-#define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
+#define SIGNALD_DEFAULT_SOCKET "/tmp/signald.sock"
 #define SIGNALD_DATA_PATH "%s/plugins/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
 #define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"

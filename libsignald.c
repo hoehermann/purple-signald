@@ -457,7 +457,8 @@ signald_login(PurpleAccount *account)
 
       // Start the daemon
       sprintf (str, SIGNALD_DATA_PATH, purple_user_dir ());
-      execlp ("signald", "signald", "-s", SIGNALD_DEFAULT_SOCKET,
+      const char *socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
+      execlp ("signald", "signald", "-s", socket,
                                     "-d", str, (char *) NULL);
     }
 

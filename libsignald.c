@@ -295,6 +295,15 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
   }
 }
 
+int
+signald_util_strcmp (const char *s1, const char *s2)
+{
+    int l1 = strlen (s1);
+    int l2 = strlen (s2);
+
+    return strncmp (s1, s2, l1 < l2 ? l1 : l2);
+}
+
 void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
@@ -311,31 +320,42 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
+
         if (purple_strequal(type, "version")) {
             obj = json_object_get_object_member(obj, "data");
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
+
         } else if (purple_strequal(type, "success")) {
             // TODO: mark message as delayed (maybe do not echo) until success is reported
             purple_debug_info(SIGNALD_PLUGIN_ID, "Success noticed.\n");
+
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
             signald_assume_all_buddies_online(sa);
+
         } else if (purple_strequal(type, "message")) {
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
+
         } else if (! strncmp (type, SIGNALD_LINK_TYPE, strlen (SIGNALD_LINK_TYPE))) {
             signald_parse_linking (sa, obj, type);
+
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
+
         } else if (purple_strequal(type, "unexpected_error")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             const gchar *message = json_object_get_string_member(data, "message");
+            // Analyze the error: Do we have to link or register the account?
             if (message && *message) {
-                    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
-                    // TODO: recognize "Attempted to connect to a non-existant user (…)" for account creation
+                  if ((! signald_util_strcmp (message, SIGNALD_ERR_NONEXISTUSER))
+                      || (!signald_util_strcmp (message, SIGNALD_ERR_AUTHFAILED))                 ) {
+                      signald_link_or_register (sa);
+                  }
             } else {
                 purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
             }
+
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
@@ -514,77 +534,65 @@ signald_login(PurpleAccount *account)
     sa->fd = fd;
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
-    const char *username = purple_account_get_username(account);
-
-    // FIXME: Get state, i.e., do we need to link or register?
-    //        How can this be done?
-
-    if (purple_account_get_bool(account, "link", TRUE))
-    {
-      // Link to a master account. Ask user if we are still linked.
-      // FIXME: Is there a way to get the link state programmatically
-      purple_request_action (sa->pc, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK,
-                             "Is this device already linked to the signal app?",
-                             0, sa->account, username, NULL, sa, 2,
-                             "_Yes", signald_do_link_cb,
-                             "_No", signald_do_link_cb);
-    }
-    else
-    {
-      // FIXME: Check if username is already registered.
-
-      // Register username (phone number) as new signal account, which
-      // requires a registration. From the signald readme:
-      // {"type": "register", "username": "+12024561414"}
-      // {"type": "verify", "username": "+12024561414", "code": "000-000"}
-
-      // FIXME: uncomment the following, when completed
-
-      //JsonObject *data = json_object_new();
-      //json_object_set_string_member(data, "type", "register");
-      //json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-
-      //if (!signald_send_json(sa, data)) {
-          ////purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-          //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-      //}
-      //json_object_unref(data);
-
-      // FIXME: add verification dialog
-
-      // Already registered, subscribe
-      signald_subscribe (sa);
-    }
+    signald_subscribe (sa);
 }
 
 void
-signald_do_link_cb (gpointer data, int choice)
+signald_link_or_register (SignaldAccount *sa)
 {
-  SignaldAccount *sa = data;
-
-  const char *username = purple_account_get_username(sa->account);
-
-  if (choice == 0)
-  {
-    // Link Pidgin to the master device. This fails, if the user is already
-    // known. Therefore, remove the related user data from signald configuration 
-    char user_file[256];
-    sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
-    remove (user_file);
-
+    const char *username = purple_account_get_username(sa->account);
     JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "link");
+
+    if (purple_account_get_bool(sa->account, "link", TRUE)) {
+        // Link Pidgin to the master device. This fails, if the user is already
+        // known. Therefore, remove the related user data from signald configuration
+        char user_file[256];
+        sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
+        remove (user_file);
+
+        JsonObject *data = json_object_new();
+        json_object_set_string_member(data, "type", "link");
+        if (!signald_send_json(sa, data)) {
+            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        }
+    } else {
+        // Register username (phone number) as new signal account, which
+        // requires a registration. From the signald readme:
+        // {"type": "register", "username": "+12024561414"}
+
+        json_object_set_string_member(data, "type", "register");
+        json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+        if (!signald_send_json(sa, data)) {
+            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        }
+
+        purple_request_input (sa->pc, SIGNALD_DIALOG_TITLE, "Verify registration",
+                              "Please enter the code that you have received for\n"
+                              "verifying the registration",
+                              "000-000", FALSE, FALSE, NULL,
+                              "OK", G_CALLBACK (signald_verify_ok_cb),
+                              "Cancel", NULL,
+                              sa->account, username, NULL, sa);
+    }
+
+    json_object_unref(data);
+}
+
+void
+signald_verify_ok_cb (SignaldAccount *sa, const char* input)
+{
+    // {"type": "verify", "username": "+12024561414", "code": "000-000"}
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "verify");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "code", input);
     if (!signald_send_json(sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
     json_object_unref(data);
-  }
-  else
-  {
-    // Already linked, subscribe
-    signald_subscribe (sa);
-  }
 }
 
 void
@@ -607,7 +615,7 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 static void
-signald_close(PurpleConnection *pc)
+signald_close (PurpleConnection *pc)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 

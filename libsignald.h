@@ -29,7 +29,7 @@
 #define SIGNALD_DIALOG_TITLE "Signal Protocol"
 #define SIGNALD_DIALOG_LINK "Link to Signal App"
 
-#define SIGNALD_TIME_OUT 6
+#define SIGNALD_TIME_OUT 10
 #define SIGNALD_DEFAULT_SOCKET "/tmp/signald.sock"
 #define SIGNALD_DATA_PATH "%s/plugins/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
@@ -49,6 +49,9 @@
 
 #define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
 
+#define SIGNALD_ERR_NONEXISTUSER "Attempted to connect to a non-existant user"
+#define SIGNALD_ERR_AUTHFAILED   "Authorization failed"
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
@@ -62,7 +65,9 @@ signald_add_purple_buddy (SignaldAccount *sa, const char *username, const char *
 
 gboolean signald_send_json (SignaldAccount *sa, JsonObject *data);
 
-void signald_do_link_cb (gpointer data, int choice);
+void signald_link_or_register (SignaldAccount *sa);
+
+void signald_verify_ok_cb (SignaldAccount *sa, const char* input);
 
 void signald_subscribe (SignaldAccount *sa);
 

@@ -581,9 +581,6 @@ signald_link_or_register (SignaldAccount *sa)
     }
 
     json_object_unref(data);
-
-    // Now, we can subscribe
-    signald_subscribe (sa);
 }
 
 void

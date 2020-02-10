@@ -220,79 +220,74 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
 void
 signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 {
-  if (purple_strequal (type, "linking_uri")) {
+    if (purple_strequal (type, "linking_uri")) {
 
-    // linking uri is provided, create the qr-code
-    JsonObject *data = json_object_get_object_member(obj, "data");
-    const gchar *uri = json_object_get_string_member(data, "uri");
-    purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
+        // linking uri is provided, create the qr-code
+        JsonObject *data = json_object_get_object_member(obj, "data");
+        const gchar *uri = json_object_get_string_member(data, "uri");
+        purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
 
-    remove (SIGNALD_TMP_QRFILE);
+        remove (SIGNALD_TMP_QRFILE);
 
-    char qr_command[SIGNALD_QRCREATE_MAXLEN];
-    sprintf (qr_command, SIGNALD_QRCREATE_CMD, uri);
-    int ok = system (qr_command);
+        char qr_command[SIGNALD_QRCREATE_MAXLEN];
+        sprintf (qr_command, SIGNALD_QRCREATE_CMD, uri);
+        int ok = system (qr_command);
 
-    struct stat file_stat;
-    if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0))
-    {
-      char text[strlen (qr_command) + 50];
-      sprintf (text, "QR code creation failed:\n%s", qr_command);
-      purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-      return;
+        struct stat file_stat;
+        if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0)) {
+            char text[strlen (qr_command) + 50];
+            sprintf (text, "QR code creation failed:\n%s", qr_command);
+            purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+            return;
+        }
+
+        // show qr code as forked process
+        int pid = fork ();
+        if (pid == 0) {
+            // Child: Save pid for later killing the process
+            char pid_file[256];
+            sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+            signald_save_pidfile (pid_file);
+
+            // Start the daemon
+            execlp ("feh", "feh", "--info", SIGNALD_QR_MSG, SIGNALD_TMP_QRFILE,
+                    (char *) NULL);
+        }
+
+    } else if (purple_strequal (type, "linking_successful")) {
+        // Linking was successful
+        char pid_file[256];
+        sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+        signald_kill_process (pid_file);
+        purple_notify_close_with_handle (purple_notify_get_handle ());
+
+        remove (SIGNALD_TMP_QRFILE);
+
+        signald_subscribe (sa);
+
+    } else if (purple_strequal (type, "linking_error")) {
+        // Error: Linking was not successful
+        JsonObject *data = json_object_get_object_member(obj, "data");
+        const gchar *msg = json_object_get_string_member(data, "message");
+        char text[strlen (msg) + 30];
+        sprintf (text, "Linking not successful!\n%s", msg);
+        purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+
+        char pid_file[256];
+        sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+        signald_kill_process (pid_file);
+        purple_notify_close_with_handle (purple_notify_get_handle ());
+
+        remove (SIGNALD_TMP_QRFILE);
+
+        json_object_unref(data);
+
+    } else {
+        char text[256];
+        sprintf (text, "Unknown message related to linking:\n%s", type);
+        purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
     }
 
-    // show qr code as forked process
-    int pid = fork ();
-    if (pid == 0)
-    {
-      // Child: Save pid for later killing the process
-      char pid_file[256];
-      sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
-      signald_save_pidfile (pid_file);
-
-      // Start the daemon
-      execlp ("feh", "feh", "--info", SIGNALD_QR_MSG, SIGNALD_TMP_QRFILE,
-              (char *) NULL);
-    }
-  }
-
-  else if (purple_strequal (type, "linking_successful")) {
-    // Linking was successful
-    char pid_file[256];
-    sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
-    signald_kill_process (pid_file);
-    purple_notify_close_with_handle (purple_notify_get_handle ());
-
-    remove (SIGNALD_TMP_QRFILE);
-
-    signald_subscribe (sa);
-  }
-
-  else if (purple_strequal (type, "linking_error")) {
-    // Error: Linking was not successful
-    JsonObject *data = json_object_get_object_member(obj, "data");
-    const gchar *msg = json_object_get_string_member(data, "message");
-    char text[strlen (msg) + 30];
-    sprintf (text, "Linking not successful!\n%s", msg);
-    purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-
-    char pid_file[256];
-    sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
-    signald_kill_process (pid_file);
-    purple_notify_close_with_handle (purple_notify_get_handle ());
-
-    remove (SIGNALD_TMP_QRFILE);
-
-    json_object_unref(data);
-  }
-
-  else
-  {
-    char text[256];
-    sprintf (text, "Unknown message related to linking:\n%s", type);
-    purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-  }
 }
 
 int
@@ -438,27 +433,25 @@ signald_send_json(SignaldAccount *sa, JsonObject *data)
 void
 signald_save_pidfile (const char *pid_file_name)
 {
-  int pid = getpid ();
-  FILE *pid_file = fopen (pid_file_name, "w");
-  if (pid_file)
-  {
-    fprintf (pid_file, "%d\n", pid);
-    fclose (pid_file);
-  }
+    int pid = getpid ();
+    FILE *pid_file = fopen (pid_file_name, "w");
+    if (pid_file) {
+        fprintf (pid_file, "%d\n", pid);
+        fclose (pid_file);
+    }
 }
 
 void
 signald_kill_process (const char *pid_file_name)
 {
-  pid_t pid;
-  FILE *pid_file = fopen (pid_file_name, "r");
-  if (pid_file)
-  {
-    fscanf (pid_file, "%d\n", &pid);
-    fclose (pid_file);
-  }
-  kill (pid, SIGTERM);
-  remove (pid_file_name);
+    pid_t pid;
+    FILE *pid_file = fopen (pid_file_name, "r");
+    if (pid_file) {
+        fscanf (pid_file, "%d\n", &pid);
+        fclose (pid_file);
+    }
+    kill (pid, SIGTERM);
+    remove (pid_file_name);
 }
 
 void
@@ -598,20 +591,20 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 void
 signald_subscribe (SignaldAccount *sa)
 {
-  // subscribe to the configured number
-  JsonObject *data = json_object_new();
-  json_object_set_string_member(data, "type", "subscribe");
-  json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-  if (!signald_send_json (sa, data)) {
-      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-  }
+    // subscribe to the configured number
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "subscribe");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    if (!signald_send_json (sa, data)) {
+        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
 
-  json_object_set_string_member(data, "type", "list_contacts");
-  if (!signald_send_json(sa, data)) {
-      purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
-  }
-  json_object_unref(data);
+    json_object_set_string_member(data, "type", "list_contacts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    }
+    json_object_unref(data);
 }
 
 static void

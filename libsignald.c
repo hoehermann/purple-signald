@@ -222,13 +222,16 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 {
     if (purple_strequal (type, "linking_uri")) {
 
-        // linking uri is provided, create the qr-code
+        // Linking uri is provided, create the qr-code
         JsonObject *data = json_object_get_object_member(obj, "data");
         const gchar *uri = json_object_get_string_member(data, "uri");
         purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
 
-        remove (SIGNALD_TMP_QRFILE);
+        remove (SIGNALD_TMP_QRFILE);  // remove any old files
 
+        // Start the system utility for creating the qr code
+        // TODO: It would be better to do this be means of some libs
+        //       instead of calling an external program via system () here
         char qr_command[SIGNALD_QRCREATE_MAXLEN];
         sprintf (qr_command, SIGNALD_QRCREATE_CMD, uri);
         int ok = system (qr_command);
@@ -241,7 +244,7 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
             return;
         }
 
-        // show qr code as forked process
+        // show qr code as forked process for later killing it
         int pid = fork ();
         if (pid == 0) {
             // Child: Save pid for later killing the process
@@ -249,7 +252,11 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
             sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
             signald_save_pidfile (pid_file);
 
-            // Start the daemon
+            // Start the process for displaying the qr code
+            // TODO: Is there a better way for displaying the qr code?
+            //       * Show it by a pidgin dialog (how?)
+            //       * Use "xdg-open qr.png" creates a new pid for the
+            //         configured program for opening pngs
             execlp ("feh", "feh", "--info", SIGNALD_QR_MSG, SIGNALD_TMP_QRFILE,
                     (char *) NULL);
         }
@@ -341,7 +348,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "unexpected_error")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             const gchar *message = json_object_get_string_member(data, "message");
-            // Analyze the error: Do we have to link or register the account?
+            // Analyze the error: Check for failed authorization or unknown user.
+            // Do we have to link or register the account?
+            // FIXME: This does not work reliably. It is possible to subscribe
+            //        without having linked an existing account
             if (message && *message) {
                   if ((! signald_util_strcmp (message, SIGNALD_ERR_NONEXISTUSER))
                       || (!signald_util_strcmp (message, SIGNALD_ERR_AUTHFAILED))                 ) {
@@ -457,7 +467,7 @@ signald_kill_process (const char *pid_file_name)
 void
 signald_login(PurpleAccount *account)
 {
-    // Start signald daemon as a forked process
+    // Start signald daemon as forked process for killing it when closing
     int pid = fork ();
     if (pid == 0)
     {

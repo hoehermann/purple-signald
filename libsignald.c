@@ -270,6 +270,9 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 
         remove (SIGNALD_TMP_QRFILE);
 
+        // FIXME: Sometimes, messages are not received by pidgin after
+        //        linking to the main account and are only shown there.
+        //        Is it robust to subscribe here?
         signald_subscribe (sa);
 
     } else if (purple_strequal (type, "linking_error")) {
@@ -350,8 +353,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             const gchar *message = json_object_get_string_member(data, "message");
             // Analyze the error: Check for failed authorization or unknown user.
             // Do we have to link or register the account?
-            // FIXME: This does not work reliably. It is possible to subscribe
-            //        without having linked an existing account
+            // FIXME: This does not work reliably, i.e.,
+            //          * there is a connection error without but no attempt
+            //            to link or register
+            //          * the account is enabled and the contacts are loaded
+            //            but sending a message won't work
             if (message && *message) {
                   if ((! signald_util_strcmp (message, SIGNALD_ERR_NONEXISTUSER))
                       || (!signald_util_strcmp (message, SIGNALD_ERR_AUTHFAILED))                 ) {
@@ -610,6 +616,7 @@ signald_subscribe (SignaldAccount *sa)
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
+    // Load the contact list
     json_object_set_string_member(data, "type", "list_contacts");
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));

@@ -244,32 +244,13 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
             return;
         }
 
-        // show qr code as forked process for later killing it
-        int pid = fork ();
-        if (pid == 0) {
-            // Child: Save pid for later killing the process
-            char pid_file[256];
-            sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
-            signald_save_pidfile (pid_file);
-
-            // Start the process for displaying the qr code
-            // TODO: Is there a better way for displaying the qr code?
-            //       * Show it by a pidgin dialog (how?)
-            //       * Use "xdg-open qr.png" creates a new pid for the
-            //         configured program for opening pngs
-            execlp ("feh", "feh", "--info", SIGNALD_QR_MSG, SIGNALD_TMP_QRFILE,
-                    (char *) NULL);
-        }
+        // Display the QR code for scanning
+        signald_scan_qrcode (sa);
 
     } else if (purple_strequal (type, "linking_successful")) {
         // Linking was successful
-        char pid_file[256];
-        sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
-        signald_kill_process (pid_file);
         purple_notify_close_with_handle (purple_notify_get_handle ());
-
         remove (SIGNALD_TMP_QRFILE);
-
         // FIXME: Sometimes, messages are not received by pidgin after
         //        linking to the main account and are only shown there.
         //        Is it robust to subscribe here?
@@ -298,6 +279,45 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
         purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
     }
 
+}
+
+void
+signald_scan_qrcode (SignaldAccount *sa)
+{
+    // Read QR code png file
+    gchar* qrimgdata;
+    gsize qrimglen;
+
+    if (g_file_get_contents (SIGNALD_TMP_QRFILE, &qrimgdata, &qrimglen, NULL)) {
+
+        // Dispalay it for scanning
+        PurpleRequestFields* fields = purple_request_fields_new();
+        PurpleRequestFieldGroup* group = purple_request_field_group_new(NULL);
+        PurpleRequestField* field;
+
+        purple_request_fields_add_group(fields, group);
+
+        field = purple_request_field_image_new(
+                    "qr_code", _("QR code"),
+                     qrimgdata, qrimglen);
+        purple_request_field_group_add_field(group, field);
+
+        purple_request_fields(
+            sa->pc, _("Signal Protocol"), _("Link to master device"),
+            _("For linking this account to a Signal master device, "
+              "please scan the  QR code below. In the Signal App, "
+              "go to \"Preferences\" and \"Linked devices\"."), fields,
+            _("Done"), G_CALLBACK(signald_scan_qrcode_done), _("Close"), NULL,
+            sa->account, purple_account_get_username(sa->account), NULL, sa);
+
+        g_free(qrimgdata);
+    }
+}
+
+void
+signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
+{
+  // Nothing to do here
 }
 
 int
@@ -577,6 +597,7 @@ signald_link_or_register (SignaldAccount *sa)
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
         }
 
+        // TODO: Test registering thoroughly
         purple_request_input (sa->pc, SIGNALD_DIALOG_TITLE, "Verify registration",
                               "Please enter the code that you have received for\n"
                               "verifying the registration",

@@ -69,6 +69,10 @@ void signald_link_or_register (SignaldAccount *sa);
 
 void signald_verify_ok_cb (SignaldAccount *sa, const char* input);
 
+void signald_scan_qrcode (SignaldAccount *sa);
+
+void signald_scan_qrcode_done (SignaldAccount *, PurpleRequestFields *);
+
 void signald_subscribe (SignaldAccount *sa);
 
 void signald_save_pidfile (const char *pid_file_name);

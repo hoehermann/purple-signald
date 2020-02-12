@@ -1,9 +1,6 @@
 # purple-signald-ttl
 
-This is a forked version of the [signald plugin for pidgin (purple-signald)](https://github.com/hoehermann/libpurple-signald). In contrast to the original version, this fork 
-
-* does not require a new registration of the user (i.e. mobil number) but is based on linking to the signal app via QR code and
-* starts the underlying [signald daemon](https://git.callpipe.com/finn/signald) by itself
+This is a forked version of the [signald plugin for pidgin (purple-signald)](https://github.com/hoehermann/libpurple-signald), by now for personal use. This fork offers the possibility to link with the master device and handles start and stop of the [signald daemon](https://git.callpipe.com/finn/signald) by itself.
 
 Following software must be installed:
 
@@ -11,13 +8,11 @@ Following software must be installed:
   **Important:** The command `signald` has to available within the program directories listed in the `$PATH` variable.
 * *qrencode*, a tool for creating QR codes from strings. On Debian/Ubuntu, just use  
   `sudo apt install qrencode`
-* *feh*, a lightweight immage viewer for displaying the QR code for linking. On Debian/Ubuntu, just use  
-  `sudo apt install feh`
 
-The plugin in this version is tested on Debian 10 (Buster) but should also run on other linux distros. Windows and MacOS are not supported. Sorry guys, I do not want to support non-free software.
+The plugin in this version is tested on Debian 10 (Buster). 
 
 
-##Original Readme
+##Readme of the original plugin
 
 **This is the original readme file of the signald plugin.**
 

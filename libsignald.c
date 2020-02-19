@@ -393,20 +393,22 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
         // Start the system utility for creating the qr code
         // TODO: It would be better to do this be means of some libs
         //       instead of calling an external program via system () here
-        char qr_command[SIGNALD_QRCREATE_MAXLEN];
-        sprintf (qr_command, SIGNALD_QRCREATE_CMD, uri);
+        gchar *qr_command = g_strdup_printf (SIGNALD_QRCREATE_CMD, uri);
         int ok = system (qr_command);
 
         struct stat file_stat;
         if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0)) {
-            char text[strlen (qr_command) + 50];
-            sprintf (text, "QR code creation failed:\n%s", qr_command);
+            gchar *text = g_strdup_printf ("QR code creation failed:\n%s",
+                                            qr_command);
             purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+            g_free (text);
+            g_free (qr_command);
             return;
         }
 
         // Display the QR code for scanning
         signald_scan_qrcode (sa);
+        g_free (qr_command);
 
     } else if (purple_strequal (type, "linking_successful")) {
         // Linking was successful
@@ -421,23 +423,24 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
         // Error: Linking was not successful
         JsonObject *data = json_object_get_object_member(obj, "data");
         const gchar *msg = json_object_get_string_member(data, "message");
-        char text[strlen (msg) + 30];
-        sprintf (text, "Linking not successful!\n%s", msg);
+        gchar *text = g_strdup_printf ("Linking not successful!\n%s", msg);
         purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+        g_free (text);
 
-        char pid_file[256];
-        sprintf (pid_file, SIGNALD_PID_FILE_QR, purple_user_dir ());
+        gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE_QR, purple_user_dir ());
         signald_kill_process (pid_file);
         purple_notify_close_with_handle (purple_notify_get_handle ());
+        g_free (pid_file);
 
         remove (SIGNALD_TMP_QRFILE);
 
         json_object_unref(data);
 
     } else {
-        char text[256];
-        sprintf (text, "Unknown message related to linking:\n%s", type);
+        gchar *text = g_strdup_printf (
+                "Unknown message related to linking:\n%s", type);
         purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+        g_free (text);
     }
 
 }
@@ -466,9 +469,10 @@ signald_link_or_register (SignaldAccount *sa)
     if (purple_account_get_bool(sa->account, "link", TRUE)) {
         // Link Pidgin to the master device. This fails, if the user is already
         // known. Therefore, remove the related user data from signald configuration
-        char user_file[256];
-        sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
+        gchar *user_file = g_strdup_printf (SIGNALD_DATA_FILE,
+                                            purple_user_dir (), username);
         remove (user_file);
+        g_free (user_file);
 
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "link");
@@ -622,15 +626,16 @@ signald_login(PurpleAccount *account)
       // The child, redirect it to signald
 
       // Save pid for later killing the daemon
-      char str[256];
-      sprintf (str, SIGNALD_PID_FILE, purple_user_dir ());
+      gchar *str = g_strdup_printf (SIGNALD_PID_FILE, purple_user_dir ());
       signald_save_pidfile (str);
+      g_free (str);
 
       // Start the daemon
-      sprintf (str, SIGNALD_DATA_PATH, purple_user_dir ());
+      str = g_strdup_printf (SIGNALD_DATA_PATH, purple_user_dir ());
       const char *socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
       execlp ("signald", "signald", "-s", socket,
                                     "-d", str, (char *) NULL);
+      g_free (str);
     }
 
     PurpleConnection *pc = purple_account_get_connection(account);
@@ -709,9 +714,9 @@ signald_close (PurpleConnection *pc)
     g_free(sa);
 
     // Kill signald daemon and remove its pid file
-    char pid_file[256];
-    sprintf (pid_file, SIGNALD_PID_FILE, purple_user_dir ());
+    gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE, purple_user_dir ());
     signald_kill_process (pid_file);
+    g_free (pid_file);
 }
 
 static GList *

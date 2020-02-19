@@ -43,8 +43,52 @@
 
 #include "json_compat.h"
 #include "purple_compat.h"
-#include "libsignald.h"
 
+#pragma GCC diagnostic pop
+
+#define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
+#ifndef SIGNALD_PLUGIN_VERSION
+#error Must set SIGNALD_PLUGIN_VERSION in Makefile
+#endif
+#define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
+#define SIGNAL_DEFAULT_GROUP "Signal"
+
+#define SIGNALD_DIALOG_TITLE "Signal Protocol"
+#define SIGNALD_DIALOG_LINK "Link to Signal App"
+
+#define SIGNALD_TIME_OUT 10
+#define SIGNALD_DEFAULT_SOCKET "/tmp/signald.sock"
+#define SIGNALD_DATA_PATH "%s/plugins/signald"
+#define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
+#define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"
+#define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET " -d " SIGNALD_DATA_PATH " &"
+
+#define SIGNALD_TMP_QRFILE "/tmp/signald_link_purple_qrcode.png"
+#define SIGNALD_PID_FILE_QR SIGNALD_DATA_PATH "/pidqr"
+#define SIGNALD_QRCREATE_CMD "qrencode -s 6 -o " SIGNALD_TMP_QRFILE " '%s'"
+#define SIGNALD_QRCREATE_MAXLEN 512
+#define SIGNALD_QR_MSG "echo Link by scanning QR with Signal App"
+#define SIGNALD_LINK_TYPE "linking_"
+
+#define SIGNALD_STATUS_STR_ONLINE   "online"
+#define SIGNALD_STATUS_STR_OFFLINE  "offline"
+#define SIGNALD_STATUS_STR_MOBILE   "mobile"
+
+#define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
+
+#define SIGNALD_ERR_NONEXISTUSER "Attempted to connect to a non-existant user"
+#define SIGNALD_ERR_AUTHFAILED   "Authorization failed"
+
+typedef struct {
+    PurpleAccount *account;
+    PurpleConnection *pc;
+
+    int fd;
+    guint watcher;
+} SignaldAccount;
+
+static void
+signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias);
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -52,6 +96,77 @@ signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
     return "signal";
 }
 
+void
+signald_save_pidfile (const char *pid_file_name)
+{
+    int pid = getpid ();
+    FILE *pid_file = fopen (pid_file_name, "w");
+    if (pid_file) {
+        fprintf (pid_file, "%d\n", pid);
+        fclose (pid_file);
+    }
+}
+
+void
+signald_kill_process (const char *pid_file_name)
+{
+    pid_t pid;
+    FILE *pid_file = fopen (pid_file_name, "r");
+    if (pid_file) {
+        fscanf (pid_file, "%d\n", &pid);
+        fclose (pid_file);
+    }
+    kill (pid, SIGTERM);
+    remove (pid_file_name);
+}
+
+void
+signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
+{
+  // Nothing to do here
+}
+
+void
+signald_scan_qrcode (SignaldAccount *sa)
+{
+    // Read QR code png file
+    gchar* qrimgdata;
+    gsize qrimglen;
+
+    if (g_file_get_contents (SIGNALD_TMP_QRFILE, &qrimgdata, &qrimglen, NULL)) {
+
+        // Dispalay it for scanning
+        PurpleRequestFields* fields = purple_request_fields_new();
+        PurpleRequestFieldGroup* group = purple_request_field_group_new(NULL);
+        PurpleRequestField* field;
+
+        purple_request_fields_add_group(fields, group);
+
+        field = purple_request_field_image_new(
+                    "qr_code", _("QR code"),
+                     qrimgdata, qrimglen);
+        purple_request_field_group_add_field(group, field);
+
+        purple_request_fields(
+            sa->pc, _("Signal Protocol"), _("Link to master device"),
+            _("For linking this account to a Signal master device, "
+              "please scan the  QR code below. In the Signal App, "
+              "go to \"Preferences\" and \"Linked devices\"."), fields,
+            _("Done"), G_CALLBACK(signald_scan_qrcode_done), _("Close"), NULL,
+            sa->account, purple_account_get_username(sa->account), NULL, sa);
+
+        g_free(qrimgdata);
+    }
+}
+
+int
+signald_util_strcmp (const char *s1, const char *s2)
+{
+    int l1 = strlen (s1);
+    int l2 = strlen (s2);
+
+    return strncmp (s1, s2, l1 < l2 ? l1 : l2);
+}
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 {
@@ -217,6 +332,52 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
     json_array_foreach_element(data, signald_process_contact, sa);
 }
 
+gboolean
+signald_send_str(SignaldAccount *sa, char *s)
+{
+    int l = strlen(s);
+    int w = write(sa->fd, s, l);
+    if (w != l) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n", w, l, strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+gboolean
+signald_send_json(SignaldAccount *sa, JsonObject *data)
+{
+    gboolean success;
+    char *json = json_object_to_string(data);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Sending: %s\n", json);
+    success = signald_send_str(sa, json);
+    if (success) {
+        success = signald_send_str(sa, "\n");
+    }
+    g_free(json);
+    return success;
+}
+
+void
+signald_subscribe (SignaldAccount *sa)
+{
+    // subscribe to the configured number
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "subscribe");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    if (!signald_send_json (sa, data)) {
+        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
+    // Load the contact list
+    json_object_set_string_member(data, "type", "list_contacts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    }
+    json_object_unref(data);
+}
+
 void
 signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 {
@@ -282,51 +443,62 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
 }
 
 void
-signald_scan_qrcode (SignaldAccount *sa)
+signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 {
-    // Read QR code png file
-    gchar* qrimgdata;
-    gsize qrimglen;
-
-    if (g_file_get_contents (SIGNALD_TMP_QRFILE, &qrimgdata, &qrimglen, NULL)) {
-
-        // Dispalay it for scanning
-        PurpleRequestFields* fields = purple_request_fields_new();
-        PurpleRequestFieldGroup* group = purple_request_field_group_new(NULL);
-        PurpleRequestField* field;
-
-        purple_request_fields_add_group(fields, group);
-
-        field = purple_request_field_image_new(
-                    "qr_code", _("QR code"),
-                     qrimgdata, qrimglen);
-        purple_request_field_group_add_field(group, field);
-
-        purple_request_fields(
-            sa->pc, _("Signal Protocol"), _("Link to master device"),
-            _("For linking this account to a Signal master device, "
-              "please scan the  QR code below. In the Signal App, "
-              "go to \"Preferences\" and \"Linked devices\"."), fields,
-            _("Done"), G_CALLBACK(signald_scan_qrcode_done), _("Close"), NULL,
-            sa->account, purple_account_get_username(sa->account), NULL, sa);
-
-        g_free(qrimgdata);
+    // {"type": "verify", "username": "+12024561414", "code": "000-000"}
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "verify");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "code", input);
+    if (!signald_send_json(sa, data)) {
+        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
+    json_object_unref(data);
 }
 
 void
-signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
+signald_link_or_register (SignaldAccount *sa)
 {
-  // Nothing to do here
-}
+    const char *username = purple_account_get_username(sa->account);
+    JsonObject *data = json_object_new();
 
-int
-signald_util_strcmp (const char *s1, const char *s2)
-{
-    int l1 = strlen (s1);
-    int l2 = strlen (s2);
+    if (purple_account_get_bool(sa->account, "link", TRUE)) {
+        // Link Pidgin to the master device. This fails, if the user is already
+        // known. Therefore, remove the related user data from signald configuration
+        char user_file[256];
+        sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
+        remove (user_file);
 
-    return strncmp (s1, s2, l1 < l2 ? l1 : l2);
+        JsonObject *data = json_object_new();
+        json_object_set_string_member(data, "type", "link");
+        if (!signald_send_json(sa, data)) {
+            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        }
+    } else {
+        // Register username (phone number) as new signal account, which
+        // requires a registration. From the signald readme:
+        // {"type": "register", "username": "+12024561414"}
+
+        json_object_set_string_member(data, "type", "register");
+        json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+        if (!signald_send_json(sa, data)) {
+            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        }
+
+        // TODO: Test registering thoroughly
+        purple_request_input (sa->pc, SIGNALD_DIALOG_TITLE, "Verify registration",
+                              "Please enter the code that you have received for\n"
+                              "verifying the registration",
+                              "000-000", FALSE, FALSE, NULL,
+                              "OK", G_CALLBACK (signald_verify_ok_cb),
+                              "Cancel", NULL,
+                              sa->account, username, NULL, sa);
+    }
+
+    json_object_unref(data);
 }
 
 void
@@ -440,56 +612,6 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
-gboolean
-signald_send_str(SignaldAccount *sa, char *s)
-{
-    int l = strlen(s);
-    int w = write(sa->fd, s, l);
-    if (w != l) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "wrote %d, wanted %d, error is %s\n", w, l, strerror(errno));
-        return 0;
-    }
-    return 1;
-}
-
-gboolean
-signald_send_json(SignaldAccount *sa, JsonObject *data)
-{
-    gboolean success;
-    char *json = json_object_to_string(data);
-    purple_debug_info(SIGNALD_PLUGIN_ID, "Sending: %s\n", json);
-    success = signald_send_str(sa, json);
-    if (success) {
-        success = signald_send_str(sa, "\n");
-    }
-    g_free(json);
-    return success;
-}
-
-void
-signald_save_pidfile (const char *pid_file_name)
-{
-    int pid = getpid ();
-    FILE *pid_file = fopen (pid_file_name, "w");
-    if (pid_file) {
-        fprintf (pid_file, "%d\n", pid);
-        fclose (pid_file);
-    }
-}
-
-void
-signald_kill_process (const char *pid_file_name)
-{
-    pid_t pid;
-    FILE *pid_file = fopen (pid_file_name, "r");
-    if (pid_file) {
-        fscanf (pid_file, "%d\n", &pid);
-        fclose (pid_file);
-    }
-    kill (pid, SIGTERM);
-    remove (pid_file_name);
-}
-
 void
 signald_login(PurpleAccount *account)
 {
@@ -564,85 +686,6 @@ signald_login(PurpleAccount *account)
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
     signald_subscribe (sa);
-}
-
-void
-signald_link_or_register (SignaldAccount *sa)
-{
-    const char *username = purple_account_get_username(sa->account);
-    JsonObject *data = json_object_new();
-
-    if (purple_account_get_bool(sa->account, "link", TRUE)) {
-        // Link Pidgin to the master device. This fails, if the user is already
-        // known. Therefore, remove the related user data from signald configuration
-        char user_file[256];
-        sprintf (user_file, SIGNALD_DATA_FILE, purple_user_dir (), username);
-        remove (user_file);
-
-        JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "link");
-        if (!signald_send_json(sa, data)) {
-            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-        }
-    } else {
-        // Register username (phone number) as new signal account, which
-        // requires a registration. From the signald readme:
-        // {"type": "register", "username": "+12024561414"}
-
-        json_object_set_string_member(data, "type", "register");
-        json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-        if (!signald_send_json(sa, data)) {
-            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-        }
-
-        // TODO: Test registering thoroughly
-        purple_request_input (sa->pc, SIGNALD_DIALOG_TITLE, "Verify registration",
-                              "Please enter the code that you have received for\n"
-                              "verifying the registration",
-                              "000-000", FALSE, FALSE, NULL,
-                              "OK", G_CALLBACK (signald_verify_ok_cb),
-                              "Cancel", NULL,
-                              sa->account, username, NULL, sa);
-    }
-
-    json_object_unref(data);
-}
-
-void
-signald_verify_ok_cb (SignaldAccount *sa, const char* input)
-{
-    // {"type": "verify", "username": "+12024561414", "code": "000-000"}
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "verify");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, "code", input);
-    if (!signald_send_json(sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-    json_object_unref(data);
-}
-
-void
-signald_subscribe (SignaldAccount *sa)
-{
-    // subscribe to the configured number
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "subscribe");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    if (!signald_send_json (sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-
-    // Load the contact list
-    json_object_set_string_member(data, "type", "list_contacts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
-    }
-    json_object_unref(data);
 }
 
 static void

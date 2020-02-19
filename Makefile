@@ -49,5 +49,5 @@ install:
 	install -Dm644 icons/11/signal.png "$(PIXMAPDIR)/11/signal.png" 
 	install -Dm644 icons/16/signal.png "$(PIXMAPDIR)/16/signal.png"
 	install -Dm644 icons/48/signal.png "$(PIXMAPDIR)/48/signal.png"
-#	install -Dm644 "$(TARGET)" "$(DEST)$(TARGET)" 
+	install -Dm644 "$(TARGET)" "$(DEST)$(TARGET)" 
 	

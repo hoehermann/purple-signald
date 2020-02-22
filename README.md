@@ -1,21 +1,3 @@
-# purple-signald-ttl
-
-This is a forked version of the [signald plugin for pidgin (purple-signald)](https://github.com/hoehermann/libpurple-signald), by now for personal use. This fork offers the possibility to link with the master device and handles start and stop of the [signald daemon](https://git.callpipe.com/finn/signald) by itself.
-
-Following software must be installed:
-
-* [signald](https://git.callpipe.com/finn/signald), see its documentation for its installation  
-  **Important:** The command `signald` has to available within the program directories listed in the `$PATH` variable.
-* *qrencode*, a tool for creating QR codes from strings. On Debian/Ubuntu, just use  
-  `sudo apt install qrencode`
-
-The plugin in this version is tested on Debian 10 (Buster). 
-
-
-##Readme of the original plugin
-
-**This is the original readme file of the signald plugin.**
-
 A libpurple/Pidgin plugin for [signald](https://git.callpipe.com/finn/signald) (signal, formerly textsecure).
 
 signald is written by Finn Herzfeld.
@@ -30,14 +12,27 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 
 ### Features
 
-* Receive messages
-* Send messages
-* Receive files
-* Receive images
-* Send images
-* Receive buddy list from server
+* Core features:
 
-Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
+  * Receive messages
+  * Send messages
+
+* Additional features contributed by [Hermann Kraus](https://github.com/herm/):
+
+  * Receive files
+  * Receive images
+  * Send images
+  * Receive buddy list from server
+
+  Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
+
+
+* Additional features contributed by [Torsten](https://bitbucket.org/ttl/):
+
+  * Link with the master device  
+    Note: For linking with the master device, `qrencode` needs to be installed.
+  * Automatically start signald  
+    Note: For automatically starting signald as a child proces, `signald` needs to be in `$PATH`.
 
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 

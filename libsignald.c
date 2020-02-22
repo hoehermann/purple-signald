@@ -623,7 +623,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 void
 signald_login(PurpleAccount *account)
 {
-    purple_debug_info (SIGNALD_PLUGIN_ID, "login\n"); 
+    purple_debug_info (SIGNALD_PLUGIN_ID, "login\n");
 
     PurpleConnection *pc = purple_account_get_connection(account);
 
@@ -650,7 +650,7 @@ signald_login(PurpleAccount *account)
         // We need to start signald if it not already running
 
         purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald handled by plugin, starting signald\n"); 
+                           "signald handled by plugin, starting signald\n");
 
         if (! signald_usages) {
             // Not yet running, start deamon
@@ -680,7 +680,7 @@ signald_login(PurpleAccount *account)
 
         signald_usages++;
         purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald used %d times\n", signald_usages); 
+                           "signald used %d times\n", signald_usages);
     }
 
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
@@ -757,7 +757,7 @@ signald_close (PurpleConnection *pc)
             g_free (pid_file);
         }
         purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald used %d times after closing\n", signald_usages); 
+                           "signald used %d times after closing\n", signald_usages);
     }
 }
 

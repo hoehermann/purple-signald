@@ -1,6 +1,6 @@
 /*
  *   signald plugin for libpurple
- *   Copyright (C) 2016 hermann Höhne
+ *   Copyright (C) 2016 Hermann Höhne
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -69,7 +69,6 @@
 #define SIGNALD_PID_FILE_QR SIGNALD_DATA_PATH "/pidqr"
 #define SIGNALD_QRCREATE_CMD "qrencode -s 6 -o " SIGNALD_TMP_QRFILE " '%s'"
 #define SIGNALD_QR_MSG "echo Link by scanning QR with Signal App"
-#define SIGNALD_LINK_TYPE "linking_"
 
 #define SIGNALD_STATUS_STR_ONLINE   "online"
 #define SIGNALD_STATUS_STR_OFFLINE  "offline"
@@ -116,11 +115,16 @@ signald_kill_process (const char *pid_file_name)
     pid_t pid;
     FILE *pid_file = fopen (pid_file_name, "r");
     if (pid_file) {
-        fscanf (pid_file, "%d\n", &pid);
-        fclose (pid_file);
+        if (fscanf (pid_file, "%d\n", &pid)) {
+            fclose (pid_file);
+        } else {
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Failed to read signald pid from file.");
+        }
+    } else {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Failed to access signald pidfile.");
     }
-    kill (pid, SIGTERM);
-    remove (pid_file_name);
+    kill(pid, SIGTERM);
+    remove(pid_file_name);
 }
 
 void
@@ -163,12 +167,12 @@ signald_scan_qrcode (SignaldAccount *sa)
 }
 
 int
-signald_util_strcmp (const char *s1, const char *s2)
+signald_strequalprefix (const char *s1, const char *s2)
 {
     int l1 = strlen (s1);
     int l2 = strlen (s2);
 
-    return strncmp (s1, s2, l1 < l2 ? l1 : l2);
+    return 0 == strncmp (s1, s2, l1 < l2 ? l1 : l2);
 }
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
@@ -382,38 +386,38 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 void
-signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
+signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj)
 {
-    if (purple_strequal (type, "linking_uri")) {
+    // Linking uri is provided, create the qr-code
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *uri = json_object_get_string_member(data, "uri");
+    purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
 
-        // Linking uri is provided, create the qr-code
-        JsonObject *data = json_object_get_object_member(obj, "data");
-        const gchar *uri = json_object_get_string_member(data, "uri");
-        purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
+    remove (SIGNALD_TMP_QRFILE);  // remove any old files
 
-        remove (SIGNALD_TMP_QRFILE);  // remove any old files
+    // Start the system utility for creating the qr code
+    // TODO: It would be better to do this be means of some libs
+    //       instead of calling an external program via system () here
+    gchar *qr_command = g_strdup_printf (SIGNALD_QRCREATE_CMD, uri);
+    int ok = system (qr_command);
 
-        // Start the system utility for creating the qr code
-        // TODO: It would be better to do this be means of some libs
-        //       instead of calling an external program via system () here
-        gchar *qr_command = g_strdup_printf (SIGNALD_QRCREATE_CMD, uri);
-        int ok = system (qr_command);
-
-        struct stat file_stat;
-        if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0)) {
-            gchar *text = g_strdup_printf ("QR code creation failed:\n%s",
-                                            qr_command);
-            purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-            g_free (text);
-            g_free (qr_command);
-            return;
-        }
-
+    struct stat file_stat;
+    if ((ok < 0) || (stat (SIGNALD_TMP_QRFILE, &file_stat) < 0)) {
+        gchar *text = g_strdup_printf ("QR code creation failed:\n%s",
+                                        qr_command);
+        purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+        g_free (text);
+        return;
+    } else {
         // Display the QR code for scanning
         signald_scan_qrcode (sa);
-        g_free (qr_command);
+    }
+    g_free (qr_command);
+}
 
-    } else if (purple_strequal (type, "linking_successful")) {
+void
+signald_parse_linking_successful (SignaldAccount *sa, JsonObject *obj)
+{
         // Linking was successful
         purple_notify_close_with_handle (purple_notify_get_handle ());
         remove (SIGNALD_TMP_QRFILE);
@@ -421,44 +425,37 @@ signald_parse_linking (SignaldAccount *sa, JsonObject *obj, const gchar *type)
         //        linking to the main account and are only shown there.
         //        Is it robust to subscribe here?
         signald_subscribe (sa);
+}
 
-    } else if (purple_strequal (type, "linking_error")) {
-        // Error: Linking was not successful
-        JsonObject *data = json_object_get_object_member(obj, "data");
-        const gchar *msg = json_object_get_string_member(data, "message");
-        gchar *text = g_strdup_printf ("Linking not successful!\n%s", msg);
-        purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-        g_free (text);
+void
+signald_parse_linking_error (SignaldAccount *sa, JsonObject *obj)
+{
+    // Error: Linking was not successful
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *msg = json_object_get_string_member(data, "message");
+    gchar *text = g_strdup_printf ("Linking not successful!\n%s", msg);
+    purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+    g_free (text);
 
-        gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE_QR, purple_user_dir ());
-        signald_kill_process (pid_file);
-        purple_notify_close_with_handle (purple_notify_get_handle ());
-        g_free (pid_file);
+    gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE_QR, purple_user_dir ());
+    signald_kill_process (pid_file);
+    purple_notify_close_with_handle (purple_notify_get_handle ());
+    g_free (pid_file);
 
-        remove (SIGNALD_TMP_QRFILE);
+    remove (SIGNALD_TMP_QRFILE);
 
-        json_object_unref(data);
-
-    } else {
-        gchar *text = g_strdup_printf (
-                "Unknown message related to linking:\n%s", type);
-        purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-        g_free (text);
-    }
-
+    json_object_unref(data);
 }
 
 void
 signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 {
-    // {"type": "verify", "username": "+12024561414", "code": "000-000"}
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "verify");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     json_object_set_string_member(data, "code", input);
     if (!signald_send_json(sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write verification message."));
     }
     json_object_unref(data);
 }
@@ -466,6 +463,7 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 void
 signald_link_or_register (SignaldAccount *sa)
 {
+    // TODO: split the function into link and register
     const char *username = purple_account_get_username(sa->account);
     JsonObject *data = json_object_new();
 
@@ -541,8 +539,19 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "message")) {
             signald_parse_message(sa, json_object_get_object_member(obj, "data"));
 
-        } else if (! strncmp (type, SIGNALD_LINK_TYPE, strlen (SIGNALD_LINK_TYPE))) {
-            signald_parse_linking (sa, obj, type);
+        } else if (purple_strequal(type, "linking_uri")) {
+            signald_parse_linking_uri(sa, obj);
+
+        } else if (purple_strequal (type, "linking_successful")) {
+            signald_parse_linking_successful(sa, obj);
+
+        } else if (purple_strequal (type, "linking_error")) {
+            signald_parse_linking_error(sa, obj);
+
+        } else if (signald_strequalprefix(type, "linking_")) {
+            gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
+            purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
+            g_free (text);
 
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
@@ -553,13 +562,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // Analyze the error: Check for failed authorization or unknown user.
             // Do we have to link or register the account?
             // FIXME: This does not work reliably, i.e.,
-            //          * there is a connection error without but no attempt
-            //            to link or register
-            //          * the account is enabled and the contacts are loaded
-            //            but sending a message won't work
+            //          * there is a connection error without but no attempt to link or register
+            //          * the account is enabled and the contacts are loaded but sending a message won't work
             if (message && *message) {
-                  if ((! signald_util_strcmp (message, SIGNALD_ERR_NONEXISTUSER))
-                      || (!signald_util_strcmp (message, SIGNALD_ERR_AUTHFAILED))                 ) {
+                  if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
+                      || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))                 ) {
                       signald_link_or_register (sa);
                   }
             } else {
@@ -620,9 +627,42 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 }
 
 void
+signald_signald_start(PurpleAccount *account)
+{
+    // Controlled by plugin.
+    // We need to start signald if it not already running
+
+    purple_debug_info (SIGNALD_PLUGIN_ID, "signald handled by plugin\n");
+
+    if (0 == signald_usages) {
+        purple_debug_info (SIGNALD_PLUGIN_ID, "starting signald\n");
+
+        // Start signald daemon as forked process for killing it when closing
+        int pid = fork();
+        if (pid == 0) {
+            // The child, redirect it to signald
+
+            // Save pid for later killing the daemon
+            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_user_dir());
+            signald_save_pidfile (pid_file);
+            g_free(pid_file);
+
+            // Start the daemon
+            gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_user_dir());
+            const char *socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET_LOCAL);
+            execlp("signald", "signald", "-s", socket, "-d", data, (char *) NULL);
+            g_free(data);
+        }
+    }
+
+    signald_usages++;
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald used %d times\n", signald_usages);
+}
+
+void
 signald_login(PurpleAccount *account)
 {
-    purple_debug_info (SIGNALD_PLUGIN_ID, "login\n");
+    purple_debug_info(SIGNALD_PLUGIN_ID, "login\n");
 
     PurpleConnection *pc = purple_account_get_connection(account);
 
@@ -641,45 +681,9 @@ signald_login(PurpleAccount *account)
 
     // Check account settings whether signald is globally running
     // (controlled by the system or the user) or whether it should
-    // be controlled by the plugin. Also check, whether an instance of
-    // signald is already running
-
+    // be controlled by the plugin.
     if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
-        // Controlled by plugin.
-        // We need to start signald if it not already running
-
-        purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald handled by plugin, starting signald\n");
-
-        if (! signald_usages) {
-            // Not yet running, start deamon
-
-            // Start signald daemon as forked process for killing it when closing
-            int pid = fork ();
-            if (pid == 0) {
-                // The child, redirect it to signald
-
-                // Save pid for later killing the daemon
-                gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE,
-                                                   purple_user_dir ());
-                signald_save_pidfile (pid_file);
-                g_free (pid_file);
-
-                // Start the daemon
-                gchar *data = g_strdup_printf (SIGNALD_DATA_PATH,
-                                               purple_user_dir ());
-                const char *socket = purple_account_get_string(
-                                       account, "socket",
-                                      SIGNALD_DEFAULT_SOCKET_LOCAL);
-                execlp ("signald", "signald", "-s", socket,
-                                              "-d", data, (char *) NULL);
-                g_free (data);
-            }
-        }
-
-        signald_usages++;
-        purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald used %d times\n", signald_usages);
+        signald_signald_start(sa->account);
     }
 
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
@@ -732,7 +736,6 @@ signald_close (PurpleConnection *pc)
     json_object_set_string_member(data, "type", "unsubscribe");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     if (!signald_send_json (sa, data)) {
-      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
       purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
@@ -748,15 +751,13 @@ signald_close (PurpleConnection *pc)
     // controlled by the plugin.
     if (signald_usages) {
         signald_usages--;
-        if (! signald_usages) {
+        if (0 == signald_usages) {
             // This was the last instance, kill daemon and remove pid file
-            gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE,
-                                               purple_user_dir ());
-            signald_kill_process (pid_file);
-            g_free (pid_file);
+            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_user_dir());
+            signald_kill_process(pid_file);
+            g_free(pid_file);
         }
-        purple_debug_info (SIGNALD_PLUGIN_ID,
-                           "signald used %d times after closing\n", signald_usages);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "signald used %d times after closing\n", signald_usages);
     }
 }
 

@@ -57,11 +57,13 @@
 #define SIGNALD_DIALOG_LINK "Link to Signal App"
 
 #define SIGNALD_TIME_OUT 10
-#define SIGNALD_DEFAULT_SOCKET "/tmp/signald.sock"
+#define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"
+#define SIGNALD_DEFAULT_SOCKET_LOCAL "/tmp/signald.sock"
+#define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET_LOCAL " -d " SIGNALD_DATA_PATH " &"
+
 #define SIGNALD_DATA_PATH "%s/plugins/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
 #define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"
-#define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET " -d " SIGNALD_DATA_PATH " &"
 
 #define SIGNALD_TMP_QRFILE "/tmp/signald_link_purple_qrcode.png"
 #define SIGNALD_PID_FILE_QR SIGNALD_DATA_PATH "/pidqr"
@@ -86,6 +88,8 @@ typedef struct {
     int fd;
     guint watcher;
 } SignaldAccount;
+
+static int signald_usages = 0;
 
 static void
 signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias);
@@ -619,24 +623,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 void
 signald_login(PurpleAccount *account)
 {
-    // Start signald daemon as forked process for killing it when closing
-    int pid = fork ();
-    if (pid == 0)
-    {
-      // The child, redirect it to signald
-
-      // Save pid for later killing the daemon
-      gchar *str = g_strdup_printf (SIGNALD_PID_FILE, purple_user_dir ());
-      signald_save_pidfile (str);
-      g_free (str);
-
-      // Start the daemon
-      str = g_strdup_printf (SIGNALD_DATA_PATH, purple_user_dir ());
-      const char *socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
-      execlp ("signald", "signald", "-s", socket,
-                                    "-d", str, (char *) NULL);
-      g_free (str);
-    }
+    purple_debug_info (SIGNALD_PLUGIN_ID, "login\n"); 
 
     PurpleConnection *pc = purple_account_get_connection(account);
 
@@ -652,6 +639,49 @@ signald_login(PurpleAccount *account)
     purple_connection_set_protocol_data(pc, sa);
     sa->account = account;
     sa->pc = pc;
+
+    // Check account settings whether signald is globally running
+    // (controlled by the system or the user) or whether it should
+    // be controlled by the plugin. Also check, whether an instance of
+    // signald is already running
+
+    if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+        // Controlled by plugin.
+        // We need to start signald if it not already running
+
+        purple_debug_info (SIGNALD_PLUGIN_ID,
+                           "signald handled by plugin, starting signald\n"); 
+
+        if (! signald_usages) {
+            // Not yet running, start deamon
+
+            // Start signald daemon as forked process for killing it when closing
+            int pid = fork ();
+            if (pid == 0) {
+                // The child, redirect it to signald
+
+                // Save pid for later killing the daemon
+                gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE,
+                                                   purple_user_dir ());
+                signald_save_pidfile (pid_file);
+                g_free (pid_file);
+
+                // Start the daemon
+                gchar *data = g_strdup_printf (SIGNALD_DATA_PATH,
+                                               purple_user_dir ());
+                const char *socket = purple_account_get_string(
+                                       account, "socket",
+                                      SIGNALD_DEFAULT_SOCKET_LOCAL);
+                execlp ("signald", "signald", "-s", socket,
+                                              "-d", data, (char *) NULL);
+                g_free (data);
+            }
+        }
+
+        signald_usages++;
+        purple_debug_info (SIGNALD_PLUGIN_ID,
+                           "signald used %d times\n", signald_usages); 
+    }
 
     purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
     // create a socket
@@ -713,10 +743,22 @@ signald_close (PurpleConnection *pc)
     sa->fd = 0;
     g_free(sa);
 
-    // Kill signald daemon and remove its pid file
-    gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE, purple_user_dir ());
-    signald_kill_process (pid_file);
-    g_free (pid_file);
+    // Kill signald daemon and remove its pid file if this was the last
+    // account using the daemon. There is no need to check the option for
+    // controlling signald again, since usage count is only greater 0 if
+    // controlled by the plugin.
+    if (signald_usages) {
+        signald_usages--;
+        if (! signald_usages) {
+            // This was the last instance, kill daemon and remove pid file
+            gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE,
+                                               purple_user_dir ());
+            signald_kill_process (pid_file);
+            g_free (pid_file);
+        }
+        purple_debug_info (SIGNALD_PLUGIN_ID,
+                           "signald used %d times after closing\n", signald_usages); 
+    }
 }
 
 static GList *
@@ -884,17 +926,24 @@ signald_add_account_options(GList *account_options)
 {
     PurpleAccountOption *option;
 
-    option = purple_account_option_string_new(
-                _("socket"),
-                "socket",
-                SIGNALD_DEFAULT_SOCKET
-                );
-    account_options = g_list_append(account_options, option);
-
     option = purple_account_option_bool_new(
                 _("Link to an existing account"),
                 "link",
                 TRUE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
+                _("Daemon signald is controlled by pidgin, not globally or by the user"),
+                "handle_signald",
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_string_new(
+                _("Socket of signald daemon when not controlled by pidgin"),
+                "socket",
+                SIGNALD_DEFAULT_SOCKET
                 );
     account_options = g_list_append(account_options, option);
 

@@ -240,7 +240,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_linking_uri(sa, obj);
 
         } else if (purple_strequal (type, "linking_successful")) {
-            signald_parse_linking_successful(sa, obj);
+            signald_parse_linking_successful();
 
             // FIXME: Sometimes, messages are not received by pidgin after
             //        linking to the main account and are only shown there.
@@ -250,11 +250,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal (type, "linking_error")) {
             signald_parse_linking_error(sa, obj);
 
-            gchar *pid_file = g_strdup_printf (SIGNALD_PID_FILE_QR, purple_user_dir ());
-            signald_kill_process (pid_file);
             purple_notify_close_with_handle (purple_notify_get_handle ());
-            g_free (pid_file);
-
             remove (SIGNALD_TMP_QRFILE);
 
         } else if (signald_strequalprefix(type, "linking_")) {

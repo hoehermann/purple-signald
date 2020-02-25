@@ -73,11 +73,12 @@ signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj)
 }
 
 void
-signald_parse_linking_successful (SignaldAccount *sa, JsonObject *obj)
+signald_parse_linking_successful (void)
 {
-        // Linking was successful
-        purple_notify_close_with_handle (purple_notify_get_handle ());
-        remove (SIGNALD_TMP_QRFILE);
+    // Linking was successful
+    purple_debug_info (SIGNALD_PLUGIN_ID, "Linking successful\n");
+    purple_notify_close_with_handle (purple_notify_get_handle ());
+    remove (SIGNALD_TMP_QRFILE);
 }
 
 void

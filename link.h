@@ -8,7 +8,7 @@ void
 signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj);
 
 void
-signald_parse_linking_successful (SignaldAccount *sa, JsonObject *obj);
+signald_parse_linking_successful (void);
 
 void
 signald_parse_linking_error (SignaldAccount *sa, JsonObject *obj);

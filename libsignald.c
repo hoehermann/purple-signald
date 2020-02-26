@@ -173,6 +173,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
+purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         if (purple_strequal(type, "version")) {
             obj = json_object_get_object_member(obj, "data");
@@ -265,6 +266,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "group_updated")) {
             // Big hammer, but this should work.
             signald_request_group_list(sa);
+
+        } else if (purple_strequal(type, "account_list")) {
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
@@ -425,7 +430,18 @@ signald_login(PurpleAccount *account)
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
-    signald_subscribe (sa);
+    if (! purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+        // subscribe if signald is globally running
+        signald_subscribe (sa);
+    } else {
+        // Otherwise: get information on account for deciding what do do
+        JsonObject *data = json_object_new();
+        json_object_set_string_member(data, "type", "list_accounts");
+        if (!signald_send_json(sa, data)) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
+        }
+        json_object_unref(data);
+    }
 }
 
 static void

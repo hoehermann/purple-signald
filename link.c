@@ -105,6 +105,10 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write verification message."));
     }
     json_object_unref(data);
+
+    // TODO: Is there an acknowledge on successful registration? If yes,
+    //       subscribe afterwards or display an error otherwise
+    signald_subscribe(sa);
 }
 
 void
@@ -126,7 +130,7 @@ signald_link_or_register (SignaldAccount *sa)
         json_object_set_string_member(data, "type", "link");
         if (!signald_send_json(sa, data)) {
             //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
         }
     } else {
         // Register username (phone number) as new signal account, which
@@ -137,7 +141,7 @@ signald_link_or_register (SignaldAccount *sa)
         json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
         if (!signald_send_json(sa, data)) {
             //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write registration message."));
         }
 
         // TODO: Test registering thoroughly
@@ -153,3 +157,27 @@ signald_link_or_register (SignaldAccount *sa)
     json_object_unref(data);
 }
 
+void
+signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+    SignaldAccount *sa = (SignaldAccount *)user_data;
+    JsonObject *obj = json_node_get_object(element_node);
+
+    const char *username = json_object_get_string_member(obj, "username");
+    if (purple_strequal (username, purple_account_get_username(sa->account))) {
+        // The current account
+        gboolean registered = json_object_get_boolean_member (obj, "registered");
+        purple_debug_info (SIGNALD_PLUGIN_ID,
+                           "Account %s registered: %d\n", username, registered);
+        if (registered)
+            signald_subscribe (sa); // Subscribe when account is registered
+        else
+            signald_link_or_register (sa);  // Link or register if not
+    }
+}
+
+void
+signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
+{
+    json_array_foreach_element(data, signald_process_account, sa);
+}

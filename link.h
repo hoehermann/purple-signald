@@ -16,4 +16,7 @@ signald_parse_linking_error (SignaldAccount *sa, JsonObject *obj);
 void
 signald_link_or_register (SignaldAccount *sa);
 
+void
+signald_parse_account_list (SignaldAccount *sa, JsonArray *data);
+
 #endif

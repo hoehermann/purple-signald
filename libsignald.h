@@ -66,6 +66,9 @@ typedef struct {
     GHashTable *groups;
 } SignaldAccount;
 
+void
+signald_subscribe (SignaldAccount *sa);
+
 #include "message.h"
 #include "direct.h"
 #include "groups.h"

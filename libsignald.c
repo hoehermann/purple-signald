@@ -350,9 +350,21 @@ signald_signald_start(PurpleAccount *account)
 
             // Start the daemon
             gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_user_dir());
-            const char *socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET_LOCAL);
-            execlp("signald", "signald", "-s", socket, "-d", data, (char *) NULL);
+            int signald_ok;
+            if (purple_debug_is_enabled ()) {
+                signald_ok = execlp("signald", "signald", "-v", "-s",
+                                    SIGNALD_DEFAULT_SOCKET_LOCAL, "-d",
+                                    data, (char *) NULL);
+            } else {
+                signald_ok = execlp("signald", "signald", "-s",
+                                    SIGNALD_DEFAULT_SOCKET_LOCAL, "-d",
+                                    data, (char *) NULL);
+            }
             g_free(data);
+
+            // Error starting the daemon? (execlp only returns on error)
+            purple_debug_info (SIGNALD_PLUGIN_ID,
+                               "return code starting signald: %d\n", signald_ok);
         }
     }
 
@@ -404,7 +416,16 @@ signald_login(PurpleAccount *account)
     struct sockaddr_un address;
     memset(&address, 0, sizeof(struct sockaddr_un));
     address.sun_family = AF_UNIX;
-    strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+
+    if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+      // signald is handled by the plugin, use the local socket
+      purple_debug_info(SIGNALD_PLUGIN_ID, "using local socket %s\n", SIGNALD_DEFAULT_SOCKET_LOCAL);
+      strcpy(address.sun_path, SIGNALD_DEFAULT_SOCKET_LOCAL);
+    } else {
+      // signald is handled globally
+      purple_debug_info(SIGNALD_PLUGIN_ID, "using local socket %s\n", purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+      strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+    }
 
     // Try to connect but give signald some time (it was started in background)
     int try = 0;
@@ -412,6 +433,7 @@ signald_login(PurpleAccount *account)
     while ((err != 0) && (try <= SIGNALD_TIME_OUT))
     {
       err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
+      purple_debug_info(SIGNALD_PLUGIN_ID, "connecting ... %d s\n", try);
       try++;
       sleep (1);    // altogether wait SIGNALD_TIME_OUT seconds
     }

@@ -138,7 +138,7 @@ signald_link_or_register (SignaldAccount *sa)
         // {"type": "register", "username": "+12024561414"}
 
         json_object_set_string_member(data, "type", "register");
-        json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+        json_object_set_string_member(data, "username", username);
         if (!signald_send_json(sa, data)) {
             //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write registration message."));

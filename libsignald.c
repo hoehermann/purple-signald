@@ -26,6 +26,7 @@
 #include <sys/socket.h> // for recv
 #include <sys/un.h> // for sockaddr_un
 #include <sys/stat.h> // for chmod
+#include <gmodule.h>
 
 #ifdef ENABLE_NLS
 // TODO: implement localisation
@@ -85,6 +86,9 @@ typedef struct {
 
     int fd;
     guint watcher;
+
+    // Maps signal group IDs to libpurple PurpleConversation objects that represent those chats.
+    GHashTable *groups;
 } SignaldAccount;
 
 static int signald_usages = 0;
@@ -247,7 +251,7 @@ signald_parse_attachment(JsonObject *obj, GString *message)
         g_string_append_printf(message, "<IMG ID=\"%d\"/><br/>", img_id);
     } else {
         //TODO: Receive file using libpurple's file transfer API
-        g_string_append_printf(message, "<a href=\"file://%s\">Attachment (type: %s)</a><br/>", fn, type);
+        g_string_append_printf(message, "<a href=\"file://%s \">Attachment (type: %s)</a><br/>", fn, type);
     }
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);
 }
@@ -339,6 +343,59 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
     json_array_foreach_element(data, signald_process_contact, sa);
 }
 
+/*
+ * Basic group handling logic.
+ */
+
+void
+signald_process_group_member(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+  purple_chat_conversation_add_user(PURPLE_CONV_CHAT(user_data), json_node_get_string(element_node), NULL, PURPLE_CBFLAGS_NONE, FALSE);
+}
+
+PurpleConversation *
+signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
+{
+  PurpleConversation *conv = (PurpleConversation *)g_hash_table_lookup(sa->groups, groupId);
+
+  if (conv != NULL) {
+    return conv;
+  }
+
+  // For now we just set up the group IDs by numbering them as they arrive.
+  // I don't know if these things need to be persistent across sessions.
+  // If so, this is a bad idea, since the ordering may be non-deterministic.
+  int id = g_hash_table_size(sa->groups);
+
+  conv = serv_got_joined_chat(sa->pc, id, groupName);
+  g_hash_table_insert(sa->groups, g_strdup(groupId), conv);
+
+  // Now add the members to the chat
+  json_array_foreach_element(members, signald_process_group_member, conv);
+
+  return conv;
+}
+
+void
+signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+    SignaldAccount *sa = (SignaldAccount *)user_data;
+    JsonObject *obj = json_node_get_object(element_node);
+
+    signald_join_group(sa,
+                       json_object_get_string_member(obj, "groupId"),
+                       json_object_get_string_member(obj, "name"),
+                       json_object_get_array_member(obj, "members"));
+}
+
+void
+signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
+{
+    json_array_foreach_element(groups, signald_process_group, sa);
+}
+
+/*****/
+
 gboolean
 signald_send_str(SignaldAccount *sa, char *s)
 {
@@ -382,6 +439,13 @@ signald_subscribe (SignaldAccount *sa)
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
     }
+
+    // Get the current group list
+    json_object_set_string_member(data, "type", "list_groups");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    }
+
     json_object_unref(data);
 }
 
@@ -556,6 +620,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
 
+        } else if (purple_strequal(type, "group_list")) {
+            obj = json_object_get_object_member(obj, "data");
+            signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
+
         } else if (purple_strequal(type, "unexpected_error")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             const gchar *message = json_object_get_string_member(data, "message");
@@ -723,6 +791,9 @@ signald_login(PurpleAccount *account)
     sa->fd = fd;
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
+    // Initialize the container where we'll store our group mappings
+    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+
     signald_subscribe (sa);
 }
 
@@ -743,6 +814,10 @@ signald_close (PurpleConnection *pc)
     sa->watcher = 0;
     close(sa->fd);
     sa->fd = 0;
+
+    // Might need more cleanup where if the PurpleConversation objects need to be blown away...
+    g_hash_table_destroy(sa->groups);
+
     g_free(sa);
 
     // Kill signald daemon and remove its pid file if this was the last
@@ -759,6 +834,7 @@ signald_close (PurpleConnection *pc)
         }
         purple_debug_info(SIGNALD_PLUGIN_ID, "signald used %d times after closing\n", signald_usages);
     }
+
 }
 
 static GList *

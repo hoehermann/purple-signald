@@ -399,6 +399,24 @@ signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
     json_array_foreach_element(groups, signald_process_group, sa);
 }
 
+gchar *
+signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
+{
+    GHashTableIter iter;
+    gpointer key;
+    gpointer value;
+
+    g_hash_table_iter_init(&iter, sa->groups);
+
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        if (purple_conv_chat_get_id(PURPLE_CONV_CHAT((PurpleConversation *)value)) == id) {
+            return (gchar *)key;
+        }
+    }
+
+    return NULL;
+}
+
 /*****/
 
 gboolean
@@ -861,31 +879,14 @@ signald_status_types(PurpleAccount *account)
 }
 
 static int
-signald_send_im(PurpleConnection *pc,
-#if PURPLE_VERSION_CHECK(3, 0, 0)
-                PurpleMessage *msg)
+signald_send_message(SignaldAccount *sa, JsonObject *data, const char *message)
 {
-    const gchar *who = purple_message_get_recipient(msg);
-    const gchar *message = purple_message_get_contents(msg);
-#else
-                const gchar *who, const gchar *message, PurpleMessageFlags flags)
-{
-#endif
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
-    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
-        return 0;
-    }
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "send");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, who[0]=='+' ? "recipientNumber" : "recipientGroupId", who);
-
     // Search for embedded images and attach them to the message. Remove the <img> tags.
     JsonArray *attachments = json_array_new();
     GString *msg = g_string_new(""); // this shall hold the actual message body (without the <img> tags)
     GData *attribs;
     const char *start, *end, *last;
+
     last = message;
 
     /* for each valid IMG tag... */
@@ -949,15 +950,73 @@ signald_send_im(PurpleConnection *pc,
     }
 
     json_object_set_array_member(data, "attachments", attachments);
+
     char *plain = purple_unescape_html(msg->str);
+
     json_object_set_string_member(data, "messageBody", plain);
+
     // TODO: check if json_object_set_string_member manages copies of the data it is given (else these would be read from free'd memory)
     g_string_free(msg, TRUE);
+
     g_free(plain);
+
     if (!signald_send_json(sa, data)) {
         return -errno;
+    } else {
+        return 1;
     }
-    return 1;
+}
+
+static int
+signald_send_im(PurpleConnection *pc,
+#if PURPLE_VERSION_CHECK(3, 0, 0)
+                PurpleMessage *msg)
+{
+    const gchar *who = purple_message_get_recipient(msg);
+    const gchar *message = purple_message_get_contents(msg);
+#else
+                const gchar *who, const gchar *message, PurpleMessageFlags flags)
+{
+#endif
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
+
+    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
+        return 0;
+    }
+
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    JsonObject *data = json_object_new();
+
+    json_object_set_string_member(data, "type", "send");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "recipientNumber", who);
+
+    return signald_send_message(sa, data, message);
+}
+
+static int
+signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
+{
+  SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+  gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
+
+  if (groupId == NULL) {
+        return 0;
+  }
+
+  JsonObject *data = json_object_new();
+
+  json_object_set_string_member(data, "type", "send");
+  json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+  json_object_set_string_member(data, "recipientGroupId", groupId);
+
+  int ret = signald_send_message(sa, data, message);
+
+  if (ret) {
+      purple_serv_got_chat_in(pc, id, sa->account->username, flags, message, time(NULL));
+  }
+
+  return ret;
 }
 
 static void
@@ -1120,7 +1179,9 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->get_chat_name = discord_get_chat_name;
 	prpl_info->find_blist_chat = discord_find_chat;
 	prpl_info->chat_invite = discord_chat_invite;
-	prpl_info->chat_send = discord_chat_send;
+    */
+    prpl_info->chat_send = signald_send_chat;
+    /*
 	prpl_info->set_chat_topic = discord_chat_set_topic;
 	prpl_info->get_cb_real_name = discord_get_real_name;
     */

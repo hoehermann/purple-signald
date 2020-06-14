@@ -817,7 +817,7 @@ signald_login(PurpleAccount *account)
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
     // Initialize the container where we'll store our group mappings
-    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
     signald_subscribe (sa);
 }
@@ -829,13 +829,16 @@ signald_close (PurpleConnection *pc)
 
     // unsubscribe to the configured number
     JsonObject *data = json_object_new();
+
     json_object_set_string_member(data, "type", "unsubscribe");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+
     if (!signald_send_json (sa, data)) {
       purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
     purple_input_remove(sa->watcher);
+
     sa->watcher = 0;
     close(sa->fd);
     sa->fd = 0;

@@ -300,6 +300,8 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj)
         if (sent != NULL) {
             source = json_object_get_string_member(sent, "destination");
             dataMessage = json_object_get_object_member(sent, "message");
+        } else {
+          return;
         }
     } else {
         // gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");

@@ -204,11 +204,13 @@ signald_find_conversation(const char *username, PurpleAccount *account) {
     if (imconv == NULL) {
         imconv = purple_im_conversation_new(account, username);
     }
+
     PurpleConversation *conv = PURPLE_CONVERSATION(imconv);
     if (conv == NULL) {
         imconv = purple_conversations_find_im_with_account(username, account);
         conv = PURPLE_CONVERSATION(imconv);
     }
+
     return conv;
 }
 
@@ -218,23 +220,35 @@ signald_process_message(SignaldAccount *sa,
         const gchar *groupid_str, const gchar *groupname, GString *attachments)
 {
     PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+
     if (attachments->len) {
         flags |= PURPLE_MESSAGE_IMAGES;
     }
-    sender = groupid_str && *groupid_str ? groupid_str : sender;
+
     g_string_append(attachments, content);
-    // Sometimes signald delivers empty messages with no attachments seemingly coming from my own number.
-    // Ignore these messages.
-    if (attachments->len) {
-        if (fromMe) {
-            // special handling of messages sent by self incoming from remote
-            // copied from hoehermann/purple-gowhatsapp/libgowhatsapp.c
-            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-            PurpleConversation *conv = signald_find_conversation(sender, sa->account);
-            purple_conversation_write(conv, sender, attachments->str, flags, timestamp);
-        } else {
-            purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
-        }
+
+    if (! attachments->len) {
+      return;
+    }
+
+    PurpleConversation *conv = NULL;
+
+    if (groupid_str) {
+      conv = (PurpleConversation *)g_hash_table_lookup(sa->groups, groupid_str);
+    } else {
+      conv = signald_find_conversation(sender, sa->account);
+    }
+
+    if (fromMe) {
+        // special handling of messages sent by self incoming from remote
+        // copied from hoehermann/purple-gowhatsapp/libgowhatsapp.c
+        flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+
+        purple_conversation_write(conv, sender, attachments->str, flags, timestamp);
+    } else if (groupid_str != NULL) {
+        purple_serv_got_chat_in(sa->pc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(conv)), sender, flags, attachments->str, timestamp);
+    } else {
+        purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
     }
 }
 
@@ -270,61 +284,52 @@ signald_prepare_attachments_message(JsonObject *obj) {
 void
 signald_parse_message(SignaldAccount *sa, JsonObject *obj)
 {
-    // gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
-    // isReceipt() can be false even if message actually is a receipt
-    // TODO: optioally display receipt in the conversation window
-    // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
-    const gchar *source = json_object_get_string_member(obj, "source");
-    if (source == NULL) {
-        source = SIGNALD_UNKNOWN_SOURCE_NUMBER;
-    }
-
     // Signal's integer timestamps are in milliseconds
     // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
     // serverTimestamp is when the server received the message
     time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
 
-    /* handle normal message (sent to this account) */
-    JsonObject *dataMessage = json_object_get_object_member(obj, "dataMessage");
-    if (dataMessage != NULL) {
-        // get optional group information
-        // TODO: remove redundancy
-        JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
-        const gchar *groupid_str = NULL;
-        const gchar *groupname = NULL;
-        if (groupInfo) {
-            groupid_str = json_object_get_string_member(groupInfo, "groupId");
-            groupname = json_object_get_string_member(groupInfo, "name");
-        }
-        const gchar *message = json_object_get_string_member(dataMessage, "message");
-        GString *attachments_message = signald_prepare_attachments_message(dataMessage);
-        purple_debug_info(SIGNALD_PLUGIN_ID, "New dataMessage from %s: %s\n", source, message);
-        signald_process_message(sa, source, message, timestamp, FALSE, groupid_str, groupname, attachments_message);
-        g_string_free(attachments_message, TRUE);
-    }
-
-    /* handle sync message (sent from this account via other device) */
     JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
+
+    JsonObject *dataMessage = NULL;
+    const gchar *source;
+
     if (syncMessage != NULL) {
         JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
+
         if (sent != NULL) {
-            const gchar *destination = json_object_get_string_member(sent, "destination");
-            JsonObject *dataMessage = json_object_get_object_member(sent, "message");
-            JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
-            const gchar *groupid_str = NULL;
-            const gchar *groupname = NULL;
-            if (groupInfo) {
-                groupid_str = json_object_get_string_member(groupInfo, "groupId");
-                groupname = json_object_get_string_member(groupInfo, "name");
-            }
-            const gchar *message = json_object_get_string_member(dataMessage, "message");
-            GString *attachments_message = signald_prepare_attachments_message(dataMessage);
-            purple_debug_info(SIGNALD_PLUGIN_ID, "New sentMessage from self to %s: %s\n", destination, message);
-            signald_process_message(sa, destination, message, timestamp, TRUE, groupid_str, groupname, attachments_message);
-            g_string_free(attachments_message, TRUE);
+            source = json_object_get_string_member(sent, "destination");
+            dataMessage = json_object_get_object_member(sent, "message");
         }
+    } else {
+        // gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
+        // isReceipt() can be false even if message actually is a receipt
+        // TODO: optioally display receipt in the conversation window
+        // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+
+        source = json_object_get_string_member(obj, "source");
+        dataMessage = json_object_get_object_member(obj, "dataMessage");
     }
 
+    if (source == NULL) {
+        source = SIGNALD_UNKNOWN_SOURCE_NUMBER;
+    }
+
+    const gchar *message = json_object_get_string_member(dataMessage, "message");
+    GString *attachments_message = signald_prepare_attachments_message(dataMessage);
+
+    JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
+    const gchar *groupid_str = NULL;
+    const gchar *groupname = NULL;
+
+    if (groupInfo) {
+        groupid_str = json_object_get_string_member(groupInfo, "groupId");
+        groupname = json_object_get_string_member(groupInfo, "name");
+    }
+
+    signald_process_message(sa, source, message, timestamp, (syncMessage != NULL), groupid_str, groupname, attachments_message);
+
+    g_string_free(attachments_message, TRUE);
 }
 
 void

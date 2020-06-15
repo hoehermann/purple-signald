@@ -473,8 +473,6 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         username = ((PurpleConvChatBuddy *)this_user->data)->name;
 
         if (! signald_check_group_membership(members, username)) {
-            printf("going to remove %s from %s\n", username, groupName);
-
             remove_users = g_list_append(remove_users, g_strdup(username));
         }
     }

@@ -410,9 +410,9 @@ signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupNam
         return;
     }
 
-    // For now we just set up the group IDs by numbering them as they arrive.
-    // I don't know if these things need to be persistent across sessions.
-    // If so, this is a bad idea, since the ordering may be non-deterministic.
+    // We hash the group ID to create a persistent ID for the chat.  It's not
+    // stated anywhere that this is required, but it seems to have resolved some
+    // weird issues I was having, so...
 
     int id = g_str_hash(groupId);
     GList *users = NULL;

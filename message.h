@@ -26,12 +26,4 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg);
 int
 signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipient, const char *message);
 
-int
-signald_send_im(PurpleConnection *pc,
-#if PURPLE_VERSION_CHECK(3, 0, 0)
-                PurpleMessage *msg);
-#else
-                const gchar *who, const gchar *message, PurpleMessageFlags flags);
-#endif
-
 #endif

@@ -36,26 +36,6 @@
 #define json_array_get_length(JSON_ARRAY) \
 	(JSON_ARRAY ? json_array_get_length(JSON_ARRAY) : 0)
 
-static gchar *
-json_object_to_string(JsonObject *obj)
-{
-	JsonNode *node;
-	gchar *str;
-	JsonGenerator *generator;
-
-	node = json_node_new(JSON_NODE_OBJECT);
-	json_node_set_object(node, obj);
-
-	// a json string ...
-	generator = json_generator_new();
-	json_generator_set_root(generator, node);
-	str = json_generator_to_data(generator, NULL);
-	g_object_unref(generator);
-	json_node_free(node);
-
-	return str;
-}
-
 //just in case we optimize...
 #define g_hash_table_insert_int64(a, b, c) g_hash_table_insert((a), &(b), (c))
 #define g_hash_table_replace_int64(a, b, c) g_hash_table_replace((a), &(b), (c))

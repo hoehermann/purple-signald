@@ -1,0 +1,37 @@
+#ifndef __SIGNALD_MESSAGE_H__
+#define __SIGNALD_MESSAGE_H__
+
+typedef enum {
+    SIGNALD_MESSAGE_TYPE_DIRECT = 1,
+    SIGNALD_MESSAGE_TYPE_GROUP = 2
+} SignaldMessageType;
+
+typedef struct {
+    SignaldMessageType type;
+    gboolean is_sync_message;
+
+    time_t timestamp;
+    gchar *conversation_name;
+
+    JsonObject *envelope;
+    JsonObject *data;
+} SignaldMessage;
+
+gboolean
+signald_format_message(SignaldMessage *msg, GString **target, gboolean *has_attachment);
+
+gboolean
+signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg);
+
+int
+signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipient, const char *message);
+
+int
+signald_send_im(PurpleConnection *pc,
+#if PURPLE_VERSION_CHECK(3, 0, 0)
+                PurpleMessage *msg);
+#else
+                const gchar *who, const gchar *message, PurpleMessageFlags flags);
+#endif
+
+#endif

@@ -49,6 +49,10 @@ signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupNam
     }
 
     conv = serv_got_joined_chat(sa->pc, id, groupName);
+
+    // Squirrel away the group ID as part of the conversation for easy access later.
+    purple_conversation_set_data(conv, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
+
     purple_chat_conversation_add_users(PURPLE_CONV_CHAT(conv), users, NULL, flags, FALSE);
 
     g_hash_table_insert(sa->groups, g_strdup(groupId), conv);
@@ -166,19 +170,9 @@ signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
 gchar *
 signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
 {
-    GHashTableIter iter;
-    gpointer key;
-    gpointer value;
+    PurpleConversation *conv = purple_find_chat(sa->pc, id);
 
-    g_hash_table_iter_init(&iter, sa->groups);
-
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        if (purple_conv_chat_get_id(PURPLE_CONV_CHAT((PurpleConversation *)value)) == id) {
-            return (gchar *)key;
-        }
-    }
-
-    return NULL;
+    return (conv == NULL) ? NULL : (gchar *)purple_conversation_get_data(conv, SIGNALD_CONV_GROUPID_KEY);
 }
 
 void

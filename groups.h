@@ -1,6 +1,8 @@
 #ifndef __SIGNALD_GROUPS_H__
 #define __SIGNALD_GROUPS_H__
 
+#define SIGNALD_CONV_GROUPID_KEY "signalGroupId"
+
 void
 signald_parse_group_list(SignaldAccount *sa, JsonArray *groups);
 

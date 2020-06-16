@@ -379,20 +379,20 @@ signald_chat_invite(PurpleConnection *pc, int id, const char *message, const cha
 int
 signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
 {
-  SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-  gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
+    PurpleConvChat *conv = PURPLE_CONV_CHAT(purple_find_chat(sa->pc, id));
 
-  if (groupId == NULL) {
-      return 0;
-  }
+    if ((groupId == NULL) || (conv == NULL)) {
+        return 0;
+    }
 
-  int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);
+    int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);
 
-  if (ret > 0) {
-      // TODO - Need to fix this to use purple_conv_chat_write
-      purple_serv_got_chat_in(pc, id, sa->account->username, flags, message, time(NULL));
-  }
+    if (ret > 0) {
+        purple_conv_chat_write(conv, groupId, message, flags, time(NULL));
+    }
 
-  return ret;
+    return ret;
 }
 

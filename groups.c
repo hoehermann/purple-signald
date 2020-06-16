@@ -8,6 +8,34 @@
 
 #pragma GCC diagnostic pop
 
+gchar *
+signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
+{
+    PurpleConversation *conv = purple_find_chat(sa->pc, id);
+
+    return (conv == NULL) ? NULL : (gchar *)purple_conversation_get_data(conv, SIGNALD_CONV_GROUPID_KEY);
+}
+
+gchar *
+signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
+{
+    GHashTableIter iter;
+    gpointer key;
+    gpointer value;
+
+    g_hash_table_iter_init(&iter, sa->groups);
+
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        gchar *groupName = purple_conversation_get_data((PurpleConversation *)value, SIGNALD_CONV_GROUPNAME_KEY);
+
+        if (purple_strequal(name, groupName)) {
+            return (gchar *)key;
+        }
+    }
+
+    return NULL;
+}
+
 int
 signald_check_group_membership(JsonArray *members, char *username)
 {
@@ -52,6 +80,7 @@ signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupNam
 
     // Squirrel away the group ID as part of the conversation for easy access later.
     purple_conversation_set_data(conv, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
+    purple_conversation_set_data(conv, SIGNALD_CONV_GROUPNAME_KEY, g_strdup(groupName));
 
     purple_chat_conversation_add_users(PURPLE_CONV_CHAT(conv), users, NULL, flags, FALSE);
 
@@ -167,14 +196,6 @@ signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
     json_array_foreach_element(groups, signald_process_group, sa);
 }
 
-gchar *
-signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
-{
-    PurpleConversation *conv = purple_find_chat(sa->pc, id);
-
-    return (conv == NULL) ? NULL : (gchar *)purple_conversation_get_data(conv, SIGNALD_CONV_GROUPID_KEY);
-}
-
 void
 signald_request_group_list(SignaldAccount *sa)
 {
@@ -275,6 +296,13 @@ signald_join_chat(PurpleConnection *pc, GHashTable *data)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     const char *name = g_hash_table_lookup(data, "name");
+    gchar *groupId = signald_find_groupid_for_conv_name(sa, (char *)name);
+
+    if (groupId != NULL) {
+        // This was probably a persistent chat, so we skip re-joining.
+
+        return;
+    }
 
     JsonObject *message = json_object_new();
 

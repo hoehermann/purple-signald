@@ -91,6 +91,22 @@ typedef struct {
     GHashTable *groups;
 } SignaldAccount;
 
+typedef enum {
+    SIGNALD_MESSAGE_TYPE_DIRECT = 1,
+    SIGNALD_MESSAGE_TYPE_GROUP = 2
+} SignaldMessageType;
+
+typedef struct {
+    SignaldMessageType type;
+    gboolean is_sync_message;
+
+    time_t timestamp;
+    gchar *conversation_name;
+
+    JsonObject *envelope;
+    JsonObject *data;
+} SignaldMessage;
+
 static int signald_usages = 0;
 
 static void
@@ -207,75 +223,24 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
     }
 }
 
-PurpleConversation *
-signald_find_conversation(const char *username, PurpleAccount *account) {
-    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(username, account);
-    if (imconv == NULL) {
-        imconv = purple_im_conversation_new(account, username);
-    }
-
-    PurpleConversation *conv = PURPLE_CONVERSATION(imconv);
-    if (conv == NULL) {
-        imconv = purple_conversations_find_im_with_account(username, account);
-        conv = PURPLE_CONVERSATION(imconv);
-    }
-
-    return conv;
-}
-
-void
-signald_process_message(SignaldAccount *sa,
-        const gchar *sender, const gchar *content, time_t timestamp, gboolean fromMe,
-        const gchar *groupid_str, const gchar *groupname, GString *attachments)
-{
-    PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
-
-    if (attachments->len) {
-        flags |= PURPLE_MESSAGE_IMAGES;
-    }
-
-    g_string_append(attachments, content);
-
-    if (! attachments->len) {
-      return;
-    }
-
-    PurpleConversation *conv = NULL;
-
-    if (groupid_str) {
-      conv = (PurpleConversation *)g_hash_table_lookup(sa->groups, groupid_str);
-    } else {
-      conv = signald_find_conversation(sender, sa->account);
-    }
-
-    if (fromMe) {
-        // special handling of messages sent by self incoming from remote
-        // copied from hoehermann/purple-gowhatsapp/libgowhatsapp.c
-        flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-
-        purple_conversation_write(conv, sender, attachments->str, flags, timestamp);
-    } else if (groupid_str != NULL) {
-        purple_serv_got_chat_in(sa->pc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(conv)), sender, flags, attachments->str, timestamp);
-    } else {
-        purple_serv_got_im(sa->pc, sender, attachments->str, flags, timestamp);
-    }
-}
-
 void
 signald_parse_attachment(JsonObject *obj, GString *message)
 {
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
+
     if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
         // TODO: forward "access denied" error to UI
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
         size_t size = purple_imgstore_get_size(img);
         int img_id = purple_imgstore_add_with_id(g_memdup(purple_imgstore_get_data(img), size), size, NULL);
+
         g_string_append_printf(message, "<IMG ID=\"%d\"/><br/>", img_id);
     } else {
         //TODO: Receive file using libpurple's file transfer API
         g_string_append_printf(message, "<a href=\"file://%s \">Attachment (type: %s)</a><br/>", fn, type);
     }
+
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);
 }
 
@@ -284,83 +249,159 @@ signald_prepare_attachments_message(JsonObject *obj) {
     JsonArray *attachments = json_object_get_array_member(obj, "attachments");
     guint len = json_array_get_length(attachments);
     GString *attachments_message = g_string_sized_new(len * 100); // Preallocate buffer. Exact size doesn't matter. It grows automatically if it is too small
+
     for (guint i=0; i < len; i++) {
         signald_parse_attachment(json_array_get_object_element(attachments, i), attachments_message);
     }
+
     return attachments_message;
 }
 
-void
-signald_parse_message(SignaldAccount *sa, JsonObject *obj)
+gboolean
+signald_format_message(SignaldMessage *msg, GString **target, gboolean *has_attachment)
 {
-    // Signal's integer timestamps are in milliseconds
-    // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
-    // serverTimestamp is when the server received the message
-    time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
+    *target = signald_prepare_attachments_message(msg->data);
 
-    JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
-
-    JsonObject *dataMessage = NULL;
-    const gchar *source;
-
-    if (syncMessage != NULL) {
-        JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
-
-        if (sent == NULL) {
-            return;
-        }
-
-        source = json_object_get_string_member(sent, "destination");
-        dataMessage = json_object_get_object_member(sent, "message");
+    if ((*target)->len > 0) {
+        *has_attachment = TRUE;
     } else {
-        // gboolean isreceipt = json_object_get_boolean_member(obj, "isReceipt");
-        // isReceipt() can be false even if message actually is a receipt
-        // TODO: optioally display receipt in the conversation window
-        // purple_conv_chat_write(to, username, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
-
-        source = json_object_get_string_member(obj, "source");
-        dataMessage = json_object_get_object_member(obj, "dataMessage");
+        *has_attachment = FALSE;
     }
 
-    if (dataMessage == NULL) {
+    g_string_append(*target, json_object_get_string_member(msg->data, "message"));
+
+    return (*target)->len > 0;
+}
+
+void
+signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
+{
+    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->conversation_name, sa->account);
+
+    if (imconv == NULL) {
+        imconv = purple_im_conversation_new(sa->account, msg->conversation_name);
+    }
+
+    PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+    GString *content = NULL;
+    gboolean has_attachment = FALSE;
+
+    if (! signald_format_message(msg, &content, &has_attachment)) {
         return;
     }
 
-    if (source == NULL) {
-        source = SIGNALD_UNKNOWN_SOURCE_NUMBER;
+    if (has_attachment) {
+        flags |= PURPLE_MESSAGE_IMAGES;
     }
 
-    const gchar *message = json_object_get_string_member(dataMessage, "message");
+    if (msg->is_sync_message) {
+        flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
 
-    JsonObject *groupInfo = json_object_get_object_member(dataMessage, "groupInfo");
-    const gchar *type = NULL;
-    const gchar *groupid_str = NULL;
-    const gchar *groupname = NULL;
-
-    if (groupInfo) {
-        type = json_object_get_string_member(groupInfo, "type");
-        groupid_str = json_object_get_string_member(groupInfo, "groupId");
-        groupname = json_object_get_string_member(groupInfo, "name");
+        purple_conv_im_write(imconv, msg->conversation_name, content->str, flags, msg->timestamp);
+    } else {
+        purple_serv_got_im(sa->pc, msg->conversation_name, content->str, flags, msg->timestamp);
     }
+
+    g_string_free(content, TRUE);
+}
+
+void
+signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
+{
+    JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupInfo");
+
+    const gchar *type = json_object_get_string_member(groupInfo, "type");
+    const gchar *groupid_str = json_object_get_string_member(groupInfo, "groupId");
+    const gchar *groupname = json_object_get_string_member(groupInfo, "name");
 
     if (purple_strequal(type, "UPDATE")) {
         signald_update_group(sa, groupid_str, groupname, json_object_get_array_member(groupInfo, "members"));
+
     } else if (purple_strequal(type, "QUIT")) {
         char *username = (char *)purple_account_get_username(sa->account);
-        char *quit_source = (char *)json_object_get_string_member(obj, "source");
+        char *quit_source = (char *)json_object_get_string_member(msg->envelope, "source");
 
         if (purple_strequal(username, quit_source)) {
             signald_quit_group(sa, groupid_str);
         } else {
             signald_update_group(sa, groupid_str, groupname, json_object_get_array_member(groupInfo, "members"));
         }
-    } else if ((groupInfo == NULL) || purple_strequal(type, "DELIVER")) {
-        GString *attachments_message = signald_prepare_attachments_message(dataMessage);
 
-        signald_process_message(sa, source, message, timestamp, (syncMessage != NULL), groupid_str, groupname, attachments_message);
+    } else if (purple_strequal(type, "DELIVER")) {
+        PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+        PurpleConvChat *conv = PURPLE_CONV_CHAT(g_hash_table_lookup(sa->groups, groupid_str));
+        int id = purple_conv_chat_get_id(conv);
 
-        g_string_free(attachments_message, TRUE);
+        gboolean has_attachment = FALSE;
+        GString *content = NULL;
+
+        if (! signald_format_message(msg, &content, &has_attachment)) {
+            return;
+        }
+
+        if (has_attachment) {
+            flags |= PURPLE_MESSAGE_IMAGES;
+        }
+
+        if (msg->is_sync_message) {
+            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+
+            purple_conv_chat_write(conv, msg->conversation_name, content->str, flags, msg->timestamp);
+        } else {
+            purple_serv_got_chat_in(sa->pc, id, msg->conversation_name, flags, content->str, msg->timestamp);
+        }
+
+        g_string_free(content, TRUE);
+    } else {
     }
+}
+
+gboolean
+signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
+{
+    if (msg == NULL) {
+        return FALSE;
+    }
+
+    JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
+
+    // Signal's integer timestamps are in milliseconds
+    // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
+    // serverTimestamp is when the server received the message
+
+    msg->envelope = obj;
+    msg->timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
+    msg->is_sync_message = (syncMessage != NULL);
+
+    if (syncMessage != NULL) {
+        JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
+
+        if (sent == NULL) {
+            return FALSE;
+        }
+
+        msg->conversation_name = (gchar *)json_object_get_string_member(sent, "destination");
+        msg->data = json_object_get_object_member(sent, "message");
+    } else {
+        msg->conversation_name = (gchar *)json_object_get_string_member(obj, "source");
+        msg->data = json_object_get_object_member(obj, "dataMessage");
+    }
+
+    if (msg->data == NULL) {
+        return FALSE;
+    }
+
+    if (msg->conversation_name == NULL) {
+        msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
+    }
+
+    if (json_object_has_member(msg->data, "groupInfo")) {
+        msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
+    } else {
+        msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;
+    }
+
+    return TRUE;
 }
 
 void
@@ -763,8 +804,19 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_assume_all_buddies_online(sa);
 
         } else if (purple_strequal(type, "message")) {
-            signald_parse_message(sa, json_object_get_object_member(obj, "data"));
+            SignaldMessage msg;
 
+            if (signald_parse_message(sa, json_object_get_object_member(obj, "data"), &msg)) {
+                switch(msg.type) {
+                    case SIGNALD_MESSAGE_TYPE_DIRECT:
+                        signald_process_direct_message(sa, &msg);
+                        break;
+
+                    case SIGNALD_MESSAGE_TYPE_GROUP:
+                        signald_process_group_message(sa, &msg);
+                        break;
+                }
+            }
         } else if (purple_strequal(type, "linking_uri")) {
             signald_parse_linking_uri(sa, obj);
 

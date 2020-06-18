@@ -7,28 +7,6 @@
 
 #pragma GCC diagnostic pop
 
-int
-signald_send_im(PurpleConnection *pc,
-#if PURPLE_VERSION_CHECK(3, 0, 0)
-                PurpleMessage *msg)
-{
-    const gchar *who = purple_message_get_recipient(msg);
-    const gchar *message = purple_message_get_contents(msg);
-#else
-                const gchar *who, const gchar *message, PurpleMessageFlags flags)
-{
-#endif
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
-
-    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
-        return 0;
-    }
-
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-
-    return signald_send_message(sa, SIGNALD_MESSAGE_TYPE_DIRECT, (char *)who, message);
-}
-
 void
 signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 {
@@ -59,4 +37,26 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
     }
 
     g_string_free(content, TRUE);
+}
+
+int
+signald_send_im(PurpleConnection *pc,
+#if PURPLE_VERSION_CHECK(3, 0, 0)
+                PurpleMessage *msg)
+{
+    const gchar *who = purple_message_get_recipient(msg);
+    const gchar *message = purple_message_get_contents(msg);
+#else
+                const gchar *who, const gchar *message, PurpleMessageFlags flags)
+{
+#endif
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg:%s\n", flags, message);
+
+    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
+        return 0;
+    }
+
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+    return signald_send_message(sa, SIGNALD_MESSAGE_TYPE_DIRECT, (char *)who, message);
 }

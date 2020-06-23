@@ -457,6 +457,27 @@ signald_add_account_options(GList *account_options)
                 );
     account_options = g_list_append(account_options, option);
 
+    option = purple_account_option_bool_new(
+                _("Serve attachments from external server"),
+                SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS,
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_string_new(
+                _("External attachment storage directory"),
+                SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR,
+                ""
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_string_new(
+                _("External attachment URL"),
+                SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL,
+                ""
+                );
+    account_options = g_list_append(account_options, option);
+
     return account_options;
 }
 

@@ -6,7 +6,7 @@ GIT_REVISION_ID = $(shell git -C .git rev-parse --short HEAD 2>/dev/null)
 PLUGIN_VERSION ?= $(shell cat VERSION)~git$(GIT_REVISION_ID)
 
 CFLAGS	?= -O2 -g -pipe -Wall
-LDFLAGS ?= -Wl,-z,relro
+LDFLAGS ?= -Wl,-z,relro lmagic
 
 CFLAGS  += -std=c99 -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 
@@ -34,7 +34,7 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 all: $(TARGET)
 
 libsignald.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
-	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 json-glib-1.0 --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
+	$(CC) -fPIC $(CFLAGS) $(CPPFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 json-glib-1.0 gio-unix-2.0 --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
 
 FAILNOPURPLE:
 	echo "You need libpurple development headers installed to be able to compile this plugin"

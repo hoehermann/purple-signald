@@ -1,5 +1,8 @@
-#include <sys/stat.h> // for chmod
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <errno.h>
+#include <magic.h>
+#include <gio/gio.h>
 
 #include "pragma.h"
 #include "json_compat.h"
@@ -10,13 +13,126 @@
 
 #pragma GCC diagnostic pop
 
+int
+signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, const char **url)
+{
+    *path = purple_account_get_string(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR, "");
+    *url = purple_account_get_string(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL, "");
+
+    if (strlen(*path) == 0) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "External attachments configured but no attachment path set.");
+
+        return -1;
+    }
+
+    GFile *f = g_file_new_for_path(*path);
+    GFileType type = g_file_query_file_type(f, G_FILE_QUERY_INFO_NONE, NULL);
+
+    g_object_unref(f);
+
+    if (type != G_FILE_TYPE_DIRECTORY) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "External attachments path is not a valid directory: '%s'", *path);
+
+        return -1;
+    }
+
+    if (strlen(*url) == 0) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "External attachments configured but no attachment url set.");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+gchar *
+signald_write_external_attachment(SignaldAccount *sa, const char *filename)
+{
+    // We're going to ignore the supplied mimetype and use libmagic to figure it out
+    // ourselves.  This is both more secure and less error prone, since we're not
+    // trusting the sender.
+
+    const char *path;
+    const char *baseurl;
+    gchar *url = NULL;
+
+    if (signald_get_external_attachment_settings(sa, &path, &baseurl) != 0) {
+        return NULL;
+    }
+
+    magic_t cookie = magic_open(MAGIC_EXTENSION);
+
+    if ((cookie == NULL) || (magic_load(cookie, NULL) != 0)) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error initializing libmagic (errno: %d)", magic_errno(cookie));
+
+        return NULL;
+    }
+
+    const gchar *extensions = magic_file(cookie, filename);
+
+    if (extensions == NULL) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error getting extension for '%s': %d", filename, magic_errno(cookie));
+
+        return NULL;
+    }
+
+    gchar **extension_arr = g_strsplit(extensions, "/", 2);
+
+    if (extension_arr[0] != NULL) {
+        GFile *source = g_file_new_for_path(filename);
+        char *basename = g_file_get_basename(source);
+
+        gchar *ext = extension_arr[0];
+        gchar *destpath = g_strconcat(path, "/", basename, ".", ext, NULL);
+
+        GFile *destination = g_file_new_for_path(destpath);
+        GError *error;
+
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Copying attachment from '%s' to '%s'", filename, destpath);
+
+        if (g_file_copy(source,
+                        destination,
+                        G_FILE_COPY_NONE,
+                        NULL /* cancellable */,
+                        NULL /* progress cb */,
+                        NULL /* progress cb data */,
+                        &error)) {
+
+            url = g_strconcat(baseurl, "/", basename, ".", ext, NULL);
+        } else {
+            purple_debug_error(SIGNALD_PLUGIN_ID, "Error saving attachment to '%s': %s", destpath, error->message);
+
+            g_error_free(error);
+        }
+
+        g_object_unref(source);
+        g_object_unref(destination);
+
+        g_free(destpath);
+    } else {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Couldn't determine mimetype for file: '%s'", filename);
+    }
+
+    g_strfreev(extension_arr);
+    magic_close(cookie);
+
+    return url;
+}
+
 void
-signald_parse_attachment(JsonObject *obj, GString *message)
+signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
 
-    if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
+    if (purple_account_get_bool(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS, FALSE)) {
+        gchar *url = signald_write_external_attachment(sa, fn);
+
+        if (url != NULL) {
+            g_string_append_printf(message, "<a href=\"%s\">Attachment (type %s): %s</a><br/>", url, type, url);
+            g_free(url);
+        }
+    } else if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
         // TODO: forward "access denied" error to UI
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
         size_t size = purple_imgstore_get_size(img);
@@ -32,22 +148,22 @@ signald_parse_attachment(JsonObject *obj, GString *message)
 }
 
 GString *
-signald_prepare_attachments_message(JsonObject *obj) {
+signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
     JsonArray *attachments = json_object_get_array_member(obj, "attachments");
     guint len = json_array_get_length(attachments);
     GString *attachments_message = g_string_sized_new(len * 100); // Preallocate buffer. Exact size doesn't matter. It grows automatically if it is too small
 
     for (guint i=0; i < len; i++) {
-        signald_parse_attachment(json_array_get_object_element(attachments, i), attachments_message);
+        signald_parse_attachment(sa, json_array_get_object_element(attachments, i), attachments_message);
     }
 
     return attachments_message;
 }
 
 gboolean
-signald_format_message(SignaldMessage *msg, GString **target, gboolean *has_attachment)
+signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment)
 {
-    *target = signald_prepare_attachments_message(msg->data);
+    *target = signald_prepare_attachments_message(sa, msg->data);
 
     if ((*target)->len > 0) {
         *has_attachment = TRUE;

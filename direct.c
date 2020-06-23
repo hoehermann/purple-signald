@@ -20,7 +20,7 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
     GString *content = NULL;
     gboolean has_attachment = FALSE;
 
-    if (! signald_format_message(msg, &content, &has_attachment)) {
+    if (! signald_format_message(sa, msg, &content, &has_attachment)) {
         return;
     }
 

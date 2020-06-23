@@ -241,7 +241,7 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         gboolean has_attachment = FALSE;
         GString *content = NULL;
 
-        if (! signald_format_message(msg, &content, &has_attachment)) {
+        if (! signald_format_message(sa, msg, &content, &has_attachment)) {
             return;
         }
 

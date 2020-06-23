@@ -18,7 +18,7 @@ typedef struct {
 } SignaldMessage;
 
 gboolean
-signald_format_message(SignaldMessage *msg, GString **target, gboolean *has_attachment);
+signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment);
 
 gboolean
 signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg);

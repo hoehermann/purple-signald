@@ -13,6 +13,8 @@
 
 #pragma GCC diagnostic pop
 
+#ifdef SUPPORT_EXTERNAL_ATTACHMENTS
+
 int
 signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, const char **url)
 {
@@ -119,11 +121,15 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename)
     return url;
 }
 
+#endif
+
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
+
+#ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     if (purple_account_get_bool(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS, FALSE)) {
         gchar *url = signald_write_external_attachment(sa, fn);
@@ -132,7 +138,13 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
             g_string_append_printf(message, "<a href=\"%s\">Attachment (type %s): %s</a><br/>", url, type, url);
             g_free(url);
         }
-    } else if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
+
+        return;
+    }
+
+#endif
+
+    if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
         // TODO: forward "access denied" error to UI
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
         size_t size = purple_imgstore_get_size(img);

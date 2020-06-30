@@ -26,7 +26,6 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 
   Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
 
-
 * Additional features contributed by [Torsten](https://bitbucket.org/ttl/):
 
   * Link with the master device  
@@ -34,18 +33,18 @@ There have been reports of incoming offline-messages getting lost. As far as I o
   * Automatically start signald  
     Note: For automatically starting signald as a child proces, `signald` needs to be in `$PATH`.
 
+* Additional features contributed by [Brett Kosinski](https://github.com/fancypantalons/):
+
+  * Support for group chats.
+  * Fine-grained attachment handling (for bitlbee).
+
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 
 ### Missing Features
 
 * signald configuration (i.e. initial number registration)
-* Synchronizing messages sent from another device
 * Deleting buddies from the server
 * Updating contact details
 * Contact colors
 * Expiring messages
 * Messages with quotes
-* Proper group chats (right now you can send and receive group messages, but you cannot tell which one of the group members is answering)
-
-![Group Chat](/groupchat.png?raw=true "Group Chat Screenshot")
-

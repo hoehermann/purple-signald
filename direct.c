@@ -16,7 +16,7 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
         imconv = purple_im_conversation_new(sa->account, msg->conversation_name);
     }
 
-    PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+    PurpleMessageFlags flags = 0;
     GString *content = NULL;
     gboolean has_attachment = FALSE;
 
@@ -30,9 +30,9 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 
     if (msg->is_sync_message) {
         flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-
         purple_conv_im_write(imconv, msg->conversation_name, content->str, flags, msg->timestamp);
     } else {
+        flags |= PURPLE_MESSAGE_RECV;
         purple_serv_got_im(sa->pc, msg->conversation_name, content->str, flags, msg->timestamp);
     }
 

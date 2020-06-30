@@ -1,7 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <magic.h>
 #include <gio/gio.h>
 
 #include "pragma.h"
@@ -14,6 +13,7 @@
 #pragma GCC diagnostic pop
 
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
+#include <magic.h>
 
 int
 signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, const char **url)

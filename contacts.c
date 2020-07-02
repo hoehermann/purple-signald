@@ -1,10 +1,4 @@
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
 #include "libsignald.h"
-#include "contacts.h"
-
-#pragma GCC diagnostic pop
 
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)

@@ -24,18 +24,7 @@
 #include <sys/un.h> // for sockaddr_un
 #include <gmodule.h>
 
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
 #include "libsignald.h"
-#include "message.h"
-#include "direct.h"
-#include "groups.h"
-#include "contacts.h"
-#include "link.h"
-#include "comms.h"
-
-#pragma GCC diagnostic pop
 
 static int signald_usages = 0;
 

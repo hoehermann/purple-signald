@@ -1,19 +1,15 @@
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
 #include "libsignald.h"
-#include "message.h"
-#include "groups.h"
-#include "comms.h"
-
-#pragma GCC diagnostic pop
 
 gchar *
 signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
 {
     PurpleConversation *conv = purple_find_chat(sa->pc, id);
-
-    return (conv == NULL) ? NULL : (gchar *)purple_conversation_get_data(conv, SIGNALD_CONV_GROUPID_KEY);
+    
+    if (conv == NULL) {
+        return NULL;
+    } else {
+        return (gchar *)purple_conversation_get_data(conv, SIGNALD_CONV_GROUPID_KEY);
+    }
 }
 
 gchar *
@@ -234,29 +230,27 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         }
 
     } else if (purple_strequal(type, "DELIVER")) {
-        PurpleMessageFlags flags = PURPLE_MESSAGE_RECV;
+        PurpleMessageFlags flags = 0;
         PurpleConvChat *conv = PURPLE_CONV_CHAT(g_hash_table_lookup(sa->groups, groupid_str));
         int id = purple_conv_chat_get_id(conv);
 
         gboolean has_attachment = FALSE;
         GString *content = NULL;
 
-        if (! signald_format_message(sa, msg, &content, &has_attachment)) {
-            return;
+        if (signald_format_message(sa, msg, &content, &has_attachment)) {
+            if (has_attachment) {
+                flags |= PURPLE_MESSAGE_IMAGES;
+            }
+
+            if (msg->is_sync_message) {
+                flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+
+                purple_conv_chat_write(conv, msg->conversation_name, content->str, flags, msg->timestamp);
+            } else {
+                flags |= PURPLE_MESSAGE_RECV;
+                purple_serv_got_chat_in(sa->pc, id, msg->conversation_name, flags, content->str, msg->timestamp);
+            }
         }
-
-        if (has_attachment) {
-            flags |= PURPLE_MESSAGE_IMAGES;
-        }
-
-        if (msg->is_sync_message) {
-            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-
-            purple_conv_chat_write(conv, msg->conversation_name, content->str, flags, msg->timestamp);
-        } else {
-            purple_serv_got_chat_in(sa->pc, id, msg->conversation_name, flags, content->str, msg->timestamp);
-        }
-
         g_string_free(content, TRUE);
     }
 }

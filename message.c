@@ -3,14 +3,7 @@
 #include <errno.h>
 #include <gio/gio.h>
 
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
 #include "libsignald.h"
-#include "message.h"
-#include "comms.h"
-
-#pragma GCC diagnostic pop
 
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 #include <magic.h>
@@ -175,17 +168,19 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
 gboolean
 signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment)
 {
+    // handle attachments, creating appropriate message content (always allocates *target)
     *target = signald_prepare_attachments_message(sa, msg->data);
-
+    
     if ((*target)->len > 0) {
         *has_attachment = TRUE;
     } else {
         *has_attachment = FALSE;
     }
 
+    // append actual message text
     g_string_append(*target, json_object_get_string_member(msg->data, "message"));
 
-    return (*target)->len > 0;
+    return (*target)->len > 0; // message not empty
 }
 
 gboolean

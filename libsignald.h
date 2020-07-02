@@ -14,6 +14,10 @@
 #ifdef __clang__
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #endif
+#include "purple_compat.h"
+#pragma GCC diagnostic pop
+
+#include "json_compat.h"
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
 #ifndef SIGNALD_PLUGIN_VERSION
@@ -62,5 +66,12 @@ typedef struct {
     // Maps signal group IDs to libpurple PurpleConversation objects that represent those chats.
     GHashTable *groups;
 } SignaldAccount;
+
+#include "message.h"
+#include "direct.h"
+#include "groups.h"
+#include "contacts.h"
+#include "link.h"
+#include "comms.h"
 
 #endif

@@ -1,10 +1,7 @@
 #include <errno.h>
 #include <gmodule.h>
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
+
 #include "libsignald.h"
-#include "comms.h"
 
 #pragma GCC diagnostic pop
 

@@ -1,13 +1,7 @@
 #include <sys/stat.h>
 
-#include "pragma.h"
-#include "json_compat.h"
-#include "purple_compat.h"
 #include "libsignald.h"
-#include "link.h"
-#include "comms.h"
 
-#pragma GCC diagnostic pop
 
 void
 signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)

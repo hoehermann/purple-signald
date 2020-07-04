@@ -26,7 +26,7 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 
   Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
 
-* Additional features contributed by [Torsten](https://bitbucket.org/ttl/):
+* Additional features contributed by [Torsten](https://github.com/ttlmax/libpurple-signald):
 
   * Link with the master device  
     Note: For linking with the master device, `qrencode` needs to be installed.

@@ -54,8 +54,11 @@ signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, 
 {
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
-    const char *username = json_object_get_string_member(obj, "number");
     const char *alias = json_object_get_string_member(obj, "name");
+
+    JsonObject *address = json_object_get_object_member(obj, "address");
+    const char *username = json_object_get_string_member(address, "number");
+
     signald_add_purple_buddy(sa, username, alias);
 }
 

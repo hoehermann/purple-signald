@@ -170,7 +170,7 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
 {
     // handle attachments, creating appropriate message content (always allocates *target)
     *target = signald_prepare_attachments_message(sa, msg->data);
-    
+
     if ((*target)->len > 0) {
         *has_attachment = TRUE;
     } else {
@@ -178,7 +178,7 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     }
 
     // append actual message text
-    g_string_append(*target, json_object_get_string_member(msg->data, "message"));
+    g_string_append(*target, json_object_get_string_member(msg->data, "body"));
 
     return (*target)->len > 0; // message not empty
 }
@@ -207,10 +207,14 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
             return FALSE;
         }
 
-        msg->conversation_name = (gchar *)json_object_get_string_member(sent, "destination");
+        JsonObject *address = json_object_get_object_member(sent, "destination");
+
+        msg->conversation_name = (gchar *)json_object_get_string_member(address, "number");
         msg->data = json_object_get_object_member(sent, "message");
     } else {
-        msg->conversation_name = (gchar *)json_object_get_string_member(obj, "source");
+        JsonObject *address = json_object_get_object_member(obj, "source");
+
+        msg->conversation_name = (gchar *)json_object_get_string_member(address, "number");
         msg->data = json_object_get_object_member(obj, "dataMessage");
     }
 
@@ -222,7 +226,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
     }
 
-    if (json_object_has_member(msg->data, "groupInfo")) {
+    if (json_object_has_member(msg->data, "group")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
     } else {
         msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;
@@ -240,7 +244,10 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (type == SIGNALD_MESSAGE_TYPE_DIRECT) {
-        json_object_set_string_member(data, "recipientNumber", recipient);
+        JsonObject *address = json_object_new();
+
+        json_object_set_string_member(address, "number", recipient);
+        json_object_set_string_member(data, "recipientAddress", recipient);
     } else if (type == SIGNALD_MESSAGE_TYPE_GROUP) {
         json_object_set_string_member(data, "recipientGroupId", recipient);
     } else {

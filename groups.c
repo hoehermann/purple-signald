@@ -36,7 +36,9 @@ int
 signald_check_group_membership(JsonArray *members, char *username)
 {
     for (GList *this_member = json_array_get_elements(members); this_member != NULL; this_member = this_member->next) {
-        const char *member_name = json_node_get_string((JsonNode *)(this_member->data));
+        JsonNode *node = (JsonNode *)(this_member->data);
+        JsonObject *member = json_node_get_object(node);
+        const char *member_name = json_object_get_string_member(member, "number");
 
         if (purple_strequal(username, member_name)) {
             return 1;
@@ -66,7 +68,9 @@ signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupNam
     GList *flags = NULL;
 
     for (int i = 0; i < json_array_get_length(members); i++) {
-        char *user = (char *)json_node_get_string(json_array_get_element(members, i));
+        JsonNode *element = json_array_get_element(members, i);
+        JsonObject *member = json_node_get_object(element);
+        char *user = (char *)json_object_get_string_member(member, "number");
 
         users = g_list_append(users, user);
         flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
@@ -154,7 +158,9 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     GList *current_members = json_array_get_elements(members);
 
     for (GList *this_member = current_members; this_member != NULL; this_member = this_member->next) {
-        const char *member_name = json_node_get_string((JsonNode *)(this_member->data));
+        JsonNode *node = (JsonNode *)(this_member->data);
+        JsonObject *member = json_node_get_object(node);
+        const char *member_name = json_object_get_string_member(member, "number");
         int found = 0;
 
         current_users = purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv));
@@ -210,7 +216,7 @@ signald_request_group_list(SignaldAccount *sa)
 void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 {
-    JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupInfo");
+    JsonObject *groupInfo = json_object_get_object_member(msg->data, "group");
 
     const gchar *type = json_object_get_string_member(groupInfo, "type");
     const gchar *groupid_str = json_object_get_string_member(groupInfo, "groupId");
@@ -221,7 +227,9 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 
     } else if (purple_strequal(type, "QUIT")) {
         char *username = (char *)purple_account_get_username(sa->account);
-        char *quit_source = (char *)json_object_get_string_member(msg->envelope, "source");
+
+        JsonObject *quit_address = json_object_get_object_member(msg->envelope, "source");
+        const char *quit_source = json_object_get_string_member(quit_address, "number");
 
         if (purple_strequal(username, quit_source)) {
             signald_quit_group(sa, groupid_str);

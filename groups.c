@@ -32,13 +32,23 @@ signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
     return NULL;
 }
 
+const char *
+signald_get_group_member_name(SignaldAccount *sa, JsonNode *node)
+{
+    if (sa->legacy_protocol) {
+        return json_node_get_string(node);
+    } else {
+        JsonObject *member = json_node_get_object(node);
+
+        return json_object_get_string_member(member, "number");
+    }
+}
+
 int
-signald_check_group_membership(JsonArray *members, char *username)
+signald_check_group_membership(SignaldAccount *sa, JsonArray *members, char *username)
 {
     for (GList *this_member = json_array_get_elements(members); this_member != NULL; this_member = this_member->next) {
-        JsonNode *node = (JsonNode *)(this_member->data);
-        JsonObject *member = json_node_get_object(node);
-        const char *member_name = json_object_get_string_member(member, "number");
+        const char *member_name = signald_get_group_member_name(sa, (JsonNode *)(this_member->data));
 
         if (purple_strequal(username, member_name)) {
             return 1;
@@ -69,8 +79,7 @@ signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupNam
 
     for (int i = 0; i < json_array_get_length(members); i++) {
         JsonNode *element = json_array_get_element(members, i);
-        JsonObject *member = json_node_get_object(element);
-        char *user = (char *)json_object_get_string_member(member, "number");
+        char *user = (char *)signald_get_group_member_name(sa, element);
 
         users = g_list_append(users, user);
         flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
@@ -114,7 +123,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     // Look it see if we're a member of the group.
 
     char *username = (char *)purple_account_get_username(sa->account);
-    int in_group = signald_check_group_membership(members, username);
+    int in_group = signald_check_group_membership(sa, members, username);
 
     if ((conv == NULL) && (! in_group)) {
         // Chat that we neither know about nor we're in?  Ignore it.
@@ -144,7 +153,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     for (GList *this_user = current_users; this_user != NULL; this_user = this_user->next) {
         username = ((PurpleConvChatBuddy *)this_user->data)->name;
 
-        if (! signald_check_group_membership(members, username)) {
+        if (! signald_check_group_membership(sa, members, username)) {
             remove_users = g_list_append(remove_users, g_strdup(username));
         }
     }
@@ -159,8 +168,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
 
     for (GList *this_member = current_members; this_member != NULL; this_member = this_member->next) {
         JsonNode *node = (JsonNode *)(this_member->data);
-        JsonObject *member = json_node_get_object(node);
-        const char *member_name = json_object_get_string_member(member, "number");
+        const char *member_name = signald_get_group_member_name(sa, node);
         int found = 0;
 
         current_users = purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv));
@@ -216,7 +224,7 @@ signald_request_group_list(SignaldAccount *sa)
 void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 {
-    JsonObject *groupInfo = json_object_get_object_member(msg->data, "group");
+    JsonObject *groupInfo = json_object_get_object_member(msg->data, SIGNALD_GROUP_FIELD(sa));
 
     const gchar *type = json_object_get_string_member(groupInfo, "type");
     const gchar *groupid_str = json_object_get_string_member(groupInfo, "groupId");
@@ -227,9 +235,7 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 
     } else if (purple_strequal(type, "QUIT")) {
         char *username = (char *)purple_account_get_username(sa->account);
-
-        JsonObject *quit_address = json_object_get_object_member(msg->envelope, "source");
-        const char *quit_source = json_object_get_string_member(quit_address, "number");
+        const char *quit_source = signald_get_number_from_field(sa, msg->envelope, "source");
 
         if (purple_strequal(username, quit_source)) {
             signald_quit_group(sa, groupid_str);

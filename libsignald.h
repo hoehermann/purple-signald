@@ -60,6 +60,9 @@ typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
 
+    gboolean initialized;
+    gboolean legacy_protocol;
+
     int fd;
     guint watcher;
 

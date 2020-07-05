@@ -166,6 +166,34 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
     return attachments_message;
 }
 
+const char *
+signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *field)
+{
+    JsonNode *node = json_object_get_member(obj, field);
+
+    if (sa->legacy_protocol) {
+        return json_node_get_string(node);
+    } else {
+        // Dealing with a JsonAddress instance
+        JsonObject *address = json_node_get_object(node);
+
+        return (const char *)json_object_get_string_member(address, "number");
+    }
+}
+
+void
+signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
+{
+    if (sa->legacy_protocol) {
+        json_object_set_string_member(obj, "recipientNumber", recipient);
+    } else {
+        JsonObject *address = json_object_new();
+
+        json_object_set_string_member(address, "number", recipient);
+        json_object_set_string_member(obj, "recipientAddress", recipient);
+    }
+}
+
 gboolean
 signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment)
 {
@@ -179,7 +207,7 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     }
 
     // append actual message text
-    g_string_append(*target, json_object_get_string_member(msg->data, "message"));
+    g_string_append(*target, json_object_get_string_member(msg->data, SIGNALD_BODY_FIELD(sa)));
 
     return (*target)->len > 0; // message not empty
 }
@@ -208,10 +236,10 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
             return FALSE;
         }
 
-        msg->conversation_name = (gchar *)json_object_get_string_member(sent, "destination");
+        msg->conversation_name = (char *)signald_get_number_from_field(sa, sent, "destination");
         msg->data = json_object_get_object_member(sent, "message");
     } else {
-        msg->conversation_name = (gchar *)json_object_get_string_member(obj, "source");
+        msg->conversation_name = (char *)signald_get_number_from_field(sa, obj, "source");
         msg->data = json_object_get_object_member(obj, "dataMessage");
     }
 
@@ -223,7 +251,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
     }
 
-    if (json_object_has_member(msg->data, "groupInfo")) {
+    if (json_object_has_member(msg->data, SIGNALD_GROUP_FIELD(sa))) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
     } else {
         msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;
@@ -241,7 +269,7 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (type == SIGNALD_MESSAGE_TYPE_DIRECT) {
-        json_object_set_string_member(data, "recipientNumber", recipient);
+        signald_set_recipient(sa, data, recipient);
     } else if (type == SIGNALD_MESSAGE_TYPE_GROUP) {
         json_object_set_string_member(data, "recipientGroupId", recipient);
     } else {

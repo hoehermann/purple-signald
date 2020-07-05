@@ -77,22 +77,84 @@ signald_subscribe (SignaldAccount *sa)
 {
     // subscribe to the configured number
     JsonObject *data = json_object_new();
+
     json_object_set_string_member(data, "type", "subscribe");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+
     if (!signald_send_json (sa, data)) {
         //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
-    // Load the contact list
+    json_object_unref(data);
+}
+
+void
+signald_check_proto_version(SignaldAccount *sa)
+{
+    //
+    // This is a bit of a hack!  We want to detect if we're dealing with a
+    // new version of signald with the new protocol, or the old version.
+    //
+    // To test, we call get_user on the user account, using the new
+    // JsonAddress form of the call.  If it succeeds, we're dealing with
+    // a new signald.  If it fails, it's the old one.
+    //
+
+    const gchar *username = purple_account_get_username(sa->account);
+    JsonObject *address = json_object_new();
+
+    json_object_set_string_member(address, "number", username);
+
+    JsonObject *data = json_object_new();
+
+    json_object_set_string_member(data, "type", "get_user");
+    json_object_set_string_member(data, "username", username);
+    json_object_set_object_member(data, "recipientAddress", address);
+
+    if (!signald_send_json (sa, data)) {
+        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
+    json_object_unref(data);
+}
+
+void
+signald_initialize_contacts(SignaldAccount *sa)
+{
+    JsonObject *data = json_object_new();
+
     json_object_set_string_member(data, "type", "list_contacts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+
+    if (!signald_send_json (sa, data)) {
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
     json_object_unref(data);
 
-    signald_request_group_list(sa);
+    signald_assume_all_buddies_online(sa);
+}
+
+void
+signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
+{
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *message = json_object_get_string_member(data, "message");
+    // Analyze the error: Check for failed authorization or unknown user.
+    // Do we have to link or register the account?
+    // FIXME: This does not work reliably, i.e.,
+    //          * there is a connection error without but no attempt to link or register
+    //          * the account is enabled and the contacts are loaded but sending a message won't work
+    if (message && *message) {
+          if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
+              || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))                 ) {
+              signald_link_or_register (sa);
+          }
+    } else {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
+    }
 }
 
 void
@@ -124,7 +186,42 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
         } else if (purple_strequal(type, "subscribed")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
-            signald_assume_all_buddies_online(sa);
+
+            signald_check_proto_version(sa);
+
+        } else if (purple_str_has_prefix(type, "user") && ! sa->initialized) {
+            // Could be "user" or "user_not_registered", but either way it's
+            // not an error!
+
+            sa->legacy_protocol = FALSE;
+            signald_initialize_contacts(sa);
+
+        } else if (purple_strequal(type, "unexpected_error") && ! sa->initialized) {
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            JsonObject *request = json_object_get_object_member(data, "request");
+            const char *type = json_object_get_string_member(request, "type");
+
+            if (purple_strequal(type, "get_user")) {
+                sa->legacy_protocol = TRUE;
+                signald_initialize_contacts(sa);
+            } else {
+                signald_handle_unexpected_error(sa, obj);
+            }
+
+        } else if (purple_strequal(type, "contact_list")) {
+            signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
+
+            if (! sa->initialized) {
+                signald_request_group_list(sa);
+            }
+
+        } else if (purple_strequal(type, "group_list")) {
+            obj = json_object_get_object_member(obj, "data");
+            signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
+
+            if (! sa->initialized) {
+                sa->initialized = TRUE;
+            }
 
         } else if (purple_strequal(type, "message")) {
             SignaldMessage msg;
@@ -162,13 +259,6 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
             purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
             g_free (text);
 
-        } else if (purple_strequal(type, "contact_list")) {
-            signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
-
-        } else if (purple_strequal(type, "group_list")) {
-            obj = json_object_get_object_member(obj, "data");
-            signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
-
         } else if (purple_strequal(type, "group_created")) {
             // Big hammer, but this should work.
             signald_request_group_list(sa);
@@ -182,21 +272,7 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
             signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "unexpected_error")) {
-            JsonObject *data = json_object_get_object_member(obj, "data");
-            const gchar *message = json_object_get_string_member(data, "message");
-            // Analyze the error: Check for failed authorization or unknown user.
-            // Do we have to link or register the account?
-            // FIXME: This does not work reliably, i.e.,
-            //          * there is a connection error without but no attempt to link or register
-            //          * the account is enabled and the contacts are loaded but sending a message won't work
-            if (message && *message) {
-                  if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
-                      || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))                 ) {
-                      signald_link_or_register (sa);
-                  }
-            } else {
-                purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
-            }
+            signald_handle_unexpected_error(sa, obj);
 
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
@@ -312,7 +388,10 @@ signald_login(PurpleAccount *account)
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);
+
     purple_connection_set_protocol_data(pc, sa);
+
+    sa->legacy_protocol = FALSE;
     sa->account = account;
     sa->pc = pc;
 

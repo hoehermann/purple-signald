@@ -1,6 +1,9 @@
 #ifndef __SIGNALD_MESSAGE_H__
 #define __SIGNALD_MESSAGE_H__
 
+#define SIGNALD_BODY_FIELD(sa) ((sa->legacy_protocol == TRUE) ? "message" : "body")
+#define SIGNALD_GROUP_FIELD(sa) ((sa->legacy_protocol == TRUE) ? "groupInfo" : "group")
+
 typedef enum {
     SIGNALD_MESSAGE_TYPE_DIRECT = 1,
     SIGNALD_MESSAGE_TYPE_GROUP = 2
@@ -16,6 +19,9 @@ typedef struct {
     JsonObject *envelope;
     JsonObject *data;
 } SignaldMessage;
+
+const char *
+signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *field);
 
 gboolean
 signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment);

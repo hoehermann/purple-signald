@@ -450,7 +450,7 @@ signald_login(PurpleAccount *account)
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
     // Initialize the container where we'll store our group mappings
-    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
     if (! purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
         // subscribe if signald is globally running

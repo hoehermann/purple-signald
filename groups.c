@@ -1,10 +1,13 @@
 #include "libsignald.h"
 
+/**
+ ** Utility functions for finding groups based on name or Pidgin conversation IDs.
+ **/
 gchar *
 signald_find_groupid_for_conv_id(SignaldAccount *sa, int id)
 {
     PurpleConversation *conv = purple_find_chat(sa->pc, id);
-    
+
     if (conv == NULL) {
         return NULL;
     } else {
@@ -22,9 +25,9 @@ signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
     g_hash_table_iter_init(&iter, sa->groups);
 
     while (g_hash_table_iter_next(&iter, &key, &value)) {
-        gchar *groupName = purple_conversation_get_data((PurpleConversation *)value, SIGNALD_CONV_GROUPNAME_KEY);
+        SignaldGroup *group = (SignaldGroup *)value;
 
-        if (purple_strequal(name, groupName)) {
+        if (purple_strequal(group->name, name)) {
             return (gchar *)key;
         }
     }
@@ -32,162 +35,276 @@ signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
     return NULL;
 }
 
-const char *
+/**
+ ** Utility functions for dealing with group member entries.
+ **/
+
+/*
+ * Given a JsonNode for a group member, get the number.  This function is
+ * designed to support both the old and new versions of the signald
+ * protocol
+ */
+char *
 signald_get_group_member_name(SignaldAccount *sa, JsonNode *node)
 {
     if (sa->legacy_protocol) {
-        return json_node_get_string(node);
+        return (char *)json_node_get_string(node);
     } else {
         JsonObject *member = json_node_get_object(node);
 
-        return json_object_get_string_member(member, "number");
+        return (char *)json_object_get_string_member(member, "number");
     }
 }
 
-int
-signald_check_group_membership(SignaldAccount *sa, JsonArray *members, char *username)
+/*
+ * Given a list of members, get back the list of corresponding numbers.
+ * This function makes a copy of the number so it must be freed.
+ */
+GList *
+signald_members_to_numbers(SignaldAccount *sa, JsonArray *members)
 {
-    for (GList *this_member = json_array_get_elements(members); this_member != NULL; this_member = this_member->next) {
-        const char *member_name = signald_get_group_member_name(sa, (JsonNode *)(this_member->data));
+    GList *numbers = NULL;
 
-        if (purple_strequal(username, member_name)) {
-            return 1;
+    for (GList *this_member = json_array_get_elements(members);
+         this_member != NULL;
+         this_member = this_member->next) {
+
+        JsonNode *element = (JsonNode *)(this_member->data);
+        char *number = signald_get_group_member_name(sa, element);
+
+        numbers = g_list_append(numbers, g_strdup(number));
+    }
+
+    return numbers;
+}
+
+/*
+ * Check if the member list contains the given number.  This is unnecessarily
+ * expensive as it gets the numbers for all entries in order to perform the
+ * comparison, but it's also blissfully short, so... tradeoffs.
+ */
+gboolean
+signald_members_contains(SignaldAccount *sa, JsonArray *members, char *number)
+{
+    GList *numbers = signald_members_to_numbers(sa, members);
+    gboolean result = g_list_find_custom(numbers, number, (GCompareFunc)g_strcmp0) != NULL;
+
+    g_list_free_full(numbers, g_free);
+
+    return result;
+}
+
+/**
+ ** Functions to manipulate our groups.
+ **/
+
+/*
+ * Replace the group member list with the one specified.
+ *
+ * Optionally performs a diff between the current list and the provided list
+ * and gives back the set of added and removed users if desired.
+ *
+ * Note, the values in the added and removed lists are copies and must be
+ * freed.
+ */
+void
+signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArray *members, GList **added, GList **removed)
+{
+    GList *numbers = signald_members_to_numbers(sa, members);
+
+    if (removed != NULL) {
+        *removed = NULL;
+
+        // Go through our user list and find entries that aren't in the
+        // member list.  These were removed.
+        for (GList *this_user = group->users; this_user != NULL; this_user = this_user->next) {
+            if (! g_list_find_custom(numbers, this_user->data, (GCompareFunc)g_strcmp0)) {
+                *removed = g_list_append(*removed, g_strdup(this_user->data));
+            }
         }
     }
 
-    return 0;
+    if (added != NULL) {
+        *added = NULL;
+
+        // Go through our member list and find entries that aren't in the
+        // user list.  These were added.
+        for (GList *this_number = numbers; this_number != NULL; this_number = this_number->next) {
+            if (! g_list_find_custom(group->users, this_number->data, (GCompareFunc)g_strcmp0)) {
+                *added = g_list_append(*added, g_strdup(this_number->data));
+            }
+        }
+    }
+
+    g_list_free_full(group->users, g_free);
+
+    group->users = numbers;
 }
 
+/*
+ * Function to add a set of users to a Pidgin conversation.  The main logic,
+ * here, is setting up the flags appropriately.
+ */
 void
-signald_join_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
+signald_add_users_to_conv(SignaldGroup *group, GList *users)
 {
-    PurpleConversation *conv = (PurpleConversation *)g_hash_table_lookup(sa->groups, groupId);
+    GList *flags = NULL;
 
-    if (conv != NULL) {
+    for (int i = 0; i < g_list_length(users); i++) {
+        flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
+    }
+
+    purple_chat_conversation_add_users(PURPLE_CONV_CHAT(group->conversation), users, NULL, flags, FALSE);
+
+    g_list_free(flags);
+}
+
+/*
+ * Add a new group to our list of known groups.  Takes the group id, name, and
+ * the set of members supplied.
+ */
+void
+signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
+{
+    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
+
+    if (group != NULL) {
         // Belt and suspenders check to make sure we don't join the same group twice.
 
         return;
     }
 
+    group = g_new0(SignaldGroup, 1);
+
     // We hash the group ID to create a persistent ID for the chat.  It's not
     // stated anywhere that this is required, but it seems to have resolved some
     // weird issues I was having, so...
 
-    int id = g_str_hash(groupId);
-    GList *users = NULL;
-    GList *flags = NULL;
+    group->id = g_str_hash(groupId);
+    group->name = g_strdup(groupName);
+    group->chat = NULL;
+    group->conversation = NULL;
+    group->users = NULL;
 
-    for (int i = 0; i < json_array_get_length(members); i++) {
-        JsonNode *element = json_array_get_element(members, i);
-        char *user = (char *)signald_get_group_member_name(sa, element);
+    signald_update_group_user_list(sa, group, members, NULL, NULL);
 
-        users = g_list_append(users, user);
-        flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
-    }
+    // TODO: Find the chat in our buddy list and if it's not there, add it.
 
-    conv = serv_got_joined_chat(sa->pc, id, groupName);
-
-    // Squirrel away the group ID as part of the conversation for easy access later.
-    purple_conversation_set_data(conv, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
-    purple_conversation_set_data(conv, SIGNALD_CONV_GROUPNAME_KEY, g_strdup(groupName));
-
-    purple_chat_conversation_add_users(PURPLE_CONV_CHAT(conv), users, NULL, flags, FALSE);
-
-    g_hash_table_insert(sa->groups, g_strdup(groupId), conv);
-
-    g_list_free(users);
-    g_list_free(flags);
+    g_hash_table_insert(sa->groups, g_strdup(groupId), group);
 }
 
+/*
+ * Given a group ID, open up an actual conversation for the group.  This is
+ * ultimately what opens the chat window, channel, etc.
+ */
+void
+signald_open_conversation(SignaldAccount *sa, const char *groupId)
+{
+    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
+
+    if (group == NULL) {
+        return;
+    }
+
+    if (group->conversation != NULL) {
+        return;
+    }
+
+    // This is the magic that triggers the chat to actually open.
+    group->conversation = serv_got_joined_chat(sa->pc, group->id, group->name);
+
+    // Squirrel away the group ID as part of the conversation for easy access later.
+    purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
+    purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPNAME_KEY, g_strdup(group->name));
+
+    // Populate the channel user list.
+    signald_add_users_to_conv(group, group->users);
+}
+
+/*
+ * Function to destroy the information about a Signal group chat when the user
+ * has truly left the chat (as opposed to just closing it).
+ */
 void
 signald_quit_group(SignaldAccount *sa, const char *groupId)
 {
-    PurpleConversation *conv = (PurpleConversation *)g_hash_table_lookup(sa->groups, groupId);
+    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
 
-    if (conv == NULL) {
+    if (group == NULL) {
         return;
     }
 
-    int id = purple_conv_chat_get_id(PURPLE_CONV_CHAT(conv));
+    int id = group->id;
 
+    g_free(group->name);
+    g_list_free_full(group->users, g_free);
+
+    // This will free the key and the group automatically.
     g_hash_table_remove(sa->groups, groupId);
 
-    serv_got_chat_left(sa->pc, id);
+    if (group->conversation != NULL) {
+        serv_got_chat_left(sa->pc, id);
+    }
+
+    // TODO: Find the chat in our buddy list and if it's there, remove it.
 }
 
+/*
+ * Swiss army knife function for all possible operations on a group chat,
+ * including joining, leaving, or changes to group membership.
+ */
 void
 signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
 {
-    PurpleConversation *conv = g_hash_table_lookup(sa->groups, groupId);
+    // Find any existing group entry if we have one.
+    SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
 
     // Look it see if we're a member of the group.
-
     char *username = (char *)purple_account_get_username(sa->account);
-    int in_group = signald_check_group_membership(sa, members, username);
+    gboolean in_group = signald_members_contains(sa, members, username);
 
-    if ((conv == NULL) && (! in_group)) {
+    if ((group == NULL) && (! in_group)) {
         // Chat that we neither know about nor we're in?  Ignore it.
 
         return;
-    } else if ((conv == NULL) && in_group) {
-        // Brand new chat and we're a member?  Join it!
+    } else if ((group == NULL) && in_group) {
+        // Brand new chat and we're a member?  Add it!
+        signald_add_group(sa, groupId, groupName, members);
 
-        signald_join_group(sa, groupId, groupName, members);
+        // Now open the conversation window/channel/whatever.
+        //
+        // TODO: Only open the conversation if our settings say always open
+        // *or* if we're *not* currently initializing (indicating we were
+        // invited while this session was active).
+        signald_open_conversation(sa, groupId);
+
         return;
-    } else if ((conv != NULL) && ! in_group) {
+    } else if ((group != NULL) && ! in_group) {
         // Existing chat but we're *not* a member?  Quit it.
-
         signald_quit_group(sa, groupId);
+
         return;
     }
 
     // So conv != NULL and in_group, which means we are both in this group and we know about it,
-    // so this is a true update.
-    //
-    // Next, search for users we know about that were removed from the member list (because they left),
-    // and let's take them out of the chat.
+    // so this is an update of the group membership.
 
-    GList *current_users = purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv));
-    GList *remove_users = NULL;
+    GList *added = NULL;
+    GList *removed = NULL;
 
-    for (GList *this_user = current_users; this_user != NULL; this_user = this_user->next) {
-        username = ((PurpleConvChatBuddy *)this_user->data)->name;
+    signald_update_group_user_list(sa, group, members, &added, &removed);
 
-        if (! signald_check_group_membership(sa, members, username)) {
-            remove_users = g_list_append(remove_users, g_strdup(username));
-        }
-    }
+    purple_conv_chat_remove_users(PURPLE_CONV_CHAT(group->conversation), removed, NULL);
 
-    purple_conv_chat_remove_users(PURPLE_CONV_CHAT(conv), remove_users, NULL);
+    signald_add_users_to_conv(group, added);
 
-    g_list_free_full(remove_users, g_free);
-
-    // Search for users in the member list not in the user list and add them.
-
-    GList *current_members = json_array_get_elements(members);
-
-    for (GList *this_member = current_members; this_member != NULL; this_member = this_member->next) {
-        JsonNode *node = (JsonNode *)(this_member->data);
-        const char *member_name = signald_get_group_member_name(sa, node);
-        int found = 0;
-
-        current_users = purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv));
-
-        for (GList *this_user = current_users; this_user != NULL; this_user = this_user->next) {
-            const char *user_name = ((PurpleConvChatBuddy *)this_user->data)->name;
-
-            if (purple_strequal(user_name, member_name)) {
-                found = 1;
-                break;
-            }
-        }
-
-        if (! found) {
-            purple_conv_chat_add_user(PURPLE_CONV_CHAT(conv), member_name, NULL, PURPLE_CBFLAGS_NONE, FALSE);
-        }
-    }
+    g_list_free_full(added, g_free);
+    g_list_free_full(removed, g_free);
 }
 
+/**
+ ** Signal protocol functions and callbacks.
+ **/
 void
 signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
 {
@@ -221,6 +338,14 @@ signald_request_group_list(SignaldAccount *sa)
     json_object_unref(data);
 }
 
+/*
+ * Process a message we've received from signald that's directed at a group
+ * chat.
+ *
+ * This could be a message indicating an update to the group membership, an
+ * indication that we've quit the group (possibly from another client), or
+ * finally that a message has arrived.
+ */
 void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 {
@@ -231,9 +356,13 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
     const gchar *groupname = json_object_get_string_member(groupInfo, "name");
 
     if (purple_strequal(type, "UPDATE")) {
+        // Group membership update.  Let's apply it!
         signald_update_group(sa, groupid_str, groupname, json_object_get_array_member(groupInfo, "members"));
 
     } else if (purple_strequal(type, "QUIT")) {
+        // Someone quit the group.  It could be me, or it could be another user
+        // in the group.  So we need to check who originated the event and then
+        // either update the membership or record that we've quit the group.
         char *username = (char *)purple_account_get_username(sa->account);
         const char *quit_source = signald_get_number_from_field(sa, msg->envelope, "source");
 
@@ -244,12 +373,22 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         }
 
     } else if (purple_strequal(type, "DELIVER")) {
+        // Alright, it's a message, so we need to write it into the conversation.
         PurpleMessageFlags flags = 0;
-        PurpleConvChat *conv = PURPLE_CONV_CHAT(g_hash_table_lookup(sa->groups, groupid_str));
-        int id = purple_conv_chat_get_id(conv);
+        SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
 
         gboolean has_attachment = FALSE;
         GString *content = NULL;
+
+        if (! group->conversation) {
+            // In this case, we know about the conversation but it's not been
+            // opened yet so there's no place to write the message.
+
+            // TODO: Open the conversation and continue if our settings
+            // indicate we should.
+
+            return;
+        }
 
         if (signald_format_message(sa, msg, &content, &has_attachment)) {
             if (has_attachment) {
@@ -259,44 +398,44 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
             if (msg->is_sync_message) {
                 flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
 
-                purple_conv_chat_write(conv, msg->conversation_name, content->str, flags, msg->timestamp);
+                purple_conv_chat_write(PURPLE_CONV_CHAT(group->conversation),
+                                       msg->conversation_name,
+                                       content->str, flags,
+                                       msg->timestamp);
             } else {
                 flags |= PURPLE_MESSAGE_RECV;
-                purple_serv_got_chat_in(sa->pc, id, msg->conversation_name, flags, content->str, msg->timestamp);
+
+                purple_serv_got_chat_in(sa->pc,
+                                        group->id,
+                                        msg->conversation_name,
+                                        flags,
+                                        content->str,
+                                        msg->timestamp);
             }
         }
+
         g_string_free(content, TRUE);
     }
 }
 
-GList *
-signald_chat_info(PurpleConnection *pc)
+int
+signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
 {
-    GList *infos = NULL;
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
+    PurpleConvChat *conv = PURPLE_CONV_CHAT(purple_find_chat(sa->pc, id));
 
-    struct proto_chat_entry *pce;
-
-    pce = g_new0(struct proto_chat_entry, 1);
-    pce->label = _("_Group Name:");
-    pce->identifier = "name";
-    pce->required = TRUE;
-    infos = g_list_append(infos, pce);
-
-    return infos;
-}
-
-GHashTable
-*signald_chat_info_defaults(PurpleConnection *pc, const char *chat_name)
-{
-    GHashTable *defaults;
-
-    defaults = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
-
-    if (chat_name != NULL) {
-        g_hash_table_insert(defaults, "name", g_strdup(chat_name));
+    if ((groupId == NULL) || (conv == NULL)) {
+        return 0;
     }
 
-    return defaults;
+    int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);
+
+    if (ret > 0) {
+        purple_conv_chat_write(conv, groupId, message, flags, time(NULL));
+    }
+
+    return ret;
 }
 
 void
@@ -384,23 +523,35 @@ signald_chat_invite(PurpleConnection *pc, int id, const char *message, const cha
 
 }
 
-int
-signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
+/**
+ ** Functions to supply Pidgin with metadata about this plugin.
+ **/
+GList *
+signald_chat_info(PurpleConnection *pc)
 {
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
-    PurpleConvChat *conv = PURPLE_CONV_CHAT(purple_find_chat(sa->pc, id));
+    GList *infos = NULL;
 
-    if ((groupId == NULL) || (conv == NULL)) {
-        return 0;
-    }
+    struct proto_chat_entry *pce;
 
-    int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);
+    pce = g_new0(struct proto_chat_entry, 1);
+    pce->label = _("_Group Name:");
+    pce->identifier = "name";
+    pce->required = TRUE;
+    infos = g_list_append(infos, pce);
 
-    if (ret > 0) {
-        purple_conv_chat_write(conv, groupId, message, flags, time(NULL));
-    }
-
-    return ret;
+    return infos;
 }
 
+GHashTable
+*signald_chat_info_defaults(PurpleConnection *pc, const char *chat_name)
+{
+    GHashTable *defaults;
+
+    defaults = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
+
+    if (chat_name != NULL) {
+        g_hash_table_insert(defaults, "name", g_strdup(chat_name));
+    }
+
+    return defaults;
+}

@@ -234,10 +234,8 @@ signald_quit_group(SignaldAccount *sa, const char *groupId)
         return;
     }
 
-    int id = group->id;
-
     if (group->conversation != NULL) {
-        serv_got_chat_left(sa->pc, id);
+        serv_got_chat_left(sa->pc, group->id);
     }
 
     g_free(group->name);
@@ -294,9 +292,11 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
 
     signald_update_group_user_list(sa, group, members, &added, &removed);
 
-    purple_conv_chat_remove_users(PURPLE_CONV_CHAT(group->conversation), removed, NULL);
+    if (group->conversation != NULL) {
+        purple_conv_chat_remove_users(PURPLE_CONV_CHAT(group->conversation), removed, NULL);
 
-    signald_add_users_to_conv(group, added);
+        signald_add_users_to_conv(group, added);
+    }
 
     g_list_free_full(added, g_free);
     g_list_free_full(removed, g_free);

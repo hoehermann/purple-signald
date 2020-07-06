@@ -55,6 +55,21 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename)
         return NULL;
     }
 
+    GFile *f = g_file_new_for_path(filename);
+    GFileType type = g_file_query_file_type(f, G_FILE_QUERY_INFO_NONE, NULL);
+
+    g_object_unref(f);
+
+    if (type == G_FILE_TYPE_UNKNOWN) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error accessing file (permission issue?)");
+
+        return NULL;
+    } else if (type != G_FILE_TYPE_REGULAR) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "File is not a regular file... that's odd.");
+
+        return NULL;
+    }
+
     magic_t cookie = magic_open(MAGIC_EXTENSION);
 
     if ((cookie == NULL) || (magic_load(cookie, NULL) != 0)) {
@@ -67,6 +82,7 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename)
 
     if (extensions == NULL) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "Error getting extension for '%s': %d", filename, magic_errno(cookie));
+        magic_close(cookie);
 
         return NULL;
     }
@@ -130,6 +146,8 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         if (url != NULL) {
             g_string_append_printf(message, "<a href=\"%s\">Attachment (type %s): %s</a><br/>", url, type, url);
             g_free(url);
+        } else {
+            g_string_append_printf(message, "An error occurred processing an attachment.  Enable debug logging for more information.");
         }
 
         return;

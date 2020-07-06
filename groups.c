@@ -236,15 +236,15 @@ signald_quit_group(SignaldAccount *sa, const char *groupId)
 
     int id = group->id;
 
+    if (group->conversation != NULL) {
+        serv_got_chat_left(sa->pc, id);
+    }
+
     g_free(group->name);
     g_list_free_full(group->users, g_free);
 
     // This will free the key and the group automatically.
     g_hash_table_remove(sa->groups, groupId);
-
-    if (group->conversation != NULL) {
-        serv_got_chat_left(sa->pc, id);
-    }
 
     // TODO: Find the chat in our buddy list and if it's there, remove it.
 }

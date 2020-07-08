@@ -293,9 +293,13 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     signald_update_group_user_list(sa, group, members, &added, &removed);
 
     if (group->conversation != NULL) {
-        purple_conv_chat_remove_users(PURPLE_CONV_CHAT(group->conversation), removed, NULL);
+        if (removed != NULL) {
+            purple_conv_chat_remove_users(PURPLE_CONV_CHAT(group->conversation), removed, NULL);
+        }
 
-        signald_add_users_to_conv(group, added);
+        if (added != NULL) {
+            signald_add_users_to_conv(group, added);
+        }
     }
 
     g_list_free_full(added, g_free);

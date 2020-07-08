@@ -187,6 +187,13 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
 const char *
 signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *field)
 {
+    if (! json_object_has_member(obj, field)) {
+        // The previous signald protocol would return an empty string in this
+        // circumstance, but it now doesn't populate the field at all, so we
+        // mirror the old behaviour here.
+        return "";
+    }
+
     JsonNode *node = json_object_get_member(obj, field);
 
     if (sa->legacy_protocol) {

@@ -276,8 +276,8 @@ signald_init_state_machine()
      * Once the contact list comes back, we request the group list.
      */
     contacts = signald_new_state(user, "got contacts, get groups", "contact_list", signald_received_contact_list, signald_get_groups);
-    signald_add_transition(user_not_registered, "get_contacts", contacts, signald_received_contact_list, signald_get_groups);
-    signald_add_transition(unexpected_error, "get_contacts", contacts, signald_received_contact_list, signald_get_groups);
+    signald_add_transition(user_not_registered, "contact_list", contacts, signald_received_contact_list, signald_get_groups);
+    signald_add_transition(unexpected_error, "contact_list", contacts, signald_received_contact_list, signald_get_groups);
 
     /*
      * Group list has arrived, transition to running state.
@@ -300,11 +300,15 @@ signald_init_state_machine()
 gboolean
 signald_handle_message(SignaldAccount *sa, JsonObject *obj)
 {
+    if (current == NULL) {
+        return FALSE;
+    }
+
     const gchar *type = json_object_get_string_member(obj, "type");
     SignaldStateTransition *transition = g_hash_table_lookup(current->transitions, type);
 
     purple_debug_info(SIGNALD_PLUGIN_ID,
-                       "Initializing: In state '%s' received message type '%s'\n", 
+                       "In state '%s' received message type '%s'\n", 
                        current->name,
                        type);
 
@@ -317,21 +321,17 @@ signald_handle_message(SignaldAccount *sa, JsonObject *obj)
     }
 
     purple_debug_info(SIGNALD_PLUGIN_ID,
-                      "Initializing: Transitioned from '%s' to '%s'\n", 
+                      "Transitioned from '%s' to '%s'\n", 
                       current->name,
                       transition->next->name);
 
     if ((transition->next_message != NULL) && ! transition->next_message(sa, obj)) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Reached terminal state in state machine.\n");
+
         return FALSE;
     }
 
     current = transition->next;
-
-    if (g_hash_table_size(current->transitions) == 0) {
-        sa->initialized = TRUE;
-
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Initializing: Initialization complete!\n");
-    }
 
     return TRUE;
 }

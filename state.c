@@ -326,12 +326,14 @@ signald_handle_message(SignaldAccount *sa, JsonObject *obj)
                       transition->next->name);
 
     if ((transition->next_message != NULL) && ! transition->next_message(sa, obj)) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Reached terminal state in state machine.\n");
-
         return FALSE;
     }
 
     current = transition->next;
+
+    if (current == NULL) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Reached terminal state in state machine.\n");
+    }
 
     return TRUE;
 }

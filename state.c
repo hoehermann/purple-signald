@@ -2,7 +2,6 @@
 #include "libsignald.h"
 
 SignaldState *entrypoint = NULL;
-SignaldState *current = NULL;
 
 void
 signald_add_transition(SignaldState *prev, char *received, SignaldState *state, SignaldTransitionCb handler, SignaldTransitionCb next)
@@ -218,10 +217,10 @@ signald_received_account_list(SignaldAccount *sa, JsonObject *obj)
 }
 
 void
-signald_init_state_machine()
+signald_init_state_machine(SignaldAccount *sa)
 {
     if (entrypoint != NULL) {
-        current = entrypoint;
+        sa->current = entrypoint;
         return;
     }
 
@@ -294,22 +293,22 @@ signald_init_state_machine()
     signald_add_transition(running, "group_list", running, signald_received_group_list, NULL);
     signald_add_transition(running, "account_list", running, signald_received_account_list, NULL);
 
-    current = entrypoint;
+    sa->current = entrypoint;
 }
 
 gboolean
 signald_handle_message(SignaldAccount *sa, JsonObject *obj)
 {
-    if (current == NULL) {
+    if (sa->current == NULL) {
         return FALSE;
     }
 
     const gchar *type = json_object_get_string_member(obj, "type");
-    SignaldStateTransition *transition = g_hash_table_lookup(current->transitions, type);
+    SignaldStateTransition *transition = g_hash_table_lookup(sa->current->transitions, type);
 
     purple_debug_info(SIGNALD_PLUGIN_ID,
                        "In state '%s' received message type '%s'\n", 
-                       current->name,
+                       sa->current->name,
                        type);
 
     if (transition == NULL) {
@@ -327,14 +326,14 @@ signald_handle_message(SignaldAccount *sa, JsonObject *obj)
     if (transition->next != NULL) {
         purple_debug_info(SIGNALD_PLUGIN_ID,
                           "Transitioned from '%s' to '%s'\n", 
-                          current->name,
+                          sa->current->name,
                           transition->next->name);
 
-        current = transition->next;
+        sa->current = transition->next;
     } else {
         purple_debug_info(SIGNALD_PLUGIN_ID, "Reached terminal state in state machine.\n");
 
-        current = NULL;
+        sa->current = NULL;
     }
 
     return TRUE;

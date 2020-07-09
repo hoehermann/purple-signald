@@ -56,6 +56,12 @@
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"
 
 typedef struct {
+    char *name;
+
+    GHashTable *transitions;
+} SignaldState;
+
+typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
 
@@ -63,10 +69,20 @@ typedef struct {
 
     int fd;
     guint watcher;
+    SignaldState *current;
 
     // Maps signal group IDs to libpurple PurpleConversation objects that represent those chats.
     GHashTable *groups;
 } SignaldAccount;
+
+typedef gboolean (*SignaldTransitionCb)(SignaldAccount *, JsonObject *obj);
+
+typedef struct {
+    SignaldTransitionCb handler;
+    SignaldTransitionCb next_message;
+
+    SignaldState *next;
+} SignaldStateTransition;
 
 void
 signald_subscribe (SignaldAccount *sa);

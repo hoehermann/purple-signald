@@ -242,8 +242,6 @@ signald_signald_start(PurpleAccount *account)
 void
 signald_login(PurpleAccount *account)
 {
-    signald_init_state_machine();
-
     purple_debug_info(SIGNALD_PLUGIN_ID, "login\n");
 
     PurpleConnection *pc = purple_account_get_connection(account);
@@ -257,6 +255,8 @@ signald_login(PurpleAccount *account)
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);
+
+    signald_init_state_machine(sa);
 
     purple_connection_set_protocol_data(pc, sa);
 

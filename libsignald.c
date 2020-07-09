@@ -116,6 +116,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
             g_free (text);
 
+        } else if (purple_strequal(type, "unexpected_error")) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
+
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }

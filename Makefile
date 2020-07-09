@@ -32,7 +32,7 @@ endif
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 PURPLE_COMPAT_FILES :=
-PURPLE_C_FILES := comms.c contacts.c direct.c groups.c message.c link.c libsignald.c $(C_FILES)
+PURPLE_C_FILES := comms.c contacts.c direct.c groups.c message.c link.c libsignald.c state.c $(C_FILES)
 
 .PHONY:	all FAILNOPURPLE clean install
 

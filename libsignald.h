@@ -72,6 +72,7 @@ typedef struct {
 void
 signald_subscribe (SignaldAccount *sa);
 
+#include "state.h"
 #include "message.h"
 #include "direct.h"
 #include "groups.h"

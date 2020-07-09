@@ -90,54 +90,6 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 void
-signald_check_proto_version(SignaldAccount *sa)
-{
-    //
-    // This is a bit of a hack!  We want to detect if we're dealing with a
-    // new version of signald with the new protocol, or the old version.
-    //
-    // To test, we call get_user on the user account, using the new
-    // JsonAddress form of the call.  If it succeeds, we're dealing with
-    // a new signald.  If it fails, it's the old one.
-    //
-
-    const gchar *username = purple_account_get_username(sa->account);
-    JsonObject *address = json_object_new();
-
-    json_object_set_string_member(address, "number", username);
-
-    JsonObject *data = json_object_new();
-
-    json_object_set_string_member(data, "type", "get_user");
-    json_object_set_string_member(data, "username", username);
-    json_object_set_object_member(data, "recipientAddress", address);
-
-    if (!signald_send_json (sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-
-    json_object_unref(data);
-}
-
-void
-signald_initialize_contacts(SignaldAccount *sa)
-{
-    JsonObject *data = json_object_new();
-
-    json_object_set_string_member(data, "type", "list_contacts");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-
-    if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-
-    json_object_unref(data);
-
-    signald_assume_all_buddies_online(sa);
-}
-
-void
 signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
 {
     JsonObject *data = json_object_get_object_member(obj, "data");
@@ -165,6 +117,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
     if (!json_parser_load_from_data(parser, json, -1, NULL)) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "Error parsing input: %s\n", json);
+
         return;
     }
 
@@ -173,103 +126,17 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
-purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
-        if (purple_strequal(type, "version")) {
-            obj = json_object_get_object_member(obj, "data");
-            purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Received message: %s\n", json);
 
+        if (signald_handle_message(sa, obj)) {
+            // Nothing to do here
         } else if (purple_strequal(type, "success")) {
             // TODO: mark message as delayed (maybe do not echo) until success is reported
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Success noticed.\n");
-
-        } else if (purple_strequal(type, "subscribed")) {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
-            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
-
-            signald_check_proto_version(sa);
-
-        } else if (purple_str_has_prefix(type, "user") && ! sa->initialized) {
-            // Could be "user" or "user_not_registered", but either way it's
-            // not an error!
-
-            sa->legacy_protocol = FALSE;
-            signald_initialize_contacts(sa);
-
-        } else if (purple_strequal(type, "unexpected_error") && ! sa->initialized) {
-            JsonObject *data = json_object_get_object_member(obj, "data");
-            JsonObject *request = json_object_get_object_member(data, "request");
-            const char *type = json_object_get_string_member(request, "type");
-
-            if (purple_strequal(type, "get_user")) {
-                sa->legacy_protocol = TRUE;
-                signald_initialize_contacts(sa);
-            } else {
-                signald_handle_unexpected_error(sa, obj);
-            }
-
-        } else if (purple_strequal(type, "contact_list")) {
-            signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
-
-            if (! sa->initialized) {
-                signald_request_group_list(sa);
-            }
-
-        } else if (purple_strequal(type, "group_list")) {
-            obj = json_object_get_object_member(obj, "data");
-            signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
-
-            if (! sa->initialized) {
-                sa->initialized = TRUE;
-            }
-
-        } else if (purple_strequal(type, "message")) {
-            SignaldMessage msg;
-
-            if (signald_parse_message(sa, json_object_get_object_member(obj, "data"), &msg)) {
-                switch(msg.type) {
-                    case SIGNALD_MESSAGE_TYPE_DIRECT:
-                        signald_process_direct_message(sa, &msg);
-                        break;
-
-                    case SIGNALD_MESSAGE_TYPE_GROUP:
-                        signald_process_group_message(sa, &msg);
-                        break;
-                }
-            }
-        } else if (purple_strequal(type, "linking_uri")) {
-            signald_parse_linking_uri(sa, obj);
-
-        } else if (purple_strequal (type, "linking_successful")) {
-            signald_parse_linking_successful();
-
-            // FIXME: Sometimes, messages are not received by pidgin after
-            //        linking to the main account and are only shown there.
-            //        Is it robust to subscribe here?
-            signald_subscribe (sa);
-
-        } else if (purple_strequal (type, "linking_error")) {
-            signald_parse_linking_error(sa, obj);
-
-            purple_notify_close_with_handle (purple_notify_get_handle ());
-            remove (SIGNALD_TMP_QRFILE);
-
         } else if (signald_strequalprefix(type, "linking_")) {
             gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
             purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
             g_free (text);
-
-        } else if (purple_strequal(type, "group_created")) {
-            // Big hammer, but this should work.
-            signald_request_group_list(sa);
-
-        } else if (purple_strequal(type, "group_updated")) {
-            // Big hammer, but this should work.
-            signald_request_group_list(sa);
-
-        } else if (purple_strequal(type, "account_list")) {
-            JsonObject *data = json_object_get_object_member(obj, "data");
-            signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
@@ -375,6 +242,8 @@ signald_signald_start(PurpleAccount *account)
 void
 signald_login(PurpleAccount *account)
 {
+    signald_init_state_machine();
+
     purple_debug_info(SIGNALD_PLUGIN_ID, "login\n");
 
     PurpleConnection *pc = purple_account_get_connection(account);

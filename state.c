@@ -320,19 +320,21 @@ signald_handle_message(SignaldAccount *sa, JsonObject *obj)
         return FALSE;
     }
 
-    purple_debug_info(SIGNALD_PLUGIN_ID,
-                      "Transitioned from '%s' to '%s'\n", 
-                      current->name,
-                      transition->next->name);
-
     if ((transition->next_message != NULL) && ! transition->next_message(sa, obj)) {
         return FALSE;
     }
 
-    current = transition->next;
+    if (transition->next != NULL) {
+        purple_debug_info(SIGNALD_PLUGIN_ID,
+                          "Transitioned from '%s' to '%s'\n", 
+                          current->name,
+                          transition->next->name);
 
-    if (current == NULL) {
+        current = transition->next;
+    } else {
         purple_debug_info(SIGNALD_PLUGIN_ID, "Reached terminal state in state machine.\n");
+
+        current = NULL;
     }
 
     return TRUE;

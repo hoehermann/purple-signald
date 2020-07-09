@@ -253,6 +253,8 @@ signald_handle_unexpected_link_error(SignaldAccount *sa, JsonObject *obj)
 gboolean
 signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
 {
+    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
+
     return TRUE;
 }
 
@@ -335,7 +337,7 @@ signald_init_state_machine(SignaldAccount *sa)
     signald_add_transition(running, "group_updated", running, signald_get_groups, NULL, NULL);
     signald_add_transition(running, "group_list", running, signald_received_group_list, NULL, NULL);
     signald_add_transition(running, "account_list", running, signald_received_account_list, NULL, NULL);
-    signald_add_transition(running, "unexpected_error", running, NULL, signald_handle_unexpected_error, NULL);
+    signald_add_transition(running, "unexpected_error", running, signald_handle_unexpected_error, NULL, NULL);
 
     // TODO: mark message as delayed (maybe do not echo) until success is reported
     signald_add_transition(running, "success", running, NULL, NULL, NULL);

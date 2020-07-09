@@ -78,6 +78,7 @@ typedef struct {
 typedef gboolean (*SignaldTransitionCb)(SignaldAccount *, JsonObject *obj);
 
 typedef struct {
+    SignaldTransitionCb filter;
     SignaldTransitionCb handler;
     SignaldTransitionCb next_message;
 
@@ -86,6 +87,9 @@ typedef struct {
 
 void
 signald_subscribe (SignaldAccount *sa);
+
+int
+signald_strequalprefix (const char *s1, const char *s2);
 
 #include "state.h"
 #include "message.h"

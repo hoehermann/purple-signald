@@ -90,26 +90,6 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 void
-signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
-{
-    JsonObject *data = json_object_get_object_member(obj, "data");
-    const gchar *message = json_object_get_string_member(data, "message");
-    // Analyze the error: Check for failed authorization or unknown user.
-    // Do we have to link or register the account?
-    // FIXME: This does not work reliably, i.e.,
-    //          * there is a connection error without but no attempt to link or register
-    //          * the account is enabled and the contacts are loaded but sending a message won't work
-    if (message && *message) {
-          if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
-              || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))                 ) {
-              signald_link_or_register (sa);
-          }
-    } else {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
-    }
-}
-
-void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
     JsonParser *parser = json_parser_new();
@@ -131,15 +111,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         if (signald_handle_message(sa, obj)) {
             // Nothing to do here
-        } else if (purple_strequal(type, "success")) {
-            // TODO: mark message as delayed (maybe do not echo) until success is reported
         } else if (signald_strequalprefix(type, "linking_")) {
             gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
             purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
             g_free (text);
-
-        } else if (purple_strequal(type, "unexpected_error")) {
-            signald_handle_unexpected_error(sa, obj);
 
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);

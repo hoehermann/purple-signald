@@ -4,15 +4,20 @@
 SignaldState *entrypoint = NULL;
 
 void
-signald_add_transition(SignaldState *prev, char *received, SignaldState *state, SignaldTransitionCb handler, SignaldTransitionCb next)
+signald_add_transition(SignaldState *prev, char *received, SignaldState *state, SignaldTransitionCb handler, SignaldTransitionCb next, SignaldTransitionCb filter)
 {
     SignaldStateTransition *transition = g_new0(SignaldStateTransition, 1);
 
     transition->handler = handler;
     transition->next_message = next;
+    transition->filter = filter;
     transition->next = state;
 
-    g_hash_table_insert(prev->transitions, received, transition);
+    GList *transitions = g_hash_table_lookup(prev->transitions, received);
+
+    transitions = g_list_append(transitions, transition);
+
+    g_hash_table_insert(prev->transitions, received, transitions);
 }
 
 SignaldState *
@@ -21,10 +26,10 @@ signald_new_state(SignaldState *prev, char *name, char *received, SignaldTransit
     SignaldState *state = g_new0(SignaldState, 1);
 
     state->name = name;
-    state->transitions = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    state->transitions = g_hash_table_new(g_str_hash, g_str_equal);
 
     if (prev != NULL) {
-        signald_add_transition(prev, received, state, handler, next);
+        signald_add_transition(prev, received, state, handler, next, NULL);
     }
 
     return state;
@@ -216,6 +221,41 @@ signald_received_account_list(SignaldAccount *sa, JsonObject *obj)
     return TRUE;
 }
 
+gboolean
+signald_is_link_error(SignaldAccount *sa, JsonObject *obj)
+{
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    const gchar *message = json_object_get_string_member(data, "message");
+    // Analyze the error: Check for failed authorization or unknown user.
+    // Do we have to link or register the account?
+    // FIXME: This does not work reliably, i.e.,
+    //          * there is a connection error without but no attempt to link or register
+    //          * the account is enabled and the contacts are loaded but sending a message won't work
+
+    if (message && *message) {
+          if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
+              || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))) {
+              return TRUE;
+          }
+    }
+
+    return FALSE;
+}
+
+gboolean
+signald_handle_unexpected_link_error(SignaldAccount *sa, JsonObject *obj)
+{
+    signald_link_or_register (sa);
+
+    return TRUE;
+}
+
+gboolean
+signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
+{
+    return TRUE;
+}
+
 void
 signald_init_state_machine(SignaldAccount *sa)
 {
@@ -241,6 +281,9 @@ signald_init_state_machine(SignaldAccount *sa)
 
     version = signald_new_state(entrypoint, "got version, waiting", "version", signald_received_version, NULL);
 
+    // This happens if the account was unlinked.  If that happens, request a re-link.
+    signald_add_transition(version, "unexpected_error", version, NULL, signald_handle_unexpected_link_error, signald_is_link_error);
+
     /*
      * Easy case, already subscribed.  Just get the message and move on to
      * checking the protocol version.
@@ -253,9 +296,9 @@ signald_init_state_machine(SignaldAccount *sa)
      */
     linking = signald_new_state(version, "got linking uri, waiting", "linking_uri", signald_linking_uri, NULL);
     linked = signald_new_state(linking, "linking successful, subscribing", "linking_successful", signald_linking_successful, signald_subscribe_after_link);
-    signald_add_transition(linked, "subscribed", subscribed, signald_subscribed, signald_check_proto_version);
+    signald_add_transition(linked, "subscribed", subscribed, signald_subscribed, signald_check_proto_version, NULL);
 
-    signald_new_state(linking, "error linking", "linking_error", signald_linking_error, NULL);
+    signald_add_transition(linking, "linking_error", version, signald_linking_error, signald_handle_unexpected_link_error, NULL);
 
     /*
      * Alright, we're subscribed and we've initiated messaging to check the
@@ -275,8 +318,8 @@ signald_init_state_machine(SignaldAccount *sa)
      * Once the contact list comes back, we request the group list.
      */
     contacts = signald_new_state(user, "got contacts, get groups", "contact_list", signald_received_contact_list, signald_get_groups);
-    signald_add_transition(user_not_registered, "contact_list", contacts, signald_received_contact_list, signald_get_groups);
-    signald_add_transition(unexpected_error, "contact_list", contacts, signald_received_contact_list, signald_get_groups);
+    signald_add_transition(user_not_registered, "contact_list", contacts, signald_received_contact_list, signald_get_groups, NULL);
+    signald_add_transition(unexpected_error, "contact_list", contacts, signald_received_contact_list, signald_get_groups, NULL);
 
     /*
      * Group list has arrived, transition to running state.
@@ -287,11 +330,15 @@ signald_init_state_machine(SignaldAccount *sa)
      * Normal even loop.  We transition from "running" back to "running", with
      * various for the message types.
      */
-    signald_add_transition(running, "message", running, signald_received_message, NULL);
-    signald_add_transition(running, "group_created", running, signald_get_groups, NULL);
-    signald_add_transition(running, "group_updated", running, signald_get_groups, NULL);
-    signald_add_transition(running, "group_list", running, signald_received_group_list, NULL);
-    signald_add_transition(running, "account_list", running, signald_received_account_list, NULL);
+    signald_add_transition(running, "message", running, signald_received_message, NULL, NULL);
+    signald_add_transition(running, "group_created", running, signald_get_groups, NULL, NULL);
+    signald_add_transition(running, "group_updated", running, signald_get_groups, NULL, NULL);
+    signald_add_transition(running, "group_list", running, signald_received_group_list, NULL, NULL);
+    signald_add_transition(running, "account_list", running, signald_received_account_list, NULL, NULL);
+    signald_add_transition(running, "unexpected_error", running, NULL, signald_handle_unexpected_error, NULL);
+
+    // TODO: mark message as delayed (maybe do not echo) until success is reported
+    signald_add_transition(running, "success", running, NULL, NULL, NULL);
 
     sa->current = entrypoint;
 }
@@ -304,15 +351,26 @@ signald_handle_message(SignaldAccount *sa, JsonObject *obj)
     }
 
     const gchar *type = json_object_get_string_member(obj, "type");
-    SignaldStateTransition *transition = g_hash_table_lookup(sa->current->transitions, type);
+    GList *transitions = g_hash_table_lookup(sa->current->transitions, type);
+    SignaldStateTransition *transition = NULL;
 
     purple_debug_info(SIGNALD_PLUGIN_ID,
                        "In state '%s' received message type '%s'\n", 
                        sa->current->name,
                        type);
 
-    if (transition == NULL) {
+    if (transitions == NULL) {
         return FALSE;
+    }
+
+    for (; transitions != NULL; transitions = transitions->next) {
+        SignaldStateTransition *t = (SignaldStateTransition *)(transitions->data);
+
+        if ((t->filter == NULL) || t->filter(sa, obj)) {
+            transition = t;
+
+            break;
+        }
     }
 
     if ((transition->handler != NULL) && ! transition->handler(sa, obj)) {

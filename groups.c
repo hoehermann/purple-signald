@@ -182,13 +182,22 @@ signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName
 
     group->id = g_str_hash(groupId);
     group->name = g_strdup(groupName);
-    group->chat = NULL;
     group->conversation = NULL;
     group->users = NULL;
 
     signald_update_group_user_list(sa, group, members, NULL, NULL);
 
-    // TODO: Find the chat in our buddy list and if it's not there, add it.
+    group->chat = purple_blist_find_chat(sa->account, group->name);
+
+    if (group->chat == NULL) {
+        GHashTable *comp = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+
+        g_hash_table_insert(comp, g_strdup("name"), g_strdup(group->name));
+        group->chat = purple_chat_new(sa->account, group->name, comp);
+
+        purple_blist_add_chat(group->chat, NULL, NULL);
+        purple_blist_node_set_bool((PurpleBlistNode *)group->chat, "gtk-persistent", TRUE);
+    }
 
     g_hash_table_insert(sa->groups, g_strdup(groupId), group);
 }

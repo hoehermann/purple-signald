@@ -247,13 +247,16 @@ signald_quit_group(SignaldAccount *sa, const char *groupId)
         serv_got_chat_left(sa->pc, group->id);
     }
 
+    if (group->chat != NULL) {
+        // This also deallocates the chat
+        purple_blist_remove_chat(group->chat);
+    }
+
     g_free(group->name);
     g_list_free_full(group->users, g_free);
 
     // This will free the key and the group automatically.
     g_hash_table_remove(sa->groups, groupId);
-
-    // TODO: Find the chat in our buddy list and if it's there, remove it.
 }
 
 /*
@@ -399,7 +402,8 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 
             // TODO: Open the conversation and continue if our settings
             // indicate we should.
-
+            //
+            // signald_open_conversation(sa, groupid_str);
             return;
         }
 
@@ -459,7 +463,11 @@ signald_join_chat(PurpleConnection *pc, GHashTable *data)
     gchar *groupId = signald_find_groupid_for_conv_name(sa, (char *)name);
 
     if (groupId != NULL) {
-        // This was probably a persistent chat, so we skip re-joining.
+        SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
+
+        if (group->conversation == NULL) {
+            signald_open_conversation(sa, groupId);
+        }
 
         return;
     }

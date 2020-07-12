@@ -657,8 +657,7 @@ GHashTable
 void
 signald_set_chat_topic(PurpleConnection *pc, int id, const char *topic)
 {
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
-
-    printf("Changing %s topic to %s\n", groupId, topic);
+    // Nothing to do here.  For some reason this callback has to be
+    // registered if Pidgin is going to enable the "Alias..." menu
+    // option in the conversation.
 }

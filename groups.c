@@ -334,11 +334,9 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         signald_add_group(sa, groupId, groupName, members);
 
         // Now open the conversation window/channel/whatever.
-        //
-        // TODO: Only open the conversation if our settings say always open
-        // *or* if we're *not* currently initializing (indicating we were
-        // invited while this session was active).
-        signald_open_conversation(sa, groupId);
+        if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
+            signald_open_conversation(sa, groupId);
+        }
 
         return;
     } else if ((group != NULL) && ! in_group) {
@@ -456,10 +454,7 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
             // In this case, we know about the conversation but it's not been
             // opened yet so there's no place to write the message.
 
-            // TODO: Open the conversation and continue if our settings
-            // indicate we should.
-            //
-            // signald_open_conversation(sa, groupid_str);
+            signald_open_conversation(sa, groupid_str);
             return;
         }
 

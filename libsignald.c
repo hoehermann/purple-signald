@@ -578,6 +578,13 @@ signald_add_account_options(GList *account_options)
                 );
     account_options = g_list_append(account_options, option);
 
+    option = purple_account_option_bool_new(
+                _("Automatically join group chats on startup"),
+                "auto-join-group-chats",
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     option = purple_account_option_bool_new(

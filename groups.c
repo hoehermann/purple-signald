@@ -1,5 +1,34 @@
 #include "libsignald.h"
 
+PurpleChat *
+signald_blist_find_chat(SignaldAccount *sa, const char *groupId)
+{
+    PurpleBuddyList *bl = purple_get_blist();
+    PurpleBlistNode *group;
+
+    for (group = bl->root; group != NULL; group = group->next) {
+        PurpleBlistNode *node;
+
+        for (node = group->child; node != NULL; node = node->next) {
+            if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+                PurpleChat *chat = (PurpleChat *)node;
+
+                if (sa->account != chat->account) {
+                    continue;
+                }
+
+                char *gid = g_hash_table_lookup(chat->components, "groupId");
+
+                if (purple_strequal(groupId, gid)) {
+                    return chat;
+                }
+            }
+        }
+    }
+
+    return NULL;
+}
+
 /**
  ** Utility functions for finding groups based on name or Pidgin conversation IDs.
  **/
@@ -187,12 +216,14 @@ signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName
 
     signald_update_group_user_list(sa, group, members, NULL, NULL);
 
-    group->chat = purple_blist_find_chat(sa->account, group->name);
+    group->chat = signald_blist_find_chat(sa, groupId);
 
     if (group->chat == NULL) {
         GHashTable *comp = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
         g_hash_table_insert(comp, g_strdup("name"), g_strdup(group->name));
+        g_hash_table_insert(comp, g_strdup("groupId"), g_strdup(groupId));
+
         group->chat = purple_chat_new(sa->account, group->name, comp);
 
         purple_blist_add_chat(group->chat, NULL, NULL);
@@ -222,9 +253,10 @@ signald_open_conversation(SignaldAccount *sa, const char *groupId)
     // This is the magic that triggers the chat to actually open.
     group->conversation = serv_got_joined_chat(sa->pc, group->id, group->name);
 
+    purple_conv_chat_set_topic(PURPLE_CONV_CHAT(group->conversation), group->name, group->name);
+
     // Squirrel away the group ID as part of the conversation for easy access later.
     purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
-    purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPNAME_KEY, g_strdup(group->name));
 
     // Populate the channel user list.
     signald_add_users_to_conv(group, group->users);
@@ -257,6 +289,26 @@ signald_quit_group(SignaldAccount *sa, const char *groupId)
 
     // This will free the key and the group automatically.
     g_hash_table_remove(sa->groups, groupId);
+}
+
+void
+signald_rename_group(SignaldAccount *sa, const char *groupId, const char *groupName)
+{
+    SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
+
+    g_free(group->name);
+
+    group->name = g_strdup(groupName);
+
+    purple_blist_alias_chat(group->chat, groupName);
+
+    g_hash_table_replace(purple_chat_get_components(group->chat),
+                         g_strdup("name"),
+                         g_strdup(groupName));
+
+    if (group->conversation) {
+        purple_conversation_set_name(group->conversation, groupName);
+    }
 }
 
 /*
@@ -312,6 +364,10 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         if (added != NULL) {
             signald_add_users_to_conv(group, added);
         }
+    }
+
+    if (! purple_strequal(group->name, groupName)) {
+        signald_rename_group(sa, groupId, groupName);
     }
 
     g_list_free_full(added, g_free);
@@ -516,6 +572,32 @@ signald_chat_leave(PurpleConnection *pc, int id)
 }
 
 void
+signald_chat_rename(PurpleConnection *pc, PurpleChat *chat)
+{
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    char *groupId = g_hash_table_lookup(chat->components, "groupId");
+
+    if (groupId == NULL) {
+        return;
+    }
+
+    JsonObject *data = json_object_new();
+
+    json_object_set_string_member(data, "type", "update_group");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "recipientGroupId", groupId);
+    json_object_set_string_member(data, "groupName", chat->alias);
+
+    if (! signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
+    signald_rename_group(sa, groupId, chat->alias);
+
+    json_object_unref(data);
+}
+
+void
 signald_chat_invite(PurpleConnection *pc, int id, const char *message, const char *who)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
@@ -575,4 +657,13 @@ GHashTable
     }
 
     return defaults;
+}
+
+void
+signald_set_chat_topic(PurpleConnection *pc, int id, const char *topic)
+{
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    gchar *groupId = signald_find_groupid_for_conv_id(sa, id);
+
+    printf("Changing %s topic to %s\n", groupId, topic);
 }

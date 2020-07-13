@@ -455,7 +455,6 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
             // opened yet so there's no place to write the message.
 
             signald_open_conversation(sa, groupid_str);
-            return;
         }
 
         if (signald_format_message(sa, msg, &content, &has_attachment)) {

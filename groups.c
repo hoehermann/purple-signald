@@ -326,7 +326,13 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     gboolean in_group = signald_members_contains(sa, members, username);
 
     if ((group == NULL) && (! in_group)) {
-        // Chat that we neither know about nor we're in?  Ignore it.
+        // Chat that we neither know about nor we're in.
+        // Let's see if we had an old buddy list entry we should delete.
+        PurpleChat *chat = signald_blist_find_chat(sa, groupId);
+
+        if (chat != NULL) {
+            purple_blist_remove_chat(chat);
+        }
 
         return;
     } else if ((group == NULL) && in_group) {

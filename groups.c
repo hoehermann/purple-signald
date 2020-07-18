@@ -80,7 +80,6 @@ signald_get_group_member_name(SignaldAccount *sa, JsonNode *node)
         return (char *)json_node_get_string(node);
     } else {
         JsonObject *member = json_node_get_object(node);
-
         return (char *)json_object_get_string_member(member, "number");
     }
 }
@@ -199,7 +198,6 @@ signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName
 
     if (group != NULL) {
         // Belt and suspenders check to make sure we don't join the same group twice.
-
         return;
     }
 
@@ -535,7 +533,7 @@ signald_join_chat(PurpleConnection *pc, GHashTable *data)
     json_object_set_string_member(message, "groupName", name);
 
     if (! signald_send_json(sa, message)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for joining group."));
     }
 
     // Once the above send completes we'll get a "group_created" event that'll
@@ -563,7 +561,7 @@ signald_chat_leave(PurpleConnection *pc, int id)
     json_object_set_string_member(message, "recipientGroupId", groupId);
 
     if (! signald_send_json(sa, message)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for leaving group."));
     }
 
     json_object_unref(message);
@@ -589,7 +587,7 @@ signald_chat_rename(PurpleConnection *pc, PurpleChat *chat)
     json_object_set_string_member(data, "groupName", chat->alias);
 
     if (! signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for renaming group."));
     }
 
     signald_rename_group(sa, groupId, chat->alias);
@@ -619,7 +617,7 @@ signald_chat_invite(PurpleConnection *pc, int id, const char *message, const cha
     json_object_set_array_member(data, "members", members);
 
     if (! signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for inviting contacts to group."));
     }
 
     json_object_unref(data);
@@ -662,7 +660,7 @@ GHashTable
 void
 signald_set_chat_topic(PurpleConnection *pc, int id, const char *topic)
 {
-    // Nothing to do here.  For some reason this callback has to be
+    // Nothing to do here. For some reason this callback has to be
     // registered if Pidgin is going to enable the "Alias..." menu
     // option in the conversation.
 }

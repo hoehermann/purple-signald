@@ -497,7 +497,7 @@ signald_close (PurpleConnection *pc)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
-      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
     }
 
     purple_input_remove(sa->watcher);

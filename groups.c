@@ -451,6 +451,13 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         PurpleMessageFlags flags = 0;
         SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
 
+        if (group == NULL) {
+            // This seems to happen when clients aren't fully in sync on the
+            // group membership...
+
+            return;
+        }
+
         gboolean has_attachment = FALSE;
         GString *content = NULL;
 

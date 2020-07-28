@@ -2,7 +2,26 @@
 #define __SIGNALD_GROUPS_H__
 
 #define SIGNALD_CONV_GROUPID_KEY "signalGroupId"
-#define SIGNALD_CONV_GROUPNAME_KEY "signalGroupName"
+
+// Instances of this object are stored in SignaldAccount.  The IDs are
+// Signal group IDs that are used as keys in a hash table where these
+// entries are stored.
+typedef struct {
+    // Pidgin chat ID we'll be using.
+    int id;
+
+    // The user-friendly name from this group.
+    char *name;
+
+    // The buddy list entry that represents this signal group.
+    PurpleChat *chat;
+
+    // The active conversation for this entry.
+    PurpleConversation *conversation;
+
+    // The list of users in this group.
+    GList *users;
+} SignaldGroup;
 
 void
 signald_parse_group_list(SignaldAccount *sa, JsonArray *groups);
@@ -30,9 +49,15 @@ void
 signald_chat_leave(PurpleConnection *pc, int id);
 
 void
+signald_chat_rename(PurpleConnection *pc, PurpleChat *chat);
+
+void
 signald_chat_invite(PurpleConnection *pc, int id, const char *message, const char *who);
 
 int
 signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags);
+
+void
+signald_set_chat_topic(PurpleConnection *pc, int id, const char *topic);
 
 #endif

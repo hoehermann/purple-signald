@@ -231,6 +231,18 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
         *has_attachment = FALSE;
     }
 
+    if (json_object_has_member(msg->data, "quote")) {
+        JsonObject *quote = json_object_get_object_member(msg->data, "quote");
+        const char *text = json_object_get_string_member(quote, "text");
+        gchar **lines = g_strsplit(text, "\n", 0);
+
+        for (int i = 0; lines[i] != NULL; i++) {
+            g_string_append_printf(*target, "> %s\n", lines[i]);
+        }
+
+        g_strfreev(lines);
+    }
+
     // append actual message text
     g_string_append(*target, json_object_get_string_member(msg->data, SIGNALD_BODY_FIELD(sa)));
 

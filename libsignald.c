@@ -373,6 +373,14 @@ signald_signald_start(PurpleAccount *account)
 }
 
 void
+signald_node_aliased(PurpleBlistNode *node, char *oldname, PurpleConnection *pc)
+{
+    if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+        signald_chat_rename(pc, (PurpleChat *)node);
+    }
+}
+
+void
 signald_login(PurpleAccount *account)
 {
     purple_debug_info(SIGNALD_PLUGIN_ID, "login\n");
@@ -388,6 +396,12 @@ signald_login(PurpleAccount *account)
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);
+
+    purple_signal_connect(purple_blist_get_handle(),
+                          "blist-node-aliased",
+                          purple_connection_get_prpl(pc),
+                          G_CALLBACK(signald_node_aliased),
+                          pc);
 
     purple_connection_set_protocol_data(pc, sa);
 
@@ -450,7 +464,7 @@ signald_login(PurpleAccount *account)
     sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
 
     // Initialize the container where we'll store our group mappings
-    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
     if (! purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
         // subscribe if signald is globally running
@@ -471,6 +485,11 @@ signald_close (PurpleConnection *pc)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
+    purple_signal_disconnect(purple_blist_get_handle(),
+                            "blist-node-aliased",
+                            purple_connection_get_prpl(pc),
+                            G_CALLBACK(signald_node_aliased));
+
     // unsubscribe to the configured number
     JsonObject *data = json_object_new();
 
@@ -478,7 +497,7 @@ signald_close (PurpleConnection *pc)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
-      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
     }
 
     purple_input_remove(sa->watcher);
@@ -559,6 +578,13 @@ signald_add_account_options(GList *account_options)
                 );
     account_options = g_list_append(account_options, option);
 
+    option = purple_account_option_bool_new(
+                _("Automatically join group chats on startup"),
+                "auto-join-group-chats",
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     option = purple_account_option_bool_new(
@@ -603,14 +629,14 @@ signald_actions(
 static gboolean
 plugin_load(PurplePlugin *plugin, GError **error)
 {
-	return TRUE;
+    return TRUE;
 }
 
 static gboolean
 plugin_unload(PurplePlugin *plugin, GError **error)
 {
     purple_signals_disconnect_by_handle(plugin);
-	return TRUE;
+    return TRUE;
 }
 
 /* Purple2 Plugin Load Functions */
@@ -657,7 +683,7 @@ plugin_init(PurplePlugin *plugin)
     */
     prpl_info->status_types = signald_status_types; // this actually needs to exist, else the protocol cannot be set to "online"
     prpl_info->chat_info = signald_chat_info;
-	prpl_info->chat_info_defaults = signald_chat_info_defaults;
+    prpl_info->chat_info_defaults = signald_chat_info_defaults;
     prpl_info->login = signald_login;
     prpl_info->close = signald_close;
     prpl_info->send_im = signald_send_im;
@@ -672,8 +698,8 @@ plugin_init(PurplePlugin *plugin)
     prpl_info->chat_invite = signald_chat_invite;
     prpl_info->chat_leave = signald_chat_leave;
     prpl_info->chat_send = signald_send_chat;
+    prpl_info->set_chat_topic = signald_set_chat_topic;
     /*
-	prpl_info->set_chat_topic = discord_chat_set_topic;
 	prpl_info->get_cb_real_name = discord_get_real_name;
     */
     prpl_info->add_buddy = signald_add_buddy;

@@ -6,6 +6,8 @@ I never wrote code for use in Pidgin before. EionRobb's [purple-discord](https:/
 
 Tested on Ubuntu 18.04.
 
+Windows users may take a sneak peek at [purple-signal](https://github.com/hoehermann/purple-signal).
+
 ### Known Issues
 
 There have been reports of incoming offline-messages getting lost. As far as I observed, they are not lost but delayed and delivered after a restart of signald.

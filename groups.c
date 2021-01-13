@@ -76,12 +76,8 @@ signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
 char *
 signald_get_group_member_name(SignaldAccount *sa, JsonNode *node)
 {
-    if (sa->legacy_protocol) {
-        return (char *)json_node_get_string(node);
-    } else {
-        JsonObject *member = json_node_get_object(node);
-        return (char *)json_object_get_string_member(member, "number");
-    }
+    JsonObject *member = json_node_get_object(node);
+    return (char *)json_object_get_string_member(member, "number");
 }
 
 /*
@@ -423,7 +419,7 @@ signald_request_group_list(SignaldAccount *sa)
 void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 {
-    JsonObject *groupInfo = json_object_get_object_member(msg->data, SIGNALD_GROUP_FIELD(sa));
+    JsonObject *groupInfo = json_object_get_object_member(msg->data, "group");
 
     const gchar *type = json_object_get_string_member(groupInfo, "type");
     const gchar *groupid_str = json_object_get_string_member(groupInfo, "groupId");

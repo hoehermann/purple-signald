@@ -195,28 +195,18 @@ signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *f
     }
 
     JsonNode *node = json_object_get_member(obj, field);
+    JsonObject *address = json_node_get_object(node);
 
-    if (sa->legacy_protocol) {
-        return json_node_get_string(node);
-    } else {
-        // Dealing with a JsonAddress instance
-        JsonObject *address = json_node_get_object(node);
-
-        return (const char *)json_object_get_string_member(address, "number");
-    }
+    return (const char *)json_object_get_string_member(address, "number");
 }
 
 void
 signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
 {
-    if (sa->legacy_protocol) {
-        json_object_set_string_member(obj, "recipientNumber", recipient);
-    } else {
-        JsonObject *address = json_object_new();
+    JsonObject *address = json_object_new();
 
-        json_object_set_string_member(address, "number", recipient);
-        json_object_set_string_member(obj, "recipientAddress", recipient);
-    }
+    json_object_set_string_member(address, "number", recipient);
+    json_object_set_string_member(obj, "recipientAddress", recipient);
 }
 
 gboolean
@@ -244,7 +234,7 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     }
 
     // append actual message text
-    g_string_append(*target, json_object_get_string_member(msg->data, SIGNALD_BODY_FIELD(sa)));
+    g_string_append(*target, json_object_get_string_member(msg->data, "body"));
 
     return (*target)->len > 0; // message not empty
 }
@@ -288,7 +278,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
     }
 
-    if (json_object_has_member(msg->data, SIGNALD_GROUP_FIELD(sa))) {
+    if (json_object_has_member(msg->data, "group")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
     } else {
         msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;

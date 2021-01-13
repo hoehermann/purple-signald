@@ -90,37 +90,6 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 void
-signald_check_proto_version(SignaldAccount *sa)
-{
-    //
-    // This is a bit of a hack!  We want to detect if we're dealing with a
-    // new version of signald with the new protocol, or the old version.
-    //
-    // To test, we call get_user on the user account, using the new
-    // JsonAddress form of the call.  If it succeeds, we're dealing with
-    // a new signald.  If it fails, it's the old one.
-    //
-
-    const gchar *username = purple_account_get_username(sa->account);
-    JsonObject *address = json_object_new();
-
-    json_object_set_string_member(address, "number", username);
-
-    JsonObject *data = json_object_new();
-
-    json_object_set_string_member(data, "type", "get_user");
-    json_object_set_string_member(data, "username", username);
-    json_object_set_object_member(data, "recipientAddress", address);
-
-    if (!signald_send_json (sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
-
-    json_object_unref(data);
-}
-
-void
 signald_initialize_contacts(SignaldAccount *sa)
 {
     JsonObject *data = json_object_new();
@@ -187,26 +156,7 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
 
-            signald_check_proto_version(sa);
-
-        } else if (purple_str_has_prefix(type, "user") && ! sa->initialized) {
-            // Could be "user" or "user_not_registered", but either way it's
-            // not an error!
-
-            sa->legacy_protocol = FALSE;
             signald_initialize_contacts(sa);
-
-        } else if (purple_strequal(type, "unexpected_error") && ! sa->initialized) {
-            JsonObject *data = json_object_get_object_member(obj, "data");
-            JsonObject *request = json_object_get_object_member(data, "request");
-            const char *type = json_object_get_string_member(request, "type");
-
-            if (purple_strequal(type, "get_user")) {
-                sa->legacy_protocol = TRUE;
-                signald_initialize_contacts(sa);
-            } else {
-                signald_handle_unexpected_error(sa, obj);
-            }
 
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
@@ -405,7 +355,6 @@ signald_login(PurpleAccount *account)
 
     purple_connection_set_protocol_data(pc, sa);
 
-    sa->legacy_protocol = FALSE;
     sa->account = account;
     sa->pc = pc;
 

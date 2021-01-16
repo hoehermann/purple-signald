@@ -141,7 +141,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
-purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         if (purple_strequal(type, "version")) {
             obj = json_object_get_object_member(obj, "data");
@@ -167,6 +167,7 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
         } else if (purple_strequal(type, "group_list")) {
             obj = json_object_get_object_member(obj, "data");
             signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
+            signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groupsv2"));
 
             if (! sa->initialized) {
                 sa->initialized = TRUE;
@@ -180,9 +181,11 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
                     case SIGNALD_MESSAGE_TYPE_DIRECT:
                         signald_process_direct_message(sa, &msg);
                         break;
-
                     case SIGNALD_MESSAGE_TYPE_GROUP:
                         signald_process_group_message(sa, &msg);
+                        break;
+                    case SIGNALD_MESSAGE_TYPE_GROUPV2:
+                        signald_process_groupV2_message(sa, &msg);
                         break;
                 }
             }
@@ -222,6 +225,9 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
+
+        } else if (purple_strequal(type, "listen_stopped")) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, json_object_get_string_member(obj, "exception"));
 
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
@@ -412,17 +418,17 @@ signald_login(PurpleAccount *account)
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
-    if (! purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+    // get information on account
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "list_accounts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
+    }
+    json_object_unref(data);
+
+    if (!purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
         // subscribe if signald is globally running
-        signald_subscribe (sa);
-    } else {
-        // Otherwise: get information on account for deciding what do do
-        JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "list_accounts");
-        if (!signald_send_json(sa, data)) {
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
-        }
-        json_object_unref(data);
+        signald_subscribe(sa);
     }
 }
 
@@ -446,6 +452,8 @@ signald_close (PurpleConnection *pc)
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
         purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
     }
+    
+    g_free(sa->uuid);
 
     purple_input_remove(sa->watcher);
 

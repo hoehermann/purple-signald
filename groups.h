@@ -27,10 +27,16 @@ void
 signald_parse_group_list(SignaldAccount *sa, JsonArray *groups);
 
 void
+signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups);
+
+void
 signald_request_group_list(SignaldAccount *sa);
 
 void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg);
+
+void
+signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg);
 
 /*
  * Pidgin hooks for group handling

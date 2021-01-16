@@ -4,7 +4,7 @@ signald is written by Finn Herzfeld.
 
 I never wrote code for use in Pidgin before. EionRobb's [purple-discord](https://github.com/EionRobb/purple-discord) sources were of great help. 
 
-Tested on Ubuntu 18.04.
+Tested on Ubuntu 18.04. An unofficial IRC channel exists on Freenode called `##purple-signald` for those who use it.
 
 Windows users may take a sneak peek at [purple-signal](https://github.com/hoehermann/purple-signal).
 

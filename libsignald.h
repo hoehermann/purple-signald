@@ -58,6 +58,7 @@
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
+    char *uuid; // own uuid, might be NULL – always check before use
 
     gboolean initialized;
 

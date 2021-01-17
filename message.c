@@ -280,6 +280,8 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
 
     if (json_object_has_member(msg->data, "group")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
+    } else if (json_object_has_member(msg->data, "groupV2")) {
+        msg->type = SIGNALD_MESSAGE_TYPE_GROUPV2;
     } else {
         msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;
     }

@@ -83,7 +83,6 @@ signald_subscribe (SignaldAccount *sa)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
     }
 
@@ -192,6 +191,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "group_list")) {
             obj = json_object_get_object_member(obj, "data");
             signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
+            signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groupsv2"));
 
             if (! sa->initialized) {
                 sa->initialized = TRUE;
@@ -205,9 +205,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                     case SIGNALD_MESSAGE_TYPE_DIRECT:
                         signald_process_direct_message(sa, &msg);
                         break;
-
                     case SIGNALD_MESSAGE_TYPE_GROUP:
                         signald_process_group_message(sa, &msg);
+                        break;
+                    case SIGNALD_MESSAGE_TYPE_GROUPV2:
+                        signald_process_groupV2_message(sa, &msg);
                         break;
                 }
             }
@@ -247,6 +249,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
+
+        } else if (purple_strequal(type, "listen_stopped")) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, json_object_get_string_member(obj, "exception"));
 
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
@@ -393,7 +398,6 @@ signald_login(PurpleAccount *account)
     // create a socket
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
-        //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
         purple_debug_error(SIGNALD_PLUGIN_ID, "socket() error is %s\n", strerror(errno));
         purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create to socket."));
         return;
@@ -427,7 +431,6 @@ signald_login(PurpleAccount *account)
 
     if (err)
     {
-      //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
       purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));
       purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
       return;
@@ -439,17 +442,17 @@ signald_login(PurpleAccount *account)
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
-    if (! purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+    // get information on account
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "list_accounts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
+    }
+    json_object_unref(data);
+
+    if (!purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
         // subscribe if signald is globally running
-        signald_subscribe (sa);
-    } else {
-        // Otherwise: get information on account for deciding what do do
-        JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "list_accounts");
-        if (!signald_send_json(sa, data)) {
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
-        }
-        json_object_unref(data);
+        signald_subscribe(sa);
     }
 }
 
@@ -469,9 +472,12 @@ signald_close (PurpleConnection *pc)
     json_object_set_string_member(data, "type", "unsubscribe");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
-    if (!signald_send_json (sa, data)) {
-      purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
+    if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED && !signald_send_json (sa, data)) {
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
+        purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
     }
+    
+    g_free(sa->uuid);
 
     purple_input_remove(sa->watcher);
 

@@ -69,15 +69,23 @@ signald_find_groupid_for_conv_name(SignaldAccount *sa, gchar *name)
  **/
 
 /*
- * Given a JsonNode for a group member, get the number.  This function is
- * designed to support both the old and new versions of the signald
- * protocol
+ * Given a JsonNode for a group member, get the number.
  */
 char *
-signald_get_group_member_name(SignaldAccount *sa, JsonNode *node)
+signald_get_group_member_number(SignaldAccount *sa, JsonNode *node)
 {
     JsonObject *member = json_node_get_object(node);
     return (char *)json_object_get_string_member(member, "number");
+}
+
+/*
+ * Given a JsonNode for a group member, get the uuid.
+ */
+char *
+signald_get_group_member_uuid(SignaldAccount *sa, JsonNode *node)
+{
+    JsonObject *member = json_node_get_object(node);
+    return (char *)json_object_get_string_member(member, "uuid");
 }
 
 /*
@@ -89,16 +97,41 @@ signald_members_to_numbers(SignaldAccount *sa, JsonArray *members)
 {
     GList *numbers = NULL;
 
-    for (GList *this_member = json_array_get_elements(members);
-         this_member != NULL;
-         this_member = this_member->next) {
-
+    for (
+        GList *this_member = json_array_get_elements(members);
+        this_member != NULL;
+        this_member = this_member->next
+    ) {
         JsonNode *element = (JsonNode *)(this_member->data);
-        char *number = signald_get_group_member_name(sa, element);
-
+        char *number = signald_get_group_member_number(sa, element);
+        if (!number) {
+            // number is null, if only uuid is known
+            // TODO: clean this up so signald_members_to_numbers actually returns numbers only. or rename the function, align with _uuid variants
+            number = signald_get_group_member_uuid(sa, element);
+        }
         numbers = g_list_append(numbers, g_strdup(number));
     }
+    return numbers;
+}
 
+/*
+ * Given a list of members, get back the list of corresponding uuid.
+ * This function makes a copy of the number so it must be freed.
+ */
+GList *
+signald_members_to_uuids(SignaldAccount *sa, JsonArray *members)
+{
+    GList *numbers = NULL;
+
+    for (
+        GList *this_member = json_array_get_elements(members);
+        this_member != NULL;
+        this_member = this_member->next
+    ) {
+        JsonNode *element = (JsonNode *)(this_member->data);
+        char *number = signald_get_group_member_uuid(sa, element);
+        numbers = g_list_append(numbers, g_strdup(number));
+    }
     return numbers;
 }
 
@@ -108,13 +141,23 @@ signald_members_to_numbers(SignaldAccount *sa, JsonArray *members)
  * comparison, but it's also blissfully short, so... tradeoffs.
  */
 gboolean
-signald_members_contains(SignaldAccount *sa, JsonArray *members, char *number)
+signald_members_contains_number(SignaldAccount *sa, JsonArray *members, char *number)
 {
     GList *numbers = signald_members_to_numbers(sa, members);
     gboolean result = g_list_find_custom(numbers, number, (GCompareFunc)g_strcmp0) != NULL;
-
     g_list_free_full(numbers, g_free);
+    return result;
+}
 
+/*
+ * Variation of signald_members_contains_number, but for uuids in V2 groups.
+ */
+gboolean
+signald_members_contains_uuid(SignaldAccount *sa, JsonArray *members, char *uuid)
+{
+    GList *uuids = signald_members_to_uuids(sa, members);
+    gboolean result = g_list_find_custom(uuids, uuid, (GCompareFunc)g_strcmp0) != NULL;
+    g_list_free_full(uuids, g_free);
     return result;
 }
 
@@ -305,6 +348,27 @@ signald_rename_group(SignaldAccount *sa, const char *groupId, const char *groupN
     }
 }
 
+void
+signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonArray *pendingMembers)
+{
+    if (sa->uuid == NULL) {
+        // this account's uuid is not known. cannot do anything with v2 groups.
+    }
+    // See if we're a pending member of the group v2.
+    gboolean pending = signald_members_contains_uuid(sa, pendingMembers, sa->uuid);
+    if (pending) {
+        // we are a pending member, join it
+        JsonObject *message = json_object_new();
+        json_object_set_string_member(message, "type", "accept_invitation");
+        json_object_set_string_member(message, "account", purple_account_get_username(sa->account));
+        json_object_set_string_member(message, "groupID", groupId);
+        if (!signald_send_json(sa, message)) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for accepting group invitation."));
+        }
+    }
+}
+
+
 /*
  * Swiss army knife function for all possible operations on a group chat,
  * including joining, leaving, or changes to group membership.
@@ -315,11 +379,15 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     // Find any existing group entry if we have one.
     SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
 
-    // Look it see if we're a member of the group.
+    // See if we're a member of the group.
     char *username = (char *)purple_account_get_username(sa->account);
-    gboolean in_group = signald_members_contains(sa, members, username);
+    gboolean in_group = signald_members_contains_number(sa, members, username);
+    // See if we're a member of the group v2.
+    if (sa->uuid) {
+        in_group = in_group || signald_members_contains_uuid(sa, members, sa->uuid);
+    }
 
-    if ((group == NULL) && (! in_group)) {
+    if ((group == NULL) && (!in_group)) {
         // Chat that we neither know about nor we're in.
         // Let's see if we had an old buddy list entry we should delete.
         PurpleChat *chat = signald_blist_find_chat(sa, groupId);
@@ -332,8 +400,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     } else if ((group == NULL) && in_group) {
         // Brand new chat and we're a member?  Add it!
         signald_add_group(sa, groupId, groupName, members);
-
-        // Now open the conversation window/channel/whatever.
+        // Now open the conversation window.
         if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
             signald_open_conversation(sa, groupId);
         }
@@ -380,11 +447,38 @@ signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gp
 {
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
-
+    
     signald_update_group(sa,
-                         json_object_get_string_member(obj, "groupId"),
-                         json_object_get_string_member(obj, "name"),
-                         json_object_get_array_member(obj, "members"));
+        json_object_get_string_member(obj, "groupId"),
+        json_object_get_string_member(obj, "name"),
+        json_object_get_array_member(obj, "members")
+    );
+}
+
+void
+signald_process_groupV2(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+    SignaldAccount *sa = (SignaldAccount *)user_data;
+    JsonObject *obj = json_node_get_object(element_node);
+
+    if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
+        signald_accept_groupV2_invitation(sa,
+            json_object_get_string_member(obj, "id"),
+            json_object_get_array_member(obj, "pendingMembers")
+        );
+    }
+    
+    signald_update_group(sa,
+        json_object_get_string_member(obj, "id"),
+        json_object_get_string_member(obj, "title"),
+        json_object_get_array_member(obj, "members")
+    );
+}
+
+void
+signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
+{
+    json_array_foreach_element(groups, signald_process_groupV2, sa);
 }
 
 void
@@ -424,6 +518,53 @@ signald_get_group_list(SignaldAccount *sa)
 }
 
 /*
+ * Actually display a group chat message.
+ */
+void
+signald_display_group_message(SignaldAccount *sa, const char *groupid_str, SignaldMessage *msg)
+{
+    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
+    if (group == NULL) {
+        // I am not (yet) aware of having joined this group.
+        return;
+    }
+    PurpleMessageFlags flags = 0;
+    gboolean has_attachment = FALSE;
+    GString *content = NULL;
+
+    if (!group->conversation) {
+        // In this case, we know about the conversation but it's not been
+        // opened yet so there's no place to write the message.
+        signald_open_conversation(sa, groupid_str);
+    }
+
+    if (signald_format_message(sa, msg, &content, &has_attachment)) {
+        if (has_attachment) {
+            flags |= PURPLE_MESSAGE_IMAGES;
+        }
+
+        if (msg->is_sync_message) {
+            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+
+            purple_conv_chat_write(PURPLE_CONV_CHAT(group->conversation),
+                                   msg->conversation_name,
+                                   content->str, flags,
+                                   msg->timestamp);
+        } else {
+            flags |= PURPLE_MESSAGE_RECV;
+
+            purple_serv_got_chat_in(sa->pc,
+                                    group->id,
+                                    msg->conversation_name,
+                                    flags,
+                                    content->str,
+                                    msg->timestamp);
+        }
+    }
+    g_string_free(content, TRUE);
+}
+
+/*
  * Process a message we've received from signald that's directed at a group
  * chat.
  *
@@ -459,52 +600,22 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 
     } else if (purple_strequal(type, "DELIVER")) {
         // Alright, it's a message, so we need to write it into the conversation.
-        PurpleMessageFlags flags = 0;
-        SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
-
-        if (group == NULL) {
-            // This seems to happen when clients aren't fully in sync on the
-            // group membership...
-
-            return;
-        }
-
-        gboolean has_attachment = FALSE;
-        GString *content = NULL;
-
-        if (! group->conversation) {
-            // In this case, we know about the conversation but it's not been
-            // opened yet so there's no place to write the message.
-
-            signald_open_conversation(sa, groupid_str);
-        }
-
-        if (signald_format_message(sa, msg, &content, &has_attachment)) {
-            if (has_attachment) {
-                flags |= PURPLE_MESSAGE_IMAGES;
-            }
-
-            if (msg->is_sync_message) {
-                flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-
-                purple_conv_chat_write(PURPLE_CONV_CHAT(group->conversation),
-                                       msg->conversation_name,
-                                       content->str, flags,
-                                       msg->timestamp);
-            } else {
-                flags |= PURPLE_MESSAGE_RECV;
-
-                purple_serv_got_chat_in(sa->pc,
-                                        group->id,
-                                        msg->conversation_name,
-                                        flags,
-                                        content->str,
-                                        msg->timestamp);
-            }
-        }
-
-        g_string_free(content, TRUE);
+        signald_display_group_message(sa, groupid_str, msg);
     }
+}
+
+/*
+ * Process a message we've received from signald that's directed at a group 
+ * v2 chat.
+ *
+ * Can only receive messages, no administrative functions are implemented.
+ */
+void
+signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
+{
+    JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupV2");
+    const gchar *groupid_str = json_object_get_string_member(groupInfo, "id");
+    signald_display_group_message(sa, groupid_str, msg);
 }
 
 int
@@ -544,20 +655,23 @@ signald_join_chat(PurpleConnection *pc, GHashTable *data)
         return;
     }
 
-    JsonObject *message = json_object_new();
+    if (FALSE) {
+        // TODO: this breaks V2 groups :(
+        JsonObject *message = json_object_new();
 
-    json_object_set_string_member(message, "type", "update_group");
-    json_object_set_string_member(message, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(message, "groupName", name);
+        json_object_set_string_member(message, "type", "update_group");
+        json_object_set_string_member(message, "username", purple_account_get_username(sa->account));
+        json_object_set_string_member(message, "groupName", name);
 
-    if (! signald_send_json(sa, message)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for joining group."));
+        if (! signald_send_json(sa, message)) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for joining group."));
+        }
+
+        // Once the above send completes we'll get a "group_created" event that'll
+        // trigger the subsequent actions to make the channel available.
+
+        json_object_unref(message);
     }
-
-    // Once the above send completes we'll get a "group_created" event that'll
-    // trigger the subsequent actions to make the channel available.
-
-    json_object_unref(message);
 
     return;
 }

@@ -27,6 +27,7 @@
 #include "libsignald.h"
 
 static int signald_usages = 0;
+static int got_contacts = 0;
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -94,6 +95,21 @@ signald_initialize_contacts(SignaldAccount *sa)
 {
     JsonObject *data = json_object_new();
 
+    json_object_set_string_member(data, "type", "sync_contacts");
+    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+
+    if (!signald_send_json (sa, data)) {
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+    }
+
+    json_object_unref(data);
+}
+
+void
+signald_list_contacts(SignaldAccount *sa)
+{
+    JsonObject *data = json_object_new();
+
     json_object_set_string_member(data, "type", "list_contacts");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
@@ -142,7 +158,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     if (root != NULL) {
         JsonObject *obj = json_node_get_object(root);
         const gchar *type = json_object_get_string_member(obj, "type");
-purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         if (purple_strequal(type, "version")) {
             obj = json_object_get_object_member(obj, "data");
@@ -157,6 +173,14 @@ purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
 
             signald_initialize_contacts(sa);
+
+        } else if (purple_strequal(type, "sync_requested")) {
+            if (! got_contacts) {
+              got_contacts = 1;
+              signald_list_contacts(sa);
+            } else {
+              signald_get_group_list(sa);
+            }
 
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));

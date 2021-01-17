@@ -30,6 +30,9 @@ void
 signald_request_group_list(SignaldAccount *sa);
 
 void
+signald_get_group_list(SignaldAccount *sa);
+
+void
 signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg);
 
 /*

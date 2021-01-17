@@ -179,5 +179,8 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
 void
 signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
 {
+    if (! json_array_get_length (data))
+      signald_link_or_register (sa);
+
     json_array_foreach_element(data, signald_process_account, sa);
 }

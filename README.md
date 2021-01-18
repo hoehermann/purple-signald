@@ -42,6 +42,17 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 
+### Bitlbee configuration
+First setup your phone number and authorize it in Signald, see https://gitlab.com/signald/signald
+
+Once that is successful, in the `&root` channel of Bitlbee, add the same phone number you authenticated via Signald:
+```
+add hehoe-signald +12223334444
+rename _12223334444 name-sig
+acc hehoe-signald on
+```
+To create a channel for Signal, auto join it and generally manage your contacts see - https://wiki.bitlbee.org/ManagingContactList
+
 ### Missing Features
 
 * signald configuration (i.e. initial number registration)

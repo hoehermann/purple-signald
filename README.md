@@ -47,9 +47,9 @@ First setup your phone number and authorize it in Signald, see https://gitlab.co
 
 Once that is successful, in the `&root` channel of Bitlbee, add the same phone number you authenticated via Signald:
 ```
-add hehoe-signald +12223334444
+account add hehoe-signald +12223334444
 rename _12223334444 name-sig
-acc hehoe-signald on
+account hehoe-signald on
 ```
 To create a channel for Signal, auto join it and generally manage your contacts see - https://wiki.bitlbee.org/ManagingContactList
 

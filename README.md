@@ -49,7 +49,10 @@ Once that is successful, in the `&root` channel of Bitlbee, add the same phone n
 ```
 account add hehoe-signald +12223334444
 rename _12223334444 name-sig
-account hehoe-signald on
+account hehoe-signald set tag signal
+account signal set auto-join-group-chats true
+account signal set nick_format %full_name-sig
+account signal on
 ```
 To create a channel for Signal, auto join it and generally manage your contacts see - https://wiki.bitlbee.org/ManagingContactList
 

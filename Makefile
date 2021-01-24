@@ -1,3 +1,4 @@
+PROTOC_C ?= protoc-c
 PKG_CONFIG ?= pkg-config
 
 # Note: Use "-C .git" to avoid ascending to parent dirs if .git not present
@@ -7,20 +8,21 @@ PKG_DEPS ?= purple glib-2.0 json-glib-1.0
 
 CFLAGS	?= -O2 -g -ggdb -Wall
 LDFLAGS ?= 
+LIBS ?= 
 
 ifdef SUPPORT_EXTERNAL_ATTACHMENTS
-LDFLAGS += -lmagic
+LIBS += -lmagic
 PKG_DEPS += gio-unix-2.0
 CFLAGS += -DSUPPORT_EXTERNAL_ATTACHMENTS
 endif
 
 CFLAGS  += -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
-CFLAGS  += -std=c99 -fPIC -Wl,-z,relro
+CFLAGS  += -std=c99 -fPIC
+LDFLAGS += -Wl,-z,relro
 CFLAGS  += -Ipurple2compat `$(PKG_CONFIG) $(PKG_DEPS) --cflags`
-LDFLAGS += `$(PKG_CONFIG) $(PKG_DEPS) --libs`
+LIBS += `$(PKG_CONFIG) $(PKG_DEPS) --libs`
 
 CC ?= gcc
-LD ?= ld
 
 ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
   TARGET = FAILNOPURPLE
@@ -49,7 +51,7 @@ $(PURPLE_OBJ_FILES): %.o: %.c Makefile $(PURPLE_H_FILES) $(PURPLE_COMPAT_FILES)
 	$(CC) -c $< $(CFLAGS)
 
 libsignald.so: $(PURPLE_OBJ_FILES)
-	$(LD) -shared -o $@ $^ $(LDFLAGS)
+	$(CC) $(LDFLAGS) -shared $^ $(LIBS) -o $@
 
 FAILNOPURPLE:
 	echo "You need libpurple development headers installed to be able to compile this plugin"

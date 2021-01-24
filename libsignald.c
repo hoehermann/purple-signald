@@ -178,6 +178,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
               got_contacts = 1;
               signald_list_contacts(sa);
             } else {
+              got_contacts = 0;
               signald_get_group_list(sa);
             }
 
@@ -476,7 +477,7 @@ signald_close (PurpleConnection *pc)
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
         purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
     }
-    
+
     g_free(sa->uuid);
 
     purple_input_remove(sa->watcher);

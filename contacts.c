@@ -8,6 +8,7 @@ signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
     }
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_offline %s\n", buddy->name);
 }
 
 void

@@ -60,7 +60,8 @@ typedef struct {
     PurpleConnection *pc;
     char *uuid; // own uuid, might be NULL – always check before use
 
-    gboolean initialized;
+    gboolean account_exists; // whether account exists in signald
+    gboolean groups_updated; // whether groups have been updated after login
 
     int fd;
     guint watcher;

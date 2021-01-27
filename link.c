@@ -108,7 +108,8 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 
     // TODO: Is there an acknowledge on successful registration? If yes,
     //       subscribe afterwards or display an error otherwise
-    signald_subscribe(sa);
+    // signald_subscribe(sa);
+    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Verification code was sent. Reconnect needed."));
 }
 
 void
@@ -129,7 +130,6 @@ signald_link_or_register (SignaldAccount *sa)
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "link");
         if (!signald_send_json(sa, data)) {
-            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
         }
     } else {
@@ -140,7 +140,6 @@ signald_link_or_register (SignaldAccount *sa)
         json_object_set_string_member(data, "type", "register");
         json_object_set_string_member(data, "username", username);
         if (!signald_send_json(sa, data)) {
-            //purple_connection_set_state(pc, PURPLE_DISCONNECTED);
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write registration message."));
         }
 
@@ -166,6 +165,7 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
     const char *username = json_object_get_string_member(obj, "username");
     if (purple_strequal (username, purple_account_get_username(sa->account))) {
         // The current account
+        sa->account_exists = TRUE;
         gboolean registered = json_object_get_boolean_member (obj, "registered");
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, registered);
         if (registered) {
@@ -181,8 +181,9 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
 void
 signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
 {
-    if (! json_array_get_length (data))
-      signald_link_or_register (sa);
-
+    sa->account_exists = FALSE;
     json_array_foreach_element(data, signald_process_account, sa);
+    if (!sa->account_exists) {
+        signald_link_or_register(sa);
+    }
 }

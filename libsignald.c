@@ -160,7 +160,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
 
-            if (! sa->initialized) {
+            if (! sa->groups_updated) {
                 signald_request_group_list(sa);
             }
 
@@ -169,8 +169,8 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
             signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groupsv2"));
 
-            if (! sa->initialized) {
-                sa->initialized = TRUE;
+            if (! sa->groups_updated) {
+                sa->groups_updated = TRUE;
             }
 
         } else if (purple_strequal(type, "message")) {
@@ -425,11 +425,6 @@ signald_login(PurpleAccount *account)
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
     }
     json_object_unref(data);
-
-    if (!purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
-        // subscribe if signald is globally running
-        signald_subscribe(sa);
-    }
 }
 
 static void

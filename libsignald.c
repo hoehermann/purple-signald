@@ -588,6 +588,26 @@ signald_add_account_options(GList *account_options)
     return account_options;
 }
 
+static void
+signald_update_contacts (PurplePluginAction* action)
+{
+  PurpleConnection* pc = action->context;
+  SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+  got_contacts = 0;
+  signald_initialize_contacts(sa);
+}
+
+static void
+signald_update_groups (PurplePluginAction* action)
+{
+  PurpleConnection* pc = action->context;
+  SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+  got_contacts = 1;
+  signald_request_group_list(sa);
+}
+
 static GList *
 signald_actions(
 #if !PURPLE_VERSION_CHECK(3, 0, 0)
@@ -597,8 +617,12 @@ signald_actions(
 #endif
   )
 {
-    GList *m = NULL;
-    return m;
+    PurplePluginAction *act = purple_plugin_action_new (("Update Contacts ..."), &signald_update_contacts);
+    GList* acts = g_list_append(NULL, act);
+    act = purple_plugin_action_new (("Update Groups ..."), &signald_update_groups);
+    acts = g_list_append(acts, act);
+
+    return acts;
 }
 
 static gboolean

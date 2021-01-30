@@ -553,6 +553,11 @@ signald_display_group_message(SignaldAccount *sa, const char *groupid_str, Signa
         } else {
             flags |= PURPLE_MESSAGE_RECV;
 
+            // pretend the user's nick was mentioned in order to force
+            // a full notification as for instant messages
+            if (purple_account_get_bool (sa->account, "group-msg-notifications", FALSE))
+                flags |= PURPLE_MESSAGE_NICK;
+
             purple_serv_got_chat_in(sa->pc,
                                     group->id,
                                     msg->conversation_name,

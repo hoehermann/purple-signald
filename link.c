@@ -1,7 +1,10 @@
+#define _DEFAULT_SOURCE // for gethostname in unistd.h
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include "libsignald.h"
 
+static char device_name[HOST_NAME_MAX+1];
 
 void
 signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
@@ -30,8 +33,10 @@ signald_scan_qrcode (SignaldAccount *sa)
                      qrimgdata, qrimglen);
         purple_request_field_group_add_field(group, field);
 
+        gchar *msg = g_strdup_printf(_("Link to master device as \"%s\""), device_name);
+
         purple_request_fields(
-            sa->pc, _("Signal Protocol"), _("Link to master device"),
+            sa->pc, _("Signal Protocol"), msg,
             _("For linking this account to a Signal master device, "
               "please scan the  QR code below. In the Signal App, "
               "go to \"Preferences\" and \"Linked devices\"."), fields,
@@ -39,6 +44,7 @@ signald_scan_qrcode (SignaldAccount *sa)
             sa->account, purple_account_get_username(sa->account), NULL, sa);
 
         g_free(qrimgdata);
+        g_free(msg);
     }
 }
 
@@ -127,8 +133,15 @@ signald_link_or_register (SignaldAccount *sa)
         remove (user_file);
         g_free (user_file);
 
+        if (gethostname (device_name, HOST_NAME_MAX))
+            strcpy (device_name, SIGNALD_DEFAULT_DEVICENAME);
+        strcpy (device_name,
+                purple_account_get_string (sa->account, "device-name", device_name));
+
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "link");
+        json_object_set_string_member(data, "deviceName", device_name);
+
         if (!signald_send_json(sa, data)) {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
         }

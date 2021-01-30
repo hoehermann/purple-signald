@@ -16,6 +16,9 @@
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE // for gethostname in unistd.h
+#include <unistd.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -529,6 +532,17 @@ signald_add_account_options(GList *account_options)
                 _("Link to an existing account"),
                 "link",
                 TRUE
+                );
+    account_options = g_list_append(account_options, option);
+
+    char hostname[HOST_NAME_MAX + 1];
+    if (gethostname (hostname, HOST_NAME_MAX))
+      strcpy (hostname, SIGNALD_DEFAULT_DEVICENAME);
+
+    option = purple_account_option_string_new(
+                _("Name of the device for linking"),
+                "device-name",
+                hostname
                 );
     account_options = g_list_append(account_options, option);
 

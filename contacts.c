@@ -22,20 +22,30 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
 }
 
 static void
-signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *alias)
+signald_add_purple_buddy(SignaldAccount *sa,
+                         const char *username, const char *alias,
+                         const char *uuid)
 {
     GSList *buddies;
 
     buddies = purple_find_buddies(sa->account, username);
     if (buddies) {
-        //Already known => do nothing
+        //Already known => only add uuid if not already exists in protocol data
+        while (buddies != NULL) {
+            PurpleBuddy *buddy = buddies->data;
+            if (! purple_buddy_get_protocol_data(buddy)) {
+                char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
+                strcpy (uuid_data, uuid);
+                purple_buddy_set_protocol_data(buddy, uuid_data);
+            }
+            // remove current and go to next found buddy (should only be one!)
+            buddies = g_slist_delete_link (buddies, buddies);
+        }
         //TODO: Update alias
-        g_slist_free(buddies);
         return;
     }
     //TODO: Remove old buddies: purple_blist_remove_buddy(b);
     //New buddy
-    purple_debug_error(SIGNALD_PLUGIN_ID, "signald_add_purple_buddy(): Adding '%s' with alias '%s'\n", username, alias);
 
     PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
     if (!g) {
@@ -43,6 +53,10 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *username, const char *a
         purple_blist_add_group(g, NULL);
     }
     PurpleBuddy *b = purple_buddy_new(sa->account, username, alias);
+
+    char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
+    strcpy (uuid_data, uuid);
+    purple_buddy_set_protocol_data (b, uuid_data);
 
     purple_blist_add_buddy(b, NULL, g, NULL);
     purple_blist_alias_buddy(b, alias);
@@ -58,8 +72,11 @@ signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, 
     const char *alias = json_object_get_string_member(obj, "name");
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *username = json_object_get_string_member(address, "number");
+    const char *uuid = json_object_get_string_member(address, "uuid");
 
-    signald_add_purple_buddy(sa, username, alias);
+    //purple_debug_error(SIGNALD_PLUGIN_ID, "processing contact '%s' '%s' '%s'\n", username, alias, uuid);
+
+    signald_add_purple_buddy(sa, username, alias, uuid);
 }
 
 void

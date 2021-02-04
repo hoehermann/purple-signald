@@ -465,6 +465,18 @@ signald_close (PurpleConnection *pc)
                             purple_connection_get_prpl(pc),
                             G_CALLBACK(signald_node_aliased));
 
+    // free protocol data memory
+    GSList *buddies = purple_find_buddies (sa->account, NULL);
+    while (buddies != NULL) {
+        PurpleBuddy *buddy = buddies->data;
+        gpointer data = purple_buddy_get_protocol_data(buddy);
+        if (data) {
+            g_free (data);
+        }
+        // remove current and go to next found buddy (should only be one!)
+        buddies = g_slist_delete_link (buddies, buddies);
+    }
+
     // unsubscribe to the configured number
     JsonObject *data = json_object_new();
 

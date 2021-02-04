@@ -56,6 +56,8 @@
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR "external-attachments-dir"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"
 
+#define SIGNALD_UUID_LEN 37
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;

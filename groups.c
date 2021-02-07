@@ -78,6 +78,17 @@ signald_get_group_member_number(SignaldAccount *sa, JsonNode *node)
     return (char *)json_object_get_string_member(member, "number");
 }
 
+
+int signald_find_uuid_user (gconstpointer buddy, gconstpointer uuid)
+{
+    const char *data
+        = (char *)purple_buddy_get_protocol_data ((PurpleBuddy *)buddy);
+    if (data)
+        return strcmp (data, (char *)uuid);
+    else
+        return -1;
+}
+
 /*
  * Given a JsonNode for a group member, get the uuid.
  */
@@ -203,7 +214,8 @@ signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArra
         }
     }
 
-    g_list_free_full(group->users, g_free);
+    if (group->users)
+        g_list_free_full(group->users, g_free);
 
     group->users = numbers;
 }
@@ -213,12 +225,29 @@ signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArra
  * here, is setting up the flags appropriately.
  */
 void
-signald_add_users_to_conv(SignaldGroup *group, GList *users)
+signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
 {
     GList *flags = NULL;
 
-    for (int i = 0; i < g_list_length(users); i++) {
+    // If users constains an uuid (groupv2) replace uuid by alias
+    // FIXME: Selecting IM in the context menu of a group member opens
+    //        a chat window but sending a message does not work.
+    GSList *buddies = purple_find_buddies (sa->account, NULL);
+
+    GList *user = users;
+    int i = 0;
+    while (user != NULL) {
+        GList *next = user->next;
         flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
+
+        GSList *found = g_slist_find_custom (buddies, user->data,
+                                            (GCompareFunc)signald_find_uuid_user);
+        if (found) {
+            user->data = g_strdup ((gpointer) purple_buddy_get_alias (found->data));
+        }
+
+        user = next;
+        i++;
     }
 
     purple_chat_conversation_add_users(PURPLE_CONV_CHAT(group->conversation), users, NULL, flags, FALSE);
@@ -296,7 +325,7 @@ signald_open_conversation(SignaldAccount *sa, const char *groupId)
     purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
 
     // Populate the channel user list.
-    signald_add_users_to_conv(group, group->users);
+    signald_add_users_to_conv(sa, group, group->users);
 }
 
 /*
@@ -427,7 +456,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         }
 
         if (added != NULL) {
-            signald_add_users_to_conv(group, added);
+            signald_add_users_to_conv(sa, group, added);
         }
     }
 

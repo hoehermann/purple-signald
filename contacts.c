@@ -24,65 +24,100 @@ signald_assume_all_buddies_online(SignaldAccount *sa)
 static void
 signald_add_purple_buddy(SignaldAccount *sa,
                          const char *username, const char *alias,
-                         const char *uuid)
+                         const char *uuid, const char *avatar_file)
 {
     GSList *buddies;
+    gchar* imgdata;
+    gsize imglen = 0;
+    PurpleBuddy *buddy;
+
+    if (avatar_file) {
+      if (! g_file_get_contents (avatar_file, &imgdata, &imglen, NULL)) {
+          imglen = 0;
+          purple_debug_error(SIGNALD_PLUGIN_ID, "Can not read '%s'\n", avatar_file);
+      }
+    }
 
     buddies = purple_find_buddies(sa->account, username);
+
     if (buddies) {
+
         //Already known => only add uuid if not already exists in protocol data
-        while (buddies != NULL) {
-            PurpleBuddy *buddy = buddies->data;
-            if (! purple_buddy_get_protocol_data(buddy)) {
-                char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
-                strcpy (uuid_data, uuid);
-                purple_buddy_set_protocol_data(buddy, uuid_data);
-            }
-            // remove current and go to next found buddy (should only be one!)
-            buddies = g_slist_delete_link (buddies, buddies);
+        buddy = buddies->data;
+        if (! purple_buddy_get_protocol_data(buddy)) {
+            char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
+            strcpy (uuid_data, uuid);
+            purple_buddy_set_protocol_data(buddy, uuid_data);
         }
+        g_slist_free (buddies);
+
         //TODO: Update alias
-        return;
+
+    } else {
+
+        //TODO: Remove old buddies: purple_blist_remove_buddy(b);
+
+        //New buddy
+        PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
+        if (!g) {
+            g = purple_group_new(SIGNAL_DEFAULT_GROUP);
+            purple_blist_add_group(g, NULL);
+        }
+        buddy = purple_buddy_new(sa->account, username, alias);
+
+        char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
+        strcpy (uuid_data, uuid);
+        purple_buddy_set_protocol_data (buddy, uuid_data);
+
+        purple_blist_add_buddy(buddy, NULL, g, NULL);
+        purple_blist_alias_buddy(buddy, alias);
+
+        signald_assume_buddy_online(sa->account, buddy);
     }
-    //TODO: Remove old buddies: purple_blist_remove_buddy(b);
-    //New buddy
 
-    PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
-    if (!g) {
-        g = purple_group_new(SIGNAL_DEFAULT_GROUP);
-        purple_blist_add_group(g, NULL);
+    // Set or update avatar
+    if (buddy && imglen) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Set avatar '%s' with size %ld for '%s'\n",
+                          avatar_file, imglen, username);
+        purple_buddy_icons_set_for_user (sa->account, username, imgdata, imglen, NULL);
     }
-    PurpleBuddy *b = purple_buddy_new(sa->account, username, alias);
-
-    char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
-    strcpy (uuid_data, uuid);
-    purple_buddy_set_protocol_data (b, uuid_data);
-
-    purple_blist_add_buddy(b, NULL, g, NULL);
-    purple_blist_alias_buddy(b, alias);
-
-    signald_assume_buddy_online(sa->account, b);
 }
 
 void
-signald_process_contact(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+signald_process_contact(SignaldAccount *sa, JsonNode *node, const char *avatar_dir)
 {
-    SignaldAccount *sa = (SignaldAccount *)user_data;
-    JsonObject *obj = json_node_get_object(element_node);
+    JsonObject *obj = json_node_get_object(node);
     const char *alias = json_object_get_string_member(obj, "name");
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *username = json_object_get_string_member(address, "number");
     const char *uuid = json_object_get_string_member(address, "uuid");
 
-    //purple_debug_error(SIGNALD_PLUGIN_ID, "processing contact '%s' '%s' '%s'\n", username, alias, uuid);
+    char *avatar_file = g_strconcat (avatar_dir,
+                                     g_strdup_printf(SIGNALD_AVATAR_FILE_NAME, username),
+                                     (const gchar*)NULL);
+    if (! g_file_test (avatar_file, G_FILE_TEST_EXISTS)) {
+        avatar_file = g_strconcat (avatar_dir, uuid, (const gchar*)NULL);
+        if (! g_file_test (avatar_file, G_FILE_TEST_EXISTS)) {
+            avatar_file = NULL;
+        }
+    }
 
-    signald_add_purple_buddy(sa, username, alias, uuid);
+    signald_add_purple_buddy(sa, username, alias, uuid, avatar_file);
+
+    g_free(avatar_file);
 }
 
 void
 signald_parse_contact_list(SignaldAccount *sa, JsonArray *data)
 {
-    json_array_foreach_element(data, signald_process_contact, sa);
+    gchar *avatar_dir
+            = g_strconcat (g_strdup_printf (SIGNALD_DATA_PATH, purple_user_dir ()),
+                           SIGNALD_AVATARS_SIGNALD_DATA_PATH, (const gchar*)NULL);
+    for (guint i = 0; i < json_array_get_length (data); i++) {
+        signald_process_contact (sa, json_array_get_element (data, i), avatar_dir);
+    }
+
+    g_free(avatar_dir);
 }
 
 void

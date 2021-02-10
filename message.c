@@ -41,7 +41,7 @@ signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, 
 }
 
 gchar *
-signald_write_external_attachment(SignaldAccount *sa, const char *filename)
+signald_write_external_attachment(SignaldAccount *sa, const char *filename, const char *mimetype_remote)
 {
     // We're going to ignore the supplied mimetype and use libmagic to figure it out
     // ourselves.  This is both more secure and less error prone, since we're not
@@ -90,6 +90,15 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename)
     gchar **extension_arr = g_strsplit(extensions, "/", 2);
 
     if (extension_arr[0] != NULL) {
+        
+        if (g_strcmp0(extensions, "???") == 0) {
+            extension_arr = g_strsplit(mimetype_remote, "/", 2);
+            g_free(extension_arr[0]);
+            extension_arr[0] = extension_arr[1];
+            extension_arr[1] = NULL;
+            purple_debug_info(SIGNALD_PLUGIN_ID, "libmagic failed, using mime type for deriving extension %s.\n", extension_arr[0]);
+        }
+        
         GFile *source = g_file_new_for_path(filename);
         char *basename = g_file_get_basename(source);
 
@@ -141,7 +150,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     if (purple_account_get_bool(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS, FALSE)) {
-        gchar *url = signald_write_external_attachment(sa, fn);
+        gchar *url = signald_write_external_attachment(sa, fn, type);
 
         if (url != NULL) {
             g_string_append_printf(message, "<a href=\"%s\">Attachment (type %s): %s</a><br/>", url, type, url);

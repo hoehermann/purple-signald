@@ -27,16 +27,7 @@ signald_add_purple_buddy(SignaldAccount *sa,
                          const char *uuid, const char *avatar_file)
 {
     GSList *buddies;
-    gchar* imgdata;
-    gsize imglen = 0;
     PurpleBuddy *buddy;
-
-    if (avatar_file) {
-      if (! g_file_get_contents (avatar_file, &imgdata, &imglen, NULL)) {
-          imglen = 0;
-          purple_debug_error(SIGNALD_PLUGIN_ID, "Can not read '%s'\n", avatar_file);
-      }
-    }
 
     buddies = purple_find_buddies(sa->account, username);
 
@@ -76,10 +67,8 @@ signald_add_purple_buddy(SignaldAccount *sa,
     }
 
     // Set or update avatar
-    if (buddy && imglen) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Set avatar '%s' with size %ld for '%s'\n",
-                          avatar_file, imglen, username);
-        purple_buddy_icons_set_for_user (sa->account, username, imgdata, imglen, NULL);
+    if (buddy && avatar_file) {
+        purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode *)buddy, avatar_file);
     }
 }
 

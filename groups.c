@@ -176,6 +176,14 @@ signald_members_contains_uuid(SignaldAccount *sa, JsonArray *members, char *uuid
  ** Functions to manipulate our groups.
  **/
 
+void
+signald_update_group_avatar (SignaldAccount *sa, SignaldGroup *group, const char *avatar)
+{
+    if (avatar != NULL && group->chat != NULL) {
+        purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode *)group->chat, avatar);
+    }
+}
+
 /*
  * Replace the group member list with the one specified.
  *
@@ -260,7 +268,8 @@ signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
  * the set of members supplied.
  */
 void
-signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
+signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName,
+                                      const char *avatar, JsonArray *members)
 {
     SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
 
@@ -295,6 +304,8 @@ signald_add_group(SignaldAccount *sa, const char *groupId, const char *groupName
         purple_blist_add_chat(group->chat, NULL, NULL);
         purple_blist_node_set_bool((PurpleBlistNode *)group->chat, "gtk-persistent", TRUE);
     }
+
+    signald_update_group_avatar (sa, group, avatar);
 
     g_hash_table_insert(sa->groups, g_strdup(groupId), group);
 }
@@ -397,13 +408,13 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
     }
 }
 
-
 /*
  * Swiss army knife function for all possible operations on a group chat,
  * including joining, leaving, or changes to group membership.
  */
 void
-signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupName, JsonArray *members)
+signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupName,
+                                         const char *avatar, JsonArray *members)
 {
     // Find any existing group entry if we have one.
     SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
@@ -428,7 +439,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         return;
     } else if ((group == NULL) && in_group) {
         // Brand new chat and we're a member?  Add it!
-        signald_add_group(sa, groupId, groupName, members);
+        signald_add_group(sa, groupId, groupName, avatar, members);
         // Now open the conversation window.
         if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
             signald_open_conversation(sa, groupId);
@@ -449,6 +460,8 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     GList *removed = NULL;
 
     signald_update_group_user_list(sa, group, members, &added, &removed);
+
+    signald_update_group_avatar (sa, group, avatar);
 
     if (group->conversation != NULL) {
         if (removed != NULL) {
@@ -476,10 +489,11 @@ signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gp
 {
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
-    
+
     signald_update_group(sa,
         json_object_get_string_member(obj, "groupId"),
         json_object_get_string_member(obj, "name"),
+        json_object_get_string_member(obj, "avatarId"),
         json_object_get_array_member(obj, "members")
     );
 }
@@ -496,10 +510,11 @@ signald_process_groupV2(JsonArray *array, guint index_, JsonNode *element_node, 
             json_object_get_array_member(obj, "pendingMembers")
         );
     }
-    
+
     signald_update_group(sa,
         json_object_get_string_member(obj, "id"),
         json_object_get_string_member(obj, "title"),
+        json_object_get_string_member(obj, "avatar"),
         json_object_get_array_member(obj, "members")
     );
 }
@@ -613,11 +628,12 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
 
     const gchar *type = json_object_get_string_member(groupInfo, "type");
     const gchar *groupid_str = json_object_get_string_member(groupInfo, "groupId");
+    const gchar *avatar = json_object_get_string_member(groupInfo, "avatar");
     const gchar *groupname = json_object_get_string_member(groupInfo, "name");
 
     if (purple_strequal(type, "UPDATE")) {
         // Group membership update.  Let's apply it!
-        signald_update_group(sa, groupid_str, groupname, json_object_get_array_member(groupInfo, "members"));
+        signald_update_group(sa, groupid_str, groupname, avatar, json_object_get_array_member(groupInfo, "members"));
 
     } else if (purple_strequal(type, "QUIT")) {
         // Someone quit the group.  It could be me, or it could be another user
@@ -629,7 +645,7 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         if (purple_strequal(username, quit_source)) {
             signald_quit_group(sa, groupid_str);
         } else {
-            signald_update_group(sa, groupid_str, groupname, json_object_get_array_member(groupInfo, "members"));
+            signald_update_group(sa, groupid_str, groupname, avatar, json_object_get_array_member(groupInfo, "members"));
         }
 
     } else if (purple_strequal(type, "DELIVER")) {

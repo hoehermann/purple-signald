@@ -237,9 +237,7 @@ signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
 {
     GList *flags = NULL;
 
-    // If users constains an uuid (groupv2) replace uuid by alias
-    // FIXME: Selecting IM in the context menu of a group member opens
-    //        a chat window but sending a message does not work.
+    // If users constains an uuid (groupv2) replace uuid by the user's name
     GSList *buddies = purple_find_buddies (sa->account, NULL);
 
     GList *user = users;
@@ -251,7 +249,7 @@ signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
         GSList *found = g_slist_find_custom (buddies, user->data,
                                             (GCompareFunc)signald_find_uuid_user);
         if (found) {
-            user->data = g_strdup ((gpointer) purple_buddy_get_alias (found->data));
+            user->data = g_strdup ((gpointer) purple_buddy_get_name (found->data));
         }
 
         user = next;

@@ -180,7 +180,11 @@ void
 signald_update_group_avatar (SignaldAccount *sa, SignaldGroup *group, const char *avatar)
 {
     if (avatar != NULL && group->chat != NULL) {
-        purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode *)group->chat, avatar);
+        if (! purple_buddy_icons_node_has_custom_icon ((PurpleBlistNode*)group->chat)
+            || purple_account_get_bool(sa->account, "use-group-avatar", TRUE)) {
+            purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode*)group->chat, avatar);
+            purple_blist_update_node_icon ((PurpleBlistNode*)group->chat);
+        }
     }
 }
 

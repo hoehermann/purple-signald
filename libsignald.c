@@ -593,6 +593,13 @@ signald_add_account_options(GList *account_options)
                 );
     account_options = g_list_append(account_options, option);
 
+    option = purple_account_option_bool_new(
+                _("Overwrite custom group icons by group avatar"),
+                "use-group-avatar",
+                TRUE
+                );
+    account_options = g_list_append(account_options, option);
+
 #ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     option = purple_account_option_bool_new(

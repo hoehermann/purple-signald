@@ -101,7 +101,7 @@ signald_initialize_contacts(SignaldAccount *sa)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
     }
 
     json_object_unref(data);
@@ -116,7 +116,7 @@ signald_list_contacts(SignaldAccount *sa)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact list."));
     }
 
     json_object_unref(data);
@@ -548,13 +548,14 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     char hostname[HOST_NAME_MAX + 1];
-    if (gethostname (hostname, HOST_NAME_MAX))
-      strcpy (hostname, SIGNALD_DEFAULT_DEVICENAME);
+    if (gethostname(hostname, HOST_NAME_MAX)) {
+        strcpy(hostname, SIGNALD_DEFAULT_DEVICENAME);
+    }
 
     option = purple_account_option_string_new(
                 _("Name of the device for linking"),
                 "device-name",
-                hostname
+                hostname // strdup happens internally
                 );
     account_options = g_list_append(account_options, option);
 

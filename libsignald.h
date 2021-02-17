@@ -28,7 +28,7 @@
 
 #define SIGNALD_DIALOG_TITLE "Signal Protocol"
 #define SIGNALD_DIALOG_LINK "Link to Signal App"
-#define SIGNALD_DEFAULT_DEVICENAME "Signal-Purple-Plugin"
+#define SIGNALD_DEFAULT_DEVICENAME "Signal-Purple-Plugin" // must fit in HOST_NAME_MAX
 
 #define SIGNALD_TIME_OUT 10
 #define SIGNALD_DEFAULT_SOCKET "/var/run/signald/signald.sock"

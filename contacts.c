@@ -7,8 +7,9 @@ signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
         purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+    } else {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_offline %s\n", buddy->name);
     }
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_offline %s\n", buddy->name);
 }
 
 void
@@ -41,18 +42,13 @@ signald_add_purple_buddy(SignaldAccount *sa,
     buddies = purple_find_buddies(sa->account, username);
 
     if (buddies) {
-
         //Already known => only add uuid if not already exists in protocol data
         buddy = buddies->data;
         if (! purple_buddy_get_protocol_data(buddy)) {
-            char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
-            strcpy (uuid_data, uuid);
-            purple_buddy_set_protocol_data(buddy, uuid_data);
+            purple_buddy_set_protocol_data(buddy, g_strdup(uuid));
         }
         g_slist_free (buddies);
-
-        //TODO: Update alias
-
+        serv_got_alias(sa->pc, username, alias);
     } else {
 
         //TODO: Remove old buddies: purple_blist_remove_buddy(b);
@@ -64,14 +60,10 @@ signald_add_purple_buddy(SignaldAccount *sa,
             purple_blist_add_group(g, NULL);
         }
         buddy = purple_buddy_new(sa->account, username, alias);
-
-        char *uuid_data = g_malloc (SIGNALD_UUID_LEN);
-        strcpy (uuid_data, uuid);
-        purple_buddy_set_protocol_data (buddy, uuid_data);
-
+        purple_buddy_set_protocol_data(buddy, g_strdup(uuid));
         purple_blist_add_buddy(buddy, NULL, g, NULL);
-        purple_blist_alias_buddy(buddy, alias);
-
+        //purple_blist_alias_buddy(buddy, alias); // this overrides the alias set by the local user
+        serv_got_alias(sa->pc, username, alias); // this sets the alias supplied be the remote user
         signald_assume_buddy_online(sa->account, buddy);
     }
 

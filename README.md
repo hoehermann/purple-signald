@@ -4,9 +4,11 @@ signald is written by Finn Herzfeld.
 
 I never wrote code for use in Pidgin before. EionRobb's [purple-discord](https://github.com/EionRobb/purple-discord) sources were of great help. 
 
-Tested on Ubuntu 18.04. An unofficial IRC channel exists on Freenode called `##purple-signald` for those who use it.
+Tested on Ubuntu 18.04.
 
-Windows users may take a sneak peek at [purple-signal](https://github.com/hoehermann/purple-signal).
+An unofficial IRC channel exists on Freenode called `##purple-signald` for those who use it.
+
+Windows users and Linux users averse to signald may take a peek at [purple-signal](https://github.com/hoehermann/purple-signal).
 
 ### Known Issues
 
@@ -34,6 +36,7 @@ There have been reports of incoming offline-messages getting lost. As far as I o
     Note: For linking with the master device, `qrencode` needs to be installed.
   * Automatically start signald  
     Note: For automatically starting signald as a child proces, `signald` needs to be in `$PATH`.
+  * Group Avatars
 
 * Additional features contributed by [Brett Kosinski](https://github.com/fancypantalons/):
 
@@ -43,6 +46,7 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
 
 ### Bitlbee configuration
+
 First setup your phone number and authorize it in Signald, see https://gitlab.com/signald/signald
 
 Once that is successful, in the `&root` channel of Bitlbee, add the same phone number you authenticated via Signald:
@@ -64,3 +68,7 @@ To create a channel for Signal, auto join it and generally manage your contacts 
 * Contact colors
 * Expiring messages
 * Messages with quotes
+
+### Security Considerations
+
+UUIDs are used for local file access. If someone manages to forge UUIDs, bypassing all checks in Signal and signald, the wrong local files might be accessed, but I do not see that happening realistically.

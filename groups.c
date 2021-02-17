@@ -79,14 +79,10 @@ signald_get_group_member_number(SignaldAccount *sa, JsonNode *node)
 }
 
 
-int signald_find_uuid_user (gconstpointer buddy, gconstpointer uuid)
+int signald_find_uuid_user(gconstpointer buddy, gconstpointer uuid)
 {
-    const char *data
-        = (char *)purple_buddy_get_protocol_data ((PurpleBuddy *)buddy);
-    if (data)
-        return strcmp (data, (char *)uuid);
-    else
-        return -1;
+    const char *data = (char *)purple_buddy_get_protocol_data ((PurpleBuddy *)buddy);
+    return g_strcmp0(data, (char *)uuid);
 }
 
 /*
@@ -226,8 +222,9 @@ signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArra
         }
     }
 
-    if (group->users)
+    if (group->users) {
         g_list_free_full(group->users, g_free);
+    }
 
     group->users = numbers;
 }
@@ -240,28 +237,20 @@ void
 signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
 {
     GList *flags = NULL;
-
-    // If users constains an uuid (groupv2) replace uuid by the user's name
+    // replace uuid (groupv2) by the user's name
     GSList *buddies = purple_find_buddies (sa->account, NULL);
-
     GList *user = users;
     int i = 0;
     while (user != NULL) {
-        GList *next = user->next;
         flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
-
-        GSList *found = g_slist_find_custom (buddies, user->data,
-                                            (GCompareFunc)signald_find_uuid_user);
+        GSList *found = g_slist_find_custom(buddies, user->data, (GCompareFunc)signald_find_uuid_user);
         if (found) {
             user->data = g_strdup ((gpointer) purple_buddy_get_name (found->data));
         }
-
-        user = next;
+        user = user->next;
         i++;
     }
-
     purple_chat_conversation_add_users(PURPLE_CONV_CHAT(group->conversation), users, NULL, flags, FALSE);
-
     g_list_free(flags);
 }
 

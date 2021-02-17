@@ -30,7 +30,6 @@
 #include "libsignald.h"
 
 static int signald_usages = 0;
-static int got_contacts = 0;
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -177,11 +176,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_initialize_contacts(sa);
 
         } else if (purple_strequal(type, "sync_requested")) {
-            if (! got_contacts) {
-              got_contacts = 1;
+            if (! sa->got_contacts) {
+              sa->got_contacts = 1;
               signald_list_contacts(sa);
             } else {
-              got_contacts = 0;
+              sa->got_contacts = 0;
               signald_get_group_list(sa);
             }
 
@@ -635,7 +634,7 @@ signald_update_contacts (PurplePluginAction* action)
   PurpleConnection* pc = action->context;
   SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
-  got_contacts = 0;
+  sa->got_contacts = 0;
   signald_initialize_contacts(sa);
 }
 
@@ -645,7 +644,7 @@ signald_update_groups (PurplePluginAction* action)
   PurpleConnection* pc = action->context;
   SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
-  got_contacts = 1;
+  sa->got_contacts = 1;
   signald_request_group_list(sa);
 }
 

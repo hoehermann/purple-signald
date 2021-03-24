@@ -67,7 +67,6 @@ typedef struct {
 
     gboolean account_exists; // whether account exists in signald
     gboolean groups_updated; // whether groups have been updated after login
-    gboolean got_contacts; // whether contacts have been pulled
 
     int fd;
     guint watcher;

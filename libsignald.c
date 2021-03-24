@@ -92,12 +92,13 @@ signald_subscribe (SignaldAccount *sa)
 }
 
 void
-signald_initialize_contacts(SignaldAccount *sa)
+signald_request_sync(SignaldAccount *sa)
 {
     JsonObject *data = json_object_new();
 
-    json_object_set_string_member(data, "type", "sync_contacts");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "type", "request_sync");
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "version", "v1");
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
@@ -113,6 +114,7 @@ signald_list_contacts(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "list_contacts");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "version", "v0");
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact list."));
@@ -173,16 +175,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
 
-            signald_initialize_contacts(sa);
-
-        } else if (purple_strequal(type, "sync_requested")) {
-            if (! sa->got_contacts) {
-              sa->got_contacts = 1;
-              signald_list_contacts(sa);
-            } else {
-              sa->got_contacts = 0;
-              signald_get_group_list(sa);
-            }
+            signald_request_sync(sa);
 
         } else if (purple_strequal(type, "contact_list")) {
             signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
@@ -190,6 +183,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             if (! sa->groups_updated) {
                 signald_request_group_list(sa);
             }
+
+        } else if (purple_strequal(type, "request_sync")) {
+            signald_list_contacts(sa);
 
         } else if (purple_strequal(type, "group_list")) {
             obj = json_object_get_object_member(obj, "data");
@@ -634,8 +630,7 @@ signald_update_contacts (PurplePluginAction* action)
   PurpleConnection* pc = action->context;
   SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
-  sa->got_contacts = 0;
-  signald_initialize_contacts(sa);
+  signald_list_contacts(sa);
 }
 
 static void
@@ -644,7 +639,6 @@ signald_update_groups (PurplePluginAction* action)
   PurpleConnection* pc = action->context;
   SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
-  sa->got_contacts = 1;
   signald_request_group_list(sa);
 }
 

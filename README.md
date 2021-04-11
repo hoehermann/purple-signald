@@ -1,14 +1,14 @@
-A libpurple/Pidgin plugin for [signald](https://git.callpipe.com/finn/signald) (signal, formerly textsecure).
+A libpurple/Pidgin plugin for [signald](https://gitlab.com/signald/signald) (signal, formerly textsecure).
 
 signald is written by Finn Herzfeld.
-
-I never wrote code for use in Pidgin before. EionRobb's [purple-discord](https://github.com/EionRobb/purple-discord) sources were of great help. 
-
-Tested on Ubuntu 18.04.
 
 An unofficial IRC channel exists on Freenode called `##purple-signald` for those who use it.
 
 Windows users and Linux users averse to signald may take a peek at [purple-signal](https://github.com/hoehermann/purple-signal).
+
+### Getting Started
+
+See [HOWTO](HOWTO.md).
 
 ### Known Issues
 
@@ -44,21 +44,6 @@ There have been reports of incoming offline-messages getting lost. As far as I o
   * Fine-grained attachment handling (for bitlbee).
 
 ![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
-
-### Bitlbee configuration
-
-First setup your phone number and authorize it in Signald, see https://gitlab.com/signald/signald
-
-Once that is successful, in the `&root` channel of Bitlbee, add the same phone number you authenticated via Signald:
-```
-account add hehoe-signald +12223334444
-rename _12223334444 name-sig
-account hehoe-signald set tag signal
-account signal set auto-join-group-chats true
-account signal set nick_format %full_name-sig
-account signal on
-```
-To create a channel for Signal, auto join it and generally manage your contacts see - https://wiki.bitlbee.org/ManagingContactList
 
 ### Missing Features
 

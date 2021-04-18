@@ -1,4 +1,3 @@
-PROTOC_C ?= protoc-c
 PKG_CONFIG ?= pkg-config
 
 # Note: Use "-C .git" to avoid ascending to parent dirs if .git not present
@@ -9,20 +8,14 @@ PKG_DEPS ?= purple glib-2.0 json-glib-1.0
 CFLAGS	?= -O2 -g -ggdb -Wall
 LDFLAGS ?= 
 LIBS ?= 
-
-ifdef SUPPORT_EXTERNAL_ATTACHMENTS
-LIBS += -lmagic
-PKG_DEPS += gio-unix-2.0
-CFLAGS += -DSUPPORT_EXTERNAL_ATTACHMENTS
-endif
+CC ?= gcc
 
 CFLAGS  += -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 CFLAGS  += -std=c99 -fPIC
 LDFLAGS += -Wl,-z,relro
 CFLAGS  += -Ipurple2compat `$(PKG_CONFIG) $(PKG_DEPS) --cflags`
+CFLAGS  += -Isubmodules/MegaMimes/src
 LIBS += `$(PKG_CONFIG) $(PKG_DEPS) --libs`
-
-CC ?= gcc
 
 ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
   TARGET = FAILNOPURPLE
@@ -47,10 +40,10 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
 all: $(TARGET)
 
-$(PURPLE_OBJ_FILES): %.o: %.c Makefile $(PURPLE_H_FILES) $(PURPLE_COMPAT_FILES)
+$(PURPLE_OBJ_FILES): %.o: %.c Makefile $(PURPLE_H_FILES) $(PURPLE_COMPAT_FILES) submodules/MegaMimes/src/MegaMimes.c
 	$(CC) -c $< $(CFLAGS)
 
-libsignald.so: $(PURPLE_OBJ_FILES)
+libsignald.so: $(PURPLE_OBJ_FILES) submodules/MegaMimes/src/MegaMimes.o
 	$(CC) $(LDFLAGS) -shared $^ $(LIBS) -o $@
 
 FAILNOPURPLE:

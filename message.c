@@ -1,12 +1,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <gio/gio.h>
+
+#include <MegaMimes.h>
 
 #include "libsignald.h"
-
-#ifdef SUPPORT_EXTERNAL_ATTACHMENTS
-#include <magic.h>
 
 int
 signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, const char **url)
@@ -43,10 +41,6 @@ signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, 
 gchar *
 signald_write_external_attachment(SignaldAccount *sa, const char *filename, const char *mimetype_remote)
 {
-    // We're going to ignore the supplied mimetype and use libmagic to figure it out
-    // ourselves.  This is both more secure and less error prone, since we're not
-    // trusting the sender.
-
     const char *path;
     const char *baseurl;
     gchar *url = NULL;
@@ -69,85 +63,54 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
 
         return NULL;
     }
+    
+    GFile *source = g_file_new_for_path(filename);
+    char *basename = g_file_get_basename(source);
 
-    magic_t cookie = magic_open(MAGIC_EXTENSION);
-
-    if ((cookie == NULL) || (magic_load(cookie, NULL) != 0)) {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Error initializing libmagic (errno: %d)", magic_errno(cookie));
-
-        return NULL;
-    }
-
-    const gchar *extensions = magic_file(cookie, filename);
-
-    if (extensions == NULL) {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Error getting extension for '%s': %d", filename, magic_errno(cookie));
-        magic_close(cookie);
-
-        return NULL;
-    }
-
-    gchar **extension_arr = g_strsplit(extensions, "/", 2);
-
-    if (extension_arr[0] != NULL) {
-        
-        if (g_strcmp0(extensions, "???") == 0) {
-            extension_arr = g_strsplit(mimetype_remote, "/", 2);
-            g_free(extension_arr[0]);
-            extension_arr[0] = extension_arr[1];
-            extension_arr[1] = NULL;
-            purple_debug_info(SIGNALD_PLUGIN_ID, "libmagic failed, using mime type for deriving extension %s.\n", extension_arr[0]);
-        }
-        
-        GFile *source = g_file_new_for_path(filename);
-        char *basename = g_file_get_basename(source);
-
-        gchar *ext = extension_arr[0];
-        gchar *destpath = g_strconcat(path, "/", basename, ".", ext, NULL);
-
-        GFile *destination = g_file_new_for_path(destpath);
-        GError *error;
-
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Copying attachment from '%s' to '%s'", filename, destpath);
-
-        if (g_file_copy(source,
-                        destination,
-                        G_FILE_COPY_NONE,
-                        NULL /* cancellable */,
-                        NULL /* progress cb */,
-                        NULL /* progress cb data */,
-                        &error)) {
-
-            url = g_strconcat(baseurl, "/", basename, ".", ext, NULL);
-        } else {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "Error saving attachment to '%s': %s", destpath, error->message);
-
-            g_error_free(error);
-        }
-
-        g_object_unref(source);
-        g_object_unref(destination);
-
-        g_free(destpath);
+    gchar * ext = "unknown";
+    char ** extensions = (char **)getMegaMimeExtensions(mimetype_remote);
+    if (extensions && extensions[0]) {
+        ext = extensions[0]+2;
     } else {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Couldn't determine mimetype for file: '%s'", filename);
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Sender supplied mime-type %s. No extensions are known for this mime-type.", mimetype_remote);
+    }
+    gchar *destpath = g_strconcat(path, "/", basename, ".", ext, NULL);
+
+    GFile *destination = g_file_new_for_path(destpath);
+    GError *error;
+
+    purple_debug_error(SIGNALD_PLUGIN_ID, "Copying attachment from '%s' to '%s'", filename, destpath);
+
+    if (g_file_copy(source,
+                    destination,
+                    G_FILE_COPY_NONE,
+                    NULL /* cancellable */,
+                    NULL /* progress cb */,
+                    NULL /* progress cb data */,
+                    &error)) {
+
+        url = g_strconcat(baseurl, "/", basename, ".", ext, NULL);
+    } else {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error saving attachment to '%s': %s", destpath, error->message);
+
+        g_error_free(error);
     }
 
-    g_strfreev(extension_arr);
-    magic_close(cookie);
+    g_object_unref(source);
+    g_object_unref(destination);
+
+    g_free(destpath);
+    
+    freeMegaStringArray(extensions);
 
     return url;
 }
-
-#endif
 
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
     const char *type = json_object_get_string_member(obj, "contentType");
     const char *fn = json_object_get_string_member(obj, "storedFilename");
-
-#ifdef SUPPORT_EXTERNAL_ATTACHMENTS
 
     if (purple_account_get_bool(sa->account, SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS, FALSE)) {
         gchar *url = signald_write_external_attachment(sa, fn, type);
@@ -161,8 +124,6 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 
         return;
     }
-
-#endif
 
     if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
         // TODO: forward "access denied" error to UI

@@ -1,0 +1,3 @@
+[submodule "submodules/MegaMimes"]
+	path = submodules/MegaMimes
+	url = https://github.com/trumpowen/MegaMimes

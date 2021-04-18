@@ -596,8 +596,6 @@ signald_add_account_options(GList *account_options)
                 );
     account_options = g_list_append(account_options, option);
 
-#ifdef SUPPORT_EXTERNAL_ATTACHMENTS
-
     option = purple_account_option_bool_new(
                 _("Serve attachments from external server"),
                 SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS,
@@ -618,8 +616,6 @@ signald_add_account_options(GList *account_options)
                 ""
                 );
     account_options = g_list_append(account_options, option);
-
-#endif
 
     return account_options;
 }

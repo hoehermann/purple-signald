@@ -132,10 +132,10 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         int img_id = purple_imgstore_add_with_id(g_memdup(purple_imgstore_get_data(img), size), size, NULL);
 
         g_string_append_printf(message, "<IMG ID=\"%d\"/><br/>", img_id);
-        g_string_append_printf(message, "<a href=\"file://%s \">Image (type: %s)</a><br/>", fn, type);
+        g_string_append_printf(message, "<a href=\"file://%s\">Image (type: %s)</a><br/>", fn, type);
     } else {
         //TODO: Receive file using libpurple's file transfer API
-        g_string_append_printf(message, "<a href=\"file://%s \">Attachment (type: %s)</a><br/>", fn, type);
+        g_string_append_printf(message, "<a href=\"file://%s\">Attachment (type: %s)</a><br/>", fn, type);
     }
 
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);

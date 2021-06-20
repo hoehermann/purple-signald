@@ -5,15 +5,17 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 {
     PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->conversation_name, sa->account);
 
-    if (imconv == NULL) {
-        imconv = purple_im_conversation_new(sa->account, msg->conversation_name);
-    }
-
     PurpleMessageFlags flags = 0;
     GString *content = NULL;
     gboolean has_attachment = FALSE;
 
     if (signald_format_message(sa, msg, &content, &has_attachment)) {
+
+        if (imconv == NULL) {
+            // Open conversation if isn't already and if the message is not empty
+            imconv = purple_im_conversation_new(sa->account, msg->conversation_name);
+        }
+
         if (has_attachment) {
             flags |= PURPLE_MESSAGE_IMAGES;
         }

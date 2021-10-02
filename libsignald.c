@@ -82,7 +82,7 @@ signald_subscribe (SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "subscribe");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
@@ -98,7 +98,6 @@ signald_request_sync(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "request_sync");
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, "version", "v1");
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
@@ -113,8 +112,8 @@ signald_list_contacts(SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_contacts");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, "version", "v0");
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+//    json_object_set_string_member(data, "version", "v0");
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact list."));
@@ -171,14 +170,16 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // TODO: mark message as delayed (maybe do not echo) until success is reported
             purple_debug_info(SIGNALD_PLUGIN_ID, "Success noticed.\n");
 
-        } else if (purple_strequal(type, "subscribed")) {
+        } else if (purple_strequal(type, "subscribe")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
 
             signald_request_sync(sa);
 
-        } else if (purple_strequal(type, "contact_list")) {
-            signald_parse_contact_list(sa, json_object_get_array_member(obj, "data"));
+        } else if (purple_strequal(type, "list_contacts")) {
+            signald_parse_contact_list(sa, 
+                json_object_get_array_member(
+                    json_object_get_object_member ("data"), "profiles"));
 
             if (! sa->groups_updated) {
                 signald_request_group_list(sa);
@@ -201,7 +202,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 sa->groups_updated = TRUE;
             }
 
-        } else if (purple_strequal(type, "message")) {
+        } else if (purple_strequal(type, "IncomingMessage")) {
             SignaldMessage msg;
 
             if (signald_parse_message(sa, json_object_get_object_member(obj, "data"), &msg)) {
@@ -217,10 +218,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                         break;
                 }
             }
-        } else if (purple_strequal(type, "linking_uri")) {
+        } else if (purple_strequal(type, "generate_linking_uri")) {
             signald_parse_linking_uri(sa, obj);
 
-        } else if (purple_strequal (type, "linking_successful")) {
+        } else if (purple_strequal (type, "finish_link")) {
             signald_parse_linking_successful();
 
             // FIXME: Sometimes, messages are not received by pidgin after
@@ -247,7 +248,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // Big hammer, but this should work.
             signald_request_group_list(sa);
 
-        } else if (purple_strequal(type, "account_list")) {
+        } else if (purple_strequal(type, "list_accounts")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 

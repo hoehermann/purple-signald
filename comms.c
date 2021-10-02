@@ -20,6 +20,9 @@ signald_send_str(SignaldAccount *sa, char *s)
 gboolean
 signald_send_json(SignaldAccount *sa, JsonObject *data)
 {
+    // Set version to v1
+    json_object_set_string_member(data, "version", "v1");
+
     gboolean success;
     char *json = json_object_to_string(data);
     purple_debug_info(SIGNALD_PLUGIN_ID, "Sending: %s\n", json);

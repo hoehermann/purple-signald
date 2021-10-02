@@ -554,7 +554,7 @@ signald_request_group_list(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "list_groups");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    json_object_set_string_member(data, "version", "v0");
+//    json_object_set_string_member(data, "version", "v0");
 
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));

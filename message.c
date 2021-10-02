@@ -216,7 +216,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         return FALSE;
     }
 
-    JsonObject *syncMessage = json_object_get_object_member(obj, "syncMessage");
+    JsonObject *syncMessage = json_object_get_object_member(obj, "sync_message");
 
     // Signal's integer timestamps are in milliseconds
     // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
@@ -235,10 +235,11 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
 
         msg->conversation_name = (char *)signald_get_number_from_field(sa, sent, "destination");
         msg->data = json_object_get_object_member(sent, "message");
-    } else {
-        msg->conversation_name = (char *)signald_get_number_from_field(sa, obj, "source");
-        msg->data = json_object_get_object_member(obj, "dataMessage");
-    }
+     } else {
+        JsonObject *source = json_object_get_object_member(obj, "source");
+        msg->conversation_name = (char *)json_object_get_string_member(source, "number");
+        msg->data = json_object_get_object_member(obj, "data_message");
+     }
 
     if (msg->data == NULL) {
         return FALSE;

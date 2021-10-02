@@ -9,7 +9,17 @@ static char device_name[HOST_NAME_MAX+1];
 void
 signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
 {
-  // Nothing to do here
+    // Send finish link
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "finish_link");
+    json_object_set_string_member(data, "deviceName", device_name);
+    json_object_set_string_member(data, "session_id", sa->session_id);
+    
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));
+    }
+    json_object_unref(data);
+
 }
 
 void
@@ -54,7 +64,10 @@ signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj)
     // Linking uri is provided, create the qr-code
     JsonObject *data = json_object_get_object_member(obj, "data");
     const gchar *uri = json_object_get_string_member(data, "uri");
-    purple_debug_info (SIGNALD_PLUGIN_ID, "LINK URI = '%s'\n", uri);
+    const gchar *session_id = json_object_get_string_member(data, "session_id");
+    sa->session_id = g_strdup(session_id);
+    purple_debug_info (SIGNALD_PLUGIN_ID, "Link URI = '%s'\n", uri);
+    purple_debug_info (SIGNALD_PLUGIN_ID, "Sesison ID = '%s'\n", session_id);
 
     remove (SIGNALD_TMP_QRFILE);  // remove any old files
 
@@ -133,14 +146,15 @@ signald_link_or_register (SignaldAccount *sa)
         remove (user_file);
         g_free (user_file);
 
+        // Get desired device name
         if (gethostname (device_name, HOST_NAME_MAX))
             strcpy (device_name, SIGNALD_DEFAULT_DEVICENAME);
         strcpy (device_name,
-                purple_account_get_string (sa->account, "device-name", device_name));
+            purple_account_get_string (sa->account, "device-name", device_name));
 
+        // Send the link request
         JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "link");
-        json_object_set_string_member(data, "deviceName", device_name);
+        json_object_set_string_member(data, "type", "generate_linking_uri");
 
         if (!signald_send_json(sa, data)) {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
@@ -174,14 +188,15 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
 {
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
-
-    const char *username = json_object_get_string_member(obj, "username");
+        
+    const char *username = json_object_get_string_member(obj, "account_id");
+purple_debug_info(SIGNALD_PLUGIN_ID, "Account = Username: %s = %s\n", username, purple_account_get_username(sa->account));
     if (purple_strequal (username, purple_account_get_username(sa->account))) {
         // The current account
         sa->account_exists = TRUE;
-        gboolean registered = json_object_get_boolean_member (obj, "registered");
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, registered);
-        if (registered) {
+        gboolean pending = json_object_get_boolean_member (obj, "pending");
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, ! pending);
+        if (! pending) {
             signald_subscribe (sa); // Subscribe if account is registered
         } else {
             signald_link_or_register (sa);  // Link or register if not
@@ -189,6 +204,7 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
         sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
     }
+    json_object_unref(obj);
 }
 
 void

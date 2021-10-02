@@ -66,6 +66,7 @@
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
+    char *session_id;
     char *uuid; // own uuid, might be NULL – always check before use
 
     gboolean account_exists; // whether account exists in signald

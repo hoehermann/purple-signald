@@ -407,26 +407,60 @@ signald_login(PurpleAccount *account)
     memset(&address, 0, sizeof(struct sockaddr_un));
     address.sun_family = AF_UNIX;
 
+    gchar *socket_file = "";
+
     if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
       // signald is handled by the plugin, use the local socket
       purple_debug_info(SIGNALD_PLUGIN_ID, "using local socket %s\n", SIGNALD_DEFAULT_SOCKET_LOCAL);
       strcpy(address.sun_path, SIGNALD_DEFAULT_SOCKET_LOCAL);
     } else {
-      // signald is handled globally
-      purple_debug_info(SIGNALD_PLUGIN_ID, "using local socket %s\n", purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
-      strcpy(address.sun_path, purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+      // signald is handled globally, take user's or first default location
+      gchar *user_socket = strdup (purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET));
+      if (purple_strequal (user_socket, "")) {
+          socket_file = g_strdup_printf ("%s/%s",
+                                         g_getenv (SIGNALD_GLOBAL_SOCKET_PATH_XDG),
+                                         SIGNALD_GLOBAL_SOCKET_FILE);
+          purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
+      } else {
+          purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
+          strcpy (socket_file, user_socket);
+      }
+      strcpy(address.sun_path, socket_file);
     }
 
     // Try to connect but give signald some time (it was started in background)
     int try = 0;
     int err = -1;
-    while ((err != 0) && (try <= SIGNALD_TIME_OUT))
-    {
-      err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
-      purple_debug_info(SIGNALD_PLUGIN_ID, "connecting ... %d s\n", try);
-      try++;
-      sleep (1);    // altogether wait SIGNALD_TIME_OUT seconds
+
+    int connecting = 2; // We have max. two socket locations to test
+
+    while (connecting--) {
+
+        try = 0;
+        while ((err != 0) && (try <= SIGNALD_TIME_OUT)) {
+            err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
+            purple_debug_info(SIGNALD_PLUGIN_ID, "connecting ... %d s\n", try);
+            try++;
+            sleep (1);    // altogether wait SIGNALD_TIME_OUT seconds
+        }
+
+        if (err) {
+            if (purple_strequal (socket_file, "")) {
+                // socket is handled by pidgin => connection error
+                connecting = 0;
+            } else {
+                // global signald socket => test next default socket location
+                socket_file = g_strdup_printf ("%s/%s",
+                                               SIGNALD_GLOBAL_SOCKET_PATH_VAR,
+                                               SIGNALD_GLOBAL_SOCKET_FILE);
+                strcpy(address.sun_path, socket_file);
+                purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
+            }
+        }
     }
+
+    if (! purple_strequal (socket_file, ""))
+      g_free (socket_file);
 
     if (err)
     {
@@ -562,7 +596,7 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_string_new(
-                _("Socket of signald daemon when not controlled by pidgin"),
+                _("If signald is not controlled by pidgin:\nUser specific (non default) socket location"),
                 "socket",
                 SIGNALD_DEFAULT_SOCKET
                 );

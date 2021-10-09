@@ -525,6 +525,9 @@ signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
 void
 signald_request_group_list(SignaldAccount *sa)
 {
+    return;
+    // signald 0.15.0 does not support this message type
+    /*
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_groups");
@@ -536,6 +539,7 @@ signald_request_group_list(SignaldAccount *sa)
     }
 
     json_object_unref(data);
+    */
 }
 
 /*

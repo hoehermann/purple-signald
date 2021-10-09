@@ -6,6 +6,8 @@ An unofficial IRC channel exists on Freenode called `##purple-signald` for those
 
 Windows users and Linux users averse to signald may take a peek at [purple-signal](https://github.com/hoehermann/purple-signal).
 
+**Attention:** As of September 2021, this plug-in is falling apart. I am annoyed by the number of protocol and API changes and I lack motivation keeping up with them.
+
 ### Getting Started
 
 See [HOWTO](HOWTO.md).

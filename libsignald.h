@@ -55,7 +55,7 @@
 #define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
 
 #define SIGNALD_ERR_NONEXISTUSER "Attempted to connect to a non-existant user"
-#define SIGNALD_ERR_AUTHFAILED   "Authorization failed"
+#define SIGNALD_ERR_AUTHFAILED   "[401] Authorization failed!"
 
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS "external-attachments"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR "external-attachments-dir"

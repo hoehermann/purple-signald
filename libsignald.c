@@ -414,6 +414,15 @@ signald_login(PurpleAccount *account)
     address.sun_family = AF_UNIX;
 
     gchar *socket_file = NULL;
+    gchar *xdg_socket_file;
+    gchar *var_socket_file;
+
+    xdg_socket_file = g_strdup_printf ("%s/%s",
+                                       g_getenv (SIGNALD_GLOBAL_SOCKET_PATH_XDG),
+                                       SIGNALD_GLOBAL_SOCKET_FILE);
+    var_socket_file = g_strdup_printf ("%s/%s",
+                                       SIGNALD_GLOBAL_SOCKET_PATH_VAR,
+                                       SIGNALD_GLOBAL_SOCKET_FILE);
 
     if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
         // signald is handled by the plugin, use the local socket
@@ -421,18 +430,14 @@ signald_login(PurpleAccount *account)
         socket_file = g_strdup("");
         strcpy(address.sun_path, SIGNALD_DEFAULT_SOCKET_LOCAL);
     } else {
-        // signald is handled globally, take user's or first default location
+      // signald is handled globally, take user's or first default location
         const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
-        if (purple_strequal(user_socket, "")) {
+        if (purple_strequal (user_socket, "")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
-            socket_file = g_strdup_printf (
-                "%s/%s",
-                g_getenv(SIGNALD_GLOBAL_SOCKET_PATH_XDG),
-                SIGNALD_GLOBAL_SOCKET_FILE
-            );
+            socket_file = g_strdup_printf ("%s", xdg_socket_file);
         } else {
             purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
-            socket_file = g_strdup(user_socket);
+            socket_file = g_strdup_printf ("%s", user_socket);
         }
         if (strlen(socket_file)-1 > sizeof address.sun_path) {
             purple_debug_error(
@@ -451,7 +456,7 @@ signald_login(PurpleAccount *account)
     int32_t try = 0;
     int32_t err = -1;
 
-    int32_t connecting = 2; // We have max. two socket locations to test
+    int32_t connecting = 3; // We have max. three socket locations to test
 
     while (connecting--) {
 
@@ -468,29 +473,33 @@ signald_login(PurpleAccount *account)
                 // socket is handled by pidgin => connection error
                 connecting = 0;
             } else {
-                // TODO: remove redundancy (this is already happening further up)
-                // global signald socket => test next default socket location
-                purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
-                g_free(socket_file);
-                socket_file = g_strdup_printf ("%s/%s",
-                                               SIGNALD_GLOBAL_SOCKET_PATH_VAR,
-                                               SIGNALD_GLOBAL_SOCKET_FILE);
-                if (strlen(socket_file)-1 > sizeof address.sun_path) {
-                  purple_debug_error(
-                      SIGNALD_PLUGIN_ID, 
-                      "socket location %s exceeds maximum length %u!\n", 
-                      socket_file, 
-                      sizeof address.sun_path
-                  );
-                  return;
-                } else {
-                  strcpy(address.sun_path, socket_file);
+                if (connecting == 1) {
+                    // only one location left, has to be var location
+                    strcpy(address.sun_path, var_socket_file);  // var last
+                } else if (connecting == 2) {
+                    // first attempt to connect was not successful
+                    if (purple_strequal (address.sun_path, xdg_socket_file)) {
+                        // the first attempt already was with the xdg location 
+                        connecting = 1;     // only var location left 
+                        strcpy(address.sun_path, var_socket_file);
+                    }
+                    else if (purple_strequal (address.sun_path, var_socket_file)) {
+                        // the first attempt already was with the var location 
+                        connecting = 1;     // only xdg location left 
+                        strcpy(address.sun_path, xdg_socket_file);
+                    } else {
+                        // it was another location, test both default locations
+                        strcpy(address.sun_path, xdg_socket_file);  // xdg first
+                    }
                 }
+                purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", address.sun_path);
             }
         }
     }
 
     g_free(socket_file);
+    g_free (xdg_socket_file);
+    g_free (var_socket_file);
 
     if (err) {
         purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));

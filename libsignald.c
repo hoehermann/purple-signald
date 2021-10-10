@@ -193,10 +193,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_process_groupV2_obj(sa, obj);
             sa->groups_updated = TRUE;
 
-        } else if (purple_strequal(type, "group_list")) {
+        } else if (purple_strequal(type, "list_groups")) {
             obj = json_object_get_object_member(obj, "data");
-            signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));
-            signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groupsv2"));
+            signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
 
             if (! sa->groups_updated) {
                 sa->groups_updated = TRUE;

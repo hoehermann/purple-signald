@@ -547,17 +547,17 @@ signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
 void
 signald_request_group_list(SignaldAccount *sa)
 {
-    ////JsonObject *data = json_object_new();
+    JsonObject *data = json_object_new();
 
-    ////json_object_set_string_member(data, "type", "list_groups");
-    ////json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
-    ////json_object_set_string_member(data, "version", "v1");
+    json_object_set_string_member(data, "type", "list_groups");
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "version", "v1");
 
-    ////if (!signald_send_json(sa, data)) {
-        ////purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
-    ////}
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+    }
 
-    ////json_object_unref(data);
+    json_object_unref(data);
 }
 
 /*

@@ -194,11 +194,16 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             sa->groups_updated = TRUE;
 
         } else if (purple_strequal(type, "list_groups")) {
-            obj = json_object_get_object_member(obj, "data");
-            signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
-
-            if (! sa->groups_updated) {
-                sa->groups_updated = TRUE;
+            JsonObject *errobj = json_object_get_object_member(obj, "error");
+            if (errobj != NULL) {
+                purple_debug_error(SIGNALD_PLUGIN_ID, "list_groups error: %s\n",
+                                   json_object_get_string_member(obj, "error_type"));
+            } else {
+                obj = json_object_get_object_member(obj, "data");
+                signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
+                if (! sa->groups_updated) {
+                    sa->groups_updated = TRUE;
+                }
             }
 
         } else if (purple_strequal(type, "IncomingMessage")) {

@@ -437,20 +437,20 @@ signald_login(PurpleAccount *account)
       // signald is handled globally, take user's or first default location
         const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
         if (purple_strequal (user_socket, "")) {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
             socket_file = g_strdup_printf ("%s", xdg_socket_file);
+            purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
         } else {
             purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
             socket_file = g_strdup_printf ("%s", user_socket);
         }
         if (strlen(socket_file)-1 > sizeof address.sun_path) {
-            purple_debug_error(
-                SIGNALD_PLUGIN_ID, 
-                "socket location %s exceeds maximum length %u!\n", 
-                socket_file, 
-                sizeof address.sun_path
-            );
-            return;
+          purple_debug_error(
+              SIGNALD_PLUGIN_ID, 
+              "socket location %s exceeds maximum length %lu!\n", 
+              socket_file, 
+              sizeof address.sun_path
+              );
+          return;
         } else {
             strcpy(address.sun_path, socket_file);
         }
@@ -479,24 +479,36 @@ signald_login(PurpleAccount *account)
             } else {
                 if (connecting == 1) {
                     // only one location left, has to be var location
-                    strcpy(address.sun_path, var_socket_file);  // var last
+                    socket_file = g_strdup_printf ("%s", var_socket_file);  // var last
                 } else if (connecting == 2) {
                     // first attempt to connect was not successful
                     if (purple_strequal (address.sun_path, xdg_socket_file)) {
                         // the first attempt already was with the xdg location 
                         connecting = 1;     // only var location left 
-                        strcpy(address.sun_path, var_socket_file);
+                        socket_file = g_strdup_printf ("%s", var_socket_file);
                     }
                     else if (purple_strequal (address.sun_path, var_socket_file)) {
                         // the first attempt already was with the var location 
                         connecting = 1;     // only xdg location left 
-                        strcpy(address.sun_path, xdg_socket_file);
+                        socket_file = g_strdup_printf ("%s", xdg_socket_file);
                     } else {
                         // it was another location, test both default locations
-                        strcpy(address.sun_path, xdg_socket_file);  // xdg first
+                        socket_file = g_strdup_printf ("%s", xdg_socket_file);
                     }
                 }
                 purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", address.sun_path);
+            }
+
+            if (strlen(socket_file)-1 > sizeof address.sun_path) {
+                purple_debug_error(
+                SIGNALD_PLUGIN_ID, 
+                "socket location %s exceeds maximum length %lu!\n", 
+                socket_file,
+                sizeof address.sun_path
+                );
+                return;
+            } else {
+                strcpy(address.sun_path, socket_file);
             }
         }
     }

@@ -7,19 +7,31 @@
 static char device_name[HOST_NAME_MAX+1];
 
 void
+signald_set_device_name (SignaldAccount *sa)
+{
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "set_device_name");
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "device_name", device_name);
+
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));
+    }
+    json_object_unref(data);
+}
+
+void
 signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
 {
     // Send finish link
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "finish_link");
-    json_object_set_string_member(data, "deviceName", device_name);
     json_object_set_string_member(data, "session_id", sa->session_id);
     
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));
     }
     json_object_unref(data);
-
 }
 
 void

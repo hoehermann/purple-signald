@@ -231,11 +231,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal (type, "finish_link")) {
             signald_parse_linking_successful();
-
             // FIXME: Sometimes, messages are not received by pidgin after
             //        linking to the main account and are only shown there.
             //        Is it robust to subscribe here?
             signald_subscribe (sa);
+            signald_set_device_name (sa);
 
         } else if (purple_strequal (type, "linking_error")) {
             signald_parse_linking_error(sa, obj);
@@ -247,6 +247,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
             purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
             g_free (text);
+
+        } else if (purple_strequal (type, "set_device_name")) {
+            purple_debug_info (SIGNALD_PLUGIN_ID, "Device name set\n");
 
         } else if (purple_strequal(type, "group_created")) {
             // Big hammer, but this should work.

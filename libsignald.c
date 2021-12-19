@@ -178,7 +178,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
 
-            signald_request_sync(sa);
+            // signald_request_sync(sa);  FIXME: request sync before list contacts
+            //                            leads to ConcurrentModificationException
+            //                            for list_contacts request, skip for now
+            signald_list_contacts(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
             signald_parse_contact_list(sa, 

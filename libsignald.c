@@ -98,6 +98,10 @@ signald_request_sync(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "request_sync");
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_boolean_member(data, "contacts", TRUE);
+    json_object_set_boolean_member(data, "groups", TRUE);
+    json_object_set_boolean_member(data, "configuration", FALSE);
+    json_object_set_boolean_member(data, "blocked", FALSE);
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));

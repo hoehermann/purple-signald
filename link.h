@@ -2,6 +2,9 @@
 #define __SIGNALD_SUBSCRIBE_H__
 
 void
+signald_set_device_name (SignaldAccount *sa);
+
+void
 signald_scan_qrcode (SignaldAccount *sa);
 
 void

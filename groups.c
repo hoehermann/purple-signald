@@ -547,6 +547,8 @@ signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
 void
 signald_request_group_list(SignaldAccount *sa)
 {
+    // FIXME: This request currently returns an empty list, see
+    // signald issue #112 a https://gitlab.com/signald/signald/-/issues/112
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_groups");

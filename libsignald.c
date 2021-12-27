@@ -511,7 +511,8 @@ signald_login(PurpleAccount *account)
                 purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", address.sun_path);
             }
 
-            if (strlen(socket_file)-1 > sizeof address.sun_path) {
+            if ((connecting > 0) &&
+                (strlen(socket_file)-1 > sizeof address.sun_path)) {
                 purple_debug_error(
                 SIGNALD_PLUGIN_ID, 
                 "socket location %s exceeds maximum length %lu!\n", 

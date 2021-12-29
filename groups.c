@@ -490,11 +490,8 @@ signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gp
 }
 
 void
-signald_process_groupV2(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
 {
-    SignaldAccount *sa = (SignaldAccount *)user_data;
-    JsonObject *obj = json_node_get_object(element_node);
-
     if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
         signald_accept_groupV2_invitation(sa,
             json_object_get_string_member(obj, "id"),
@@ -511,6 +508,14 @@ signald_process_groupV2(JsonArray *array, guint index_, JsonNode *element_node, 
 }
 
 void
+signald_process_groupV2(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
+{
+    SignaldAccount *sa = (SignaldAccount *)user_data;
+    JsonObject *obj = json_node_get_object(element_node);
+    signald_process_groupV2_obj(sa, obj);
+}
+
+void
 signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 {
     json_array_foreach_element(groups, signald_process_groupV2, sa);
@@ -520,6 +525,23 @@ void
 signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
 {
     json_array_foreach_element(groups, signald_process_group, sa);
+}
+
+void
+signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
+{
+    JsonObject *data = json_object_new();
+
+    json_object_set_string_member(data, "type", "get_group");
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "version", "v1");
+    json_object_set_string_member(data, "groupID", groupid_str);
+
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request group info."));
+    }
+
+    json_object_unref(data);
 }
 
 void
@@ -646,6 +668,12 @@ signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
 {
     JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupV2");
     const gchar *groupid_str = json_object_get_string_member(groupInfo, "id");
+
+    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
+    if (group == NULL) {
+        signald_request_group_info(sa, groupid_str);
+    }
+
     signald_display_group_message(sa, groupid_str, msg);
 }
 

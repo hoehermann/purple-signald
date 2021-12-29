@@ -187,6 +187,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "request_sync")) {
             signald_list_contacts(sa);
 
+        } else if (purple_strequal(type, "get_group")) {
+            obj = json_object_get_object_member(obj, "data");
+            signald_process_groupV2_obj(sa, obj);
+            sa->groups_updated = TRUE;
+
         } else if (purple_strequal(type, "group_list")) {
             obj = json_object_get_object_member(obj, "data");
             signald_parse_group_list(sa, json_object_get_array_member(obj, "groups"));

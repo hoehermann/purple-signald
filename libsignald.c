@@ -184,9 +184,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_list_contacts(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
-            signald_parse_contact_list(sa, 
-                json_object_get_array_member(
-                    json_object_get_object_member ("data"), "profiles"));
+            signald_parse_contact_list(sa,
+                json_object_get_array_member(json_object_get_object_member (obj, "data"),
+                "profiles"));
 
             if (! sa->groups_updated) {
                 signald_request_group_list(sa);

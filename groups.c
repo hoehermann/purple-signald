@@ -556,7 +556,7 @@ signald_request_group_list(SignaldAccount *sa)
     json_object_set_string_member(data, "version", "v1");
 
     if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contacts."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request groups."));
     }
 
     json_object_unref(data);

@@ -23,6 +23,10 @@ typedef struct {
     GList *users;
 } SignaldGroup;
 
+
+void
+signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj);
+
 void
 signald_parse_group_list(SignaldAccount *sa, JsonArray *groups);
 

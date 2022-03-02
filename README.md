@@ -2,7 +2,7 @@ A libpurple/Pidgin plugin for [signald](https://gitlab.com/signald/signald) (sig
 
 signald is written by Finn Herzfeld.
 
-An unofficial IRC channel exists on Freenode called `##purple-signald` for those who use it.
+An unofficial IRC channel exists on Libera.chat called `##purple-signald` for those who use it.
 
 Windows users and Linux users averse to signald may take a peek at [purple-signal](https://github.com/hoehermann/purple-signal).
 

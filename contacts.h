@@ -5,7 +5,7 @@ void
 signald_assume_all_buddies_online(SignaldAccount *sa);
 
 void
-signald_parse_contact_list(SignaldAccount *sa, JsonArray *data);
+signald_parse_contact_list(SignaldAccount *sa, JsonArray *profiles);
 
 void
 signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group

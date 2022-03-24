@@ -172,15 +172,14 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
 
         } else if (purple_strequal(type, "subscribe")) {
+            // v1 ok
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
-            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
-
-            // signald_request_sync(sa);  FIXME: request sync before list contacts
-            //                            leads to ConcurrentModificationException
-            //                            for list_contacts request, skip for now
+            // TODO: request sync before list contacts leads to ConcurrentModificationException for list_contacts request, skip for now
+            // signald_request_sync(sa);
             signald_list_contacts(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
+            // TODO: check v1
             signald_parse_contact_list(sa,
                 json_object_get_array_member(json_object_get_object_member (obj, "data"),
                 "profiles"));
@@ -235,7 +234,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             //        linking to the main account and are only shown there.
             //        Is it robust to subscribe here?
             signald_subscribe (sa);
-            signald_set_device_name (sa);
+            signald_set_device_name(sa);
 
         } else if (purple_strequal (type, "linking_error")) {
             signald_parse_linking_error(sa, obj);
@@ -266,8 +265,14 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
 
-        } else if (purple_strequal(type, "listen_stopped")) {
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, json_object_get_string_member(obj, "exception"));
+        } else if (purple_strequal(type, "WebSocketConnectionState")) {
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            const gchar *state = json_object_get_string_member(data, "state");
+            if  (purple_strequal(state, "CONNECTED")) {
+                purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
+            }
+            // TODO: reflect unexpected disconnection
+            //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Disconnected.");
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
@@ -355,9 +360,8 @@ signald_signald_start(PurpleAccount *account)
             g_free(data);
 
             // Error starting the daemon? (execlp only returns on error)
-            purple_debug_info (SIGNALD_PLUGIN_ID,
-                               "return code starting signald: %d\n", signald_ok);
-            abort ();   // Stop child
+            purple_debug_info (SIGNALD_PLUGIN_ID, "return code starting signald: %d\n", signald_ok);
+            abort(); // Stop child
         }
       sleep (SIGNALD_TIME_OUT/2);     // Wait before trying to connect
     }

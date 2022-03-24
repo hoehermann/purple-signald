@@ -206,18 +206,18 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
         
     const char *username = json_object_get_string_member(obj, "account_id");
     purple_debug_info(SIGNALD_PLUGIN_ID, "Account = Username <=> %s = %s\n", username, purple_account_get_username(sa->account));
-    if (purple_strequal (username, purple_account_get_username(sa->account))) {
-        // The current account
+    if (purple_strequal(username, purple_account_get_username(sa->account))) {
+        // this is the current account
         sa->account_exists = TRUE;
-        obj = json_object_get_object_member (obj, "address");
+        obj = json_object_get_object_member(obj, "address");
         sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
         gboolean pending = json_object_get_boolean_member (obj, "pending");
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, ! pending);
-        if (! pending) {
-            signald_subscribe (sa); // Subscribe if account is registered
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, !pending);
+        if (!pending) {
+            signald_subscribe(sa); // Subscribe if account is registered
         } else {
-            signald_link_or_register (sa);  // Link or register if not
+            signald_link_or_register(sa);  // Link or register if not
         }
     }
 }

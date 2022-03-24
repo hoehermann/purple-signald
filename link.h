@@ -5,7 +5,7 @@ void
 signald_set_device_name (SignaldAccount *sa);
 
 void
-signald_scan_qrcode (SignaldAccount *sa);
+signald_scan_qrcode (SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen);
 
 void
 signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj);

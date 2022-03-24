@@ -1,3 +1,6 @@
 [submodule "submodules/MegaMimes"]
 	path = submodules/MegaMimes
 	url = https://github.com/trumpowen/MegaMimes
+[submodule "submodules/QR-Code-generator"]
+	path = submodules/QR-Code-generator
+	url = https://github.com/nayuki/QR-Code-generator.git

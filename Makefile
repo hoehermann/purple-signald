@@ -14,7 +14,7 @@ CFLAGS  += -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 CFLAGS  += -std=c99 -fPIC
 LDFLAGS += -Wl,-z,relro
 CFLAGS  += -Ipurple2compat `$(PKG_CONFIG) $(PKG_DEPS) --cflags`
-CFLAGS  += -Isubmodules/MegaMimes/src
+CFLAGS  += -Isubmodules/MegaMimes/src -Isubmodules/QR-Code-generator/c
 LIBS += `$(PKG_CONFIG) $(PKG_DEPS) --libs`
 
 ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
@@ -29,10 +29,10 @@ endif
 
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
-PURPLE_COMPAT_FILES := purple_compat.h json_compat.h
-PURPLE_H_FILES := comms.h contacts.h direct.h groups.h link.h message.h libsignald.h
-PURPLE_C_FILES := comms.c contacts.c direct.c groups.c link.c message.c libsignald.c $(C_FILES)
-PURPLE_OBJ_FILES:=$(PURPLE_C_FILES:.c=.o)
+COMPAT_FILES := purple_compat.h json_compat.h
+H_FILES := comms.h contacts.h direct.h groups.h link.h message.h libsignald.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
+C_FILES := comms.c contacts.c direct.c groups.c link.c message.c libsignald.c
+OBJ_FILES:=$(C_FILES:.c=.o)
 
 .PHONY:	all FAILNOPURPLE clean install
 
@@ -40,10 +40,10 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
 all: $(TARGET)
 
-$(PURPLE_OBJ_FILES): %.o: %.c Makefile $(PURPLE_H_FILES) $(PURPLE_COMPAT_FILES) submodules/MegaMimes/src/MegaMimes.c
+$(OBJ_FILES): %.o: %.c Makefile $(H_FILES) $(COMPAT_FILES) 
 	$(CC) -c $< $(CFLAGS)
 
-libsignald.so: $(PURPLE_OBJ_FILES) submodules/MegaMimes/src/MegaMimes.o
+libsignald.so: $(OBJ_FILES) MegaMimes.o qrcodegen.o
 	$(CC) $(LDFLAGS) -shared $^ $(LIBS) -o $@
 
 FAILNOPURPLE:

@@ -265,6 +265,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);
 
+        } else if (purple_strequal(type, "send")) {
+            // TODO: keep track of messages, indicate success
+
         } else if (purple_strequal(type, "WebSocketConnectionState")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             const gchar *state = json_object_get_string_member(data, "state");

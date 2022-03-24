@@ -83,6 +83,7 @@ signald_parse_linking_uri(SignaldAccount *sa, JsonObject *obj)
         int zoom = 4;
         int qrcodesize = qrcodegen_getSize(qrcode);
         int imgwidth = (border*2+qrcodesize)*zoom;
+        // poor man's PBM encoder
         gchar *head = g_strdup_printf("P1 %d %d ", imgwidth, imgwidth);
         int headlen = strlen(head);
         gsize qrimglen = headlen+imgwidth*2*imgwidth*2;
@@ -91,9 +92,9 @@ signald_parse_linking_uri(SignaldAccount *sa, JsonObject *obj)
         g_free(head);
         gchar *qrimgptr = qrimgdata+headlen;
         // from https://github.com/nayuki/QR-Code-generator/blob/master/c/qrcodegen-demo.c
-        for (int y = -border*zoom; y/zoom < qrcodesize + border; y++) {
-            for (int x = -border*zoom; x/zoom < qrcodesize + border; x++) {
-                *qrimgptr++ = qrcodegen_getModule(qrcode, x/zoom, y/zoom) ? '1' : '0';
+        for (int y = 0; y/zoom < qrcodesize + border*2; y++) {
+            for (int x = 0; x/zoom < qrcodesize + border*2; x++) {
+                *qrimgptr++ = qrcodegen_getModule(qrcode, x/zoom - border, y/zoom - border) ? '1' : '0';
                 *qrimgptr++ = ' ';
             }
         }

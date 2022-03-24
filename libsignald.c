@@ -117,7 +117,7 @@ signald_list_contacts(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "list_contacts");
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
-//    json_object_set_string_member(data, "version", "v0");
+    // TODO: v1
 
     if (!signald_send_json (sa, data)) {
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact list."));
@@ -167,12 +167,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         if (purple_strequal(type, "version")) {
+            // v1 ok
             obj = json_object_get_object_member(obj, "data");
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
-
-        } else if (purple_strequal(type, "success")) {
-            // TODO: mark message as delayed (maybe do not echo) until success is reported
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Success noticed.\n");
 
         } else if (purple_strequal(type, "subscribe")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
@@ -271,7 +268,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal(type, "listen_stopped")) {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, json_object_get_string_member(obj, "exception"));
-
         } else {
             purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
         }
@@ -349,14 +345,12 @@ signald_signald_start(PurpleAccount *account)
             // Start the daemon
             gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_user_dir());
             int signald_ok;
+            const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
+
             if (purple_debug_is_enabled ()) {
-                signald_ok = execlp("signald", "signald", "-v", "-s",
-                                    SIGNALD_DEFAULT_SOCKET_LOCAL, "-d",
-                                    data, (char *) NULL);
+                signald_ok = execlp("signald", "signald", "-v", "-s", user_socket, "-d", data, NULL);
             } else {
-                signald_ok = execlp("signald", "signald", "-s",
-                                    SIGNALD_DEFAULT_SOCKET_LOCAL, "-d",
-                                    data, (char *) NULL);
+                signald_ok = execlp("signald", "signald", "-s", user_socket, "-d", data, NULL);
             }
             g_free(data);
 
@@ -411,7 +405,7 @@ signald_login(PurpleAccount *account)
     // Check account settings whether signald is globally running
     // (controlled by the system or the user) or whether it should
     // be controlled by the plugin.
-    if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
+    if (purple_account_get_bool(sa->account, "handle-signald", FALSE)) {
         signald_signald_start(sa->account);
     }
 
@@ -440,32 +434,24 @@ signald_login(PurpleAccount *account)
                                        SIGNALD_GLOBAL_SOCKET_PATH_VAR,
                                        SIGNALD_GLOBAL_SOCKET_FILE);
 
-    if (purple_account_get_bool(sa->account, "handle_signald", FALSE)) {
-        // signald is handled by the plugin, use the local socket
-        purple_debug_info(SIGNALD_PLUGIN_ID, "using local socket %s\n", SIGNALD_DEFAULT_SOCKET_LOCAL);
-        socket_file = g_strdup("");
-        strcpy(address.sun_path, SIGNALD_DEFAULT_SOCKET_LOCAL);
+    const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
+    if (purple_strequal (user_socket, "")) {
+        socket_file = g_strdup_printf ("%s", xdg_socket_file);
+        purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
     } else {
-      // signald is handled globally, take user's or first default location
-        const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
-        if (purple_strequal (user_socket, "")) {
-            socket_file = g_strdup_printf ("%s", xdg_socket_file);
-            purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
-        } else {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
-            socket_file = g_strdup_printf ("%s", user_socket);
-        }
-        if (strlen(socket_file)-1 > sizeof address.sun_path) {
-          purple_debug_error(
-              SIGNALD_PLUGIN_ID, 
-              "socket location %s exceeds maximum length %lu!\n", 
-              socket_file, 
-              sizeof address.sun_path
-              );
-          return;
-        } else {
-            strcpy(address.sun_path, socket_file);
-        }
+        purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
+        socket_file = g_strdup_printf ("%s", user_socket);
+    }
+    if (strlen(socket_file)-1 > sizeof address.sun_path) {
+      purple_debug_error(
+          SIGNALD_PLUGIN_ID, 
+          "socket location %s exceeds maximum length %lu!\n", 
+          socket_file, 
+          sizeof address.sun_path
+          );
+      return;
+    } else {
+        strcpy(address.sun_path, socket_file);
     }
 
     // Try to connect but give signald some time (it was started in background)
@@ -657,7 +643,7 @@ signald_add_account_options(GList *account_options)
 
     option = purple_account_option_bool_new(
                 _("Daemon signald is controlled by pidgin, not globally or by the user"),
-                "handle_signald",
+                "handle-signald",
                 FALSE
                 );
     account_options = g_list_append(account_options, option);

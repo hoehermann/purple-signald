@@ -35,8 +35,7 @@
 #define SIGNALD_GLOBAL_SOCKET_FILE  "signald/signald.sock"
 #define SIGNALD_GLOBAL_SOCKET_PATH_VAR "/var/run"
 #define SIGNALD_GLOBAL_SOCKET_PATH_XDG "XDG_RUNTIME_DIR"
-#define SIGNALD_DEFAULT_SOCKET_LOCAL "/tmp/signald.sock" // must not exceed 107+1 bytes (must fit into sockaddr_un.sun_path)
-#define SIGNALD_START "signald -s " SIGNALD_DEFAULT_SOCKET_LOCAL " -d " SIGNALD_DATA_PATH " &"
+#define SIGNALD_DEFAULT_SOCKET_LOCAL "/tmp/signald.sock" // must not exceed 107+1 bytes (must fit into sockaddr_un.sun_path) // TODO: update for 2022
 
 #define SIGNALD_DATA_PATH "%s/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"

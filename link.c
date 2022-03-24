@@ -174,6 +174,7 @@ signald_link_or_register (SignaldAccount *sa)
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
         }
     } else {
+        // TODO: test this for v1
         // Register username (phone number) as new signal account, which
         // requires a registration. From the signald readme:
         // {"type": "register", "username": "+12024561414"}

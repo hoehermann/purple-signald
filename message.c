@@ -106,6 +106,10 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
     return url;
 }
 
+#if !(GLIB_CHECK_VERSION(2, 67, 3))
+#define g_memdup2 g_memdup
+#endif
+
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
@@ -129,7 +133,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         // TODO: forward "access denied" error to UI
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
         size_t size = purple_imgstore_get_size(img);
-        int img_id = purple_imgstore_add_with_id(g_memdup(purple_imgstore_get_data(img), size), size, NULL);
+        int img_id = purple_imgstore_add_with_id(g_memdup2(purple_imgstore_get_data(img), size), size, NULL);
 
         g_string_append_printf(message, "<IMG ID=\"%d\"/><br/>", img_id);
         g_string_append_printf(message, "<a href=\"file://%s\">Image (type: %s)</a><br/>", fn, type);

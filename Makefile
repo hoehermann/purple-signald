@@ -5,7 +5,7 @@ GIT_REVISION_ID = $(shell git -C .git rev-parse --short HEAD 2>/dev/null)
 PLUGIN_VERSION ?= $(shell cat VERSION)~git$(GIT_REVISION_ID)
 PKG_DEPS ?= purple glib-2.0 json-glib-1.0
 
-CFLAGS	?= -O2 -g -ggdb -Wall
+CFLAGS	?= -O0 -g -ggdb -Wall
 LDFLAGS ?= 
 LIBS ?= 
 CC ?= gcc

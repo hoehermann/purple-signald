@@ -683,7 +683,7 @@ signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessa
     PurpleConvChat *conv = PURPLE_CONV_CHAT(purple_find_chat(sa->pc, id));
 
     if ((groupId == NULL) || (conv == NULL)) {
-        return 0;
+        return -1; // TODO: more specific value
     }
 
     int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);

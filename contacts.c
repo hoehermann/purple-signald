@@ -3,6 +3,8 @@
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 {
+    g_return_if_fail(buddy != NULL);
+    
     if (purple_account_get_bool(account, "fake-online", TRUE)) {
         purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
@@ -71,7 +73,7 @@ signald_process_contact(SignaldAccount *sa, JsonNode *node)
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *number = json_object_get_string_member(address, "number");
     const char *uuid = json_object_get_string_member(address, "uuid");
-
+    g_return_if_fail(number != NULL); // TODO: check if this case denotes "self"
     signald_add_purple_buddy(sa, number, name, uuid, avatar);
 }
 

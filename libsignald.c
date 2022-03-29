@@ -576,6 +576,7 @@ signald_close (PurpleConnection *pc)
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
         purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
     }
+    // TODO: wait for signald to acknowlegde unsubscribe before closing the fd
 
     g_free(sa->uuid);
 

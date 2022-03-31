@@ -19,7 +19,7 @@ typedef struct {
 } SignaldMessage;
 
 const char *
-signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *field);
+signald_get_uuid_from_address(JsonObject *obj, const char *address_key);
 
 gboolean
 signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment);

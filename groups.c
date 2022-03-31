@@ -78,13 +78,6 @@ signald_get_group_member_number(SignaldAccount *sa, JsonNode *node)
     return (char *)json_object_get_string_member(member, "number");
 }
 
-
-int signald_find_uuid_user(gconstpointer buddy, gconstpointer uuid)
-{
-    const char *data = (char *)purple_buddy_get_protocol_data ((PurpleBuddy *)buddy);
-    return g_strcmp0(data, (char *)uuid);
-}
-
 /*
  * Given a JsonNode for a group member, get the uuid.
  */
@@ -96,39 +89,13 @@ signald_get_group_member_uuid(SignaldAccount *sa, JsonNode *node)
 }
 
 /*
- * Given a list of members, get back the list of corresponding numbers.
- * This function makes a copy of the number so it must be freed.
- */
-GList *
-signald_members_to_numbers(SignaldAccount *sa, JsonArray *members)
-{
-    GList *numbers = NULL;
-
-    for (
-        GList *this_member = json_array_get_elements(members);
-        this_member != NULL;
-        this_member = this_member->next
-    ) {
-        JsonNode *element = (JsonNode *)(this_member->data);
-        char *number = signald_get_group_member_number(sa, element);
-        if (!number) {
-            // number is null, if only uuid is known
-            // TODO: clean this up so signald_members_to_numbers actually returns numbers only. or rename the function, align with _uuid variants
-            number = signald_get_group_member_uuid(sa, element);
-        }
-        numbers = g_list_append(numbers, g_strdup(number));
-    }
-    return numbers;
-}
-
-/*
  * Given a list of members, get back the list of corresponding uuid.
  * This function makes a copy of the number so it must be freed.
  */
 GList *
 signald_members_to_uuids(SignaldAccount *sa, JsonArray *members)
 {
-    GList *numbers = NULL;
+    GList *uuids = NULL;
 
     for (
         GList *this_member = json_array_get_elements(members);
@@ -136,24 +103,10 @@ signald_members_to_uuids(SignaldAccount *sa, JsonArray *members)
         this_member = this_member->next
     ) {
         JsonNode *element = (JsonNode *)(this_member->data);
-        char *number = signald_get_group_member_uuid(sa, element);
-        numbers = g_list_append(numbers, g_strdup(number));
+        char *uuid = signald_get_group_member_uuid(sa, element);
+        uuids = g_list_append(uuids, g_strdup(uuid));
     }
-    return numbers;
-}
-
-/*
- * Check if the member list contains the given number.  This is unnecessarily
- * expensive as it gets the numbers for all entries in order to perform the
- * comparison, but it's also blissfully short, so... tradeoffs.
- */
-gboolean
-signald_members_contains_number(SignaldAccount *sa, JsonArray *members, char *number)
-{
-    GList *numbers = signald_members_to_numbers(sa, members);
-    gboolean result = g_list_find_custom(numbers, number, (GCompareFunc)g_strcmp0) != NULL;
-    g_list_free_full(numbers, g_free);
-    return result;
+    return uuids;
 }
 
 /*
@@ -196,28 +149,26 @@ signald_update_group_avatar (SignaldAccount *sa, SignaldGroup *group, const char
 void
 signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArray *members, GList **added, GList **removed)
 {
-    GList *numbers = signald_members_to_numbers(sa, members);
+    GList *uuids = signald_members_to_uuids(sa, members);
 
     if (removed != NULL) {
         *removed = NULL;
-
         // Go through our user list and find entries that aren't in the
         // member list.  These were removed.
-        for (GList *this_user = group->users; this_user != NULL; this_user = this_user->next) {
-            if (! g_list_find_custom(numbers, this_user->data, (GCompareFunc)g_strcmp0)) {
-                *removed = g_list_append(*removed, g_strdup(this_user->data));
+        for (GList *this_user_node = group->users; this_user_node != NULL; this_user_node = this_user_node->next) {
+            if (!g_list_find_custom(uuids, this_user_node->data, (GCompareFunc)g_strcmp0)) {
+                *removed = g_list_append(*removed, g_strdup(this_user_node->data));
             }
         }
     }
 
     if (added != NULL) {
         *added = NULL;
-
         // Go through our member list and find entries that aren't in the
         // user list.  These were added.
-        for (GList *this_number = numbers; this_number != NULL; this_number = this_number->next) {
-            if (! g_list_find_custom(group->users, this_number->data, (GCompareFunc)g_strcmp0)) {
-                *added = g_list_append(*added, g_strdup(this_number->data));
+        for (GList *this_uuid_node = uuids; this_uuid_node != NULL; this_uuid_node = this_uuid_node->next) {
+            if (! g_list_find_custom(group->users, this_uuid_node->data, (GCompareFunc)g_strcmp0)) {
+                *added = g_list_append(*added, g_strdup(this_uuid_node->data));
             }
         }
     }
@@ -226,29 +177,25 @@ signald_update_group_user_list(SignaldAccount *sa, SignaldGroup *group, JsonArra
         g_list_free_full(group->users, g_free);
     }
 
-    group->users = numbers;
+    group->users = uuids;
 }
 
 /*
- * Function to add a set of users to a Pidgin conversation.  The main logic,
- * here, is setting up the flags appropriately.
+ * Function to add a set of users to a Pidgin conversation.  
+ * The main logic here is setting up the flags appropriately.
  */
 void
 signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
 {
     GList *flags = NULL;
-    // replace uuid (groupv2) by the user's name
-    GSList *buddies = purple_find_buddies (sa->account, NULL);
-    GList *user = users;
-    int i = 0;
-    while (user != NULL) {
+    for(GList *user = users; user != NULL; user = user->next) {
+        char * uuid = user->data;
+        purple_debug_info(SIGNALD_PLUGIN_ID, "%s is member of %s.\n", uuid, group->name);
+        PurpleBuddy * buddy = purple_find_buddy(sa->account, uuid);
         flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
-        GSList *found = g_slist_find_custom(buddies, user->data, (GCompareFunc)signald_find_uuid_user);
-        if (found) {
-            user->data = g_strdup ((gpointer) purple_buddy_get_name (found->data));
+        if (buddy) {
+            user->data = g_strdup((gpointer)purple_buddy_get_name(buddy));
         }
-        user = user->next;
-        i++;
     }
     purple_chat_conversation_add_users(PURPLE_CONV_CHAT(group->conversation), users, NULL, flags, FALSE);
     g_list_free(flags);
@@ -410,23 +357,16 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
     // Find any existing group entry if we have one.
     SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
 
-    // See if we're a member of the group.
-    char *username = (char *)purple_account_get_username(sa->account);
-    gboolean in_group = signald_members_contains_number(sa, members, username);
     // See if we're a member of the group v2.
-    if (sa->uuid) {
-        in_group = in_group || signald_members_contains_uuid(sa, members, sa->uuid);
-    }
+    gboolean in_group = signald_members_contains_uuid(sa, members, sa->uuid);
 
     if ((group == NULL) && (!in_group)) {
         // Chat that we neither know about nor we're in.
         // Let's see if we had an old buddy list entry we should delete.
         PurpleChat *chat = signald_blist_find_chat(sa, groupId);
-
         if (chat != NULL) {
             purple_blist_remove_chat(chat);
         }
-
         return;
     } else if ((group == NULL) && in_group) {
         // Brand new chat and we're a member?  Add it!
@@ -435,12 +375,10 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
         if (purple_account_get_bool(sa->account, "auto-join-group-chats", FALSE)) {
             signald_open_conversation(sa, groupId);
         }
-
         return;
     } else if ((group != NULL) && ! in_group) {
         // Existing chat but we're *not* a member?  Quit it.
         signald_quit_group(sa, groupId);
-
         return;
     }
 
@@ -478,15 +416,7 @@ signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupN
 void
 signald_process_group(JsonArray *array, guint index_, JsonNode *element_node, gpointer user_data)
 {
-    SignaldAccount *sa = (SignaldAccount *)user_data;
-    JsonObject *obj = json_node_get_object(element_node);
-
-    signald_update_group(sa,
-        json_object_get_string_member(obj, "groupId"),
-        json_object_get_string_member(obj, "name"),
-        json_object_get_string_member(obj, "avatarId"),
-        json_object_get_array_member(obj, "members")
-    );
+    purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring obsolete v1 group.");
 }
 
 void
@@ -519,12 +449,6 @@ void
 signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 {
     json_array_foreach_element(groups, signald_process_groupV2, sa);
-}
-
-void
-signald_parse_group_list(SignaldAccount *sa, JsonArray *groups)
-{
-    json_array_foreach_element(groups, signald_process_group, sa);
 }
 
 void
@@ -641,7 +565,7 @@ signald_process_group_message(SignaldAccount *sa, SignaldMessage *msg)
         // in the group.  So we need to check who originated the event and then
         // either update the membership or record that we've quit the group.
         char *username = (char *)purple_account_get_username(sa->account);
-        const char *quit_source = signald_get_number_from_field(sa, msg->envelope, "source");
+        const char *quit_source = signald_get_uuid_from_address(msg->envelope, "source");
 
         if (purple_strequal(username, quit_source)) {
             signald_quit_group(sa, groupid_str);

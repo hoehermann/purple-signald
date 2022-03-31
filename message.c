@@ -159,18 +159,9 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
 }
 
 const char *
-signald_get_number_from_field(SignaldAccount *sa, JsonObject *obj, const char *field)
+signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
 {
-    if (! json_object_has_member(obj, field)) {
-        // The previous signald protocol would return an empty string in this
-        // circumstance, but it now doesn't populate the field at all, so we
-        // mirror the old behaviour here.
-        return "";
-    }
-
-    JsonNode *node = json_object_get_member(obj, field);
-    JsonObject *address = json_node_get_object(node);
-
+    JsonObject *address = json_object_get_object_member(obj, address_key);
     return (const char *)json_object_get_string_member(address, "number");
 }
 
@@ -179,7 +170,7 @@ signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
 {
     JsonObject *address = json_object_new();
 
-    json_object_set_string_member(address, "number", recipient);
+    json_object_set_string_member(address, "uuid", recipient);
     json_object_set_string_member(obj, "recipientAddress", recipient);
 }
 
@@ -237,11 +228,11 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
             return FALSE;
         }
 
-        msg->conversation_name = (char *)signald_get_number_from_field(sa, sent, "destination");
+        msg->conversation_name = (char *)signald_get_uuid_from_address(sent, "destination");
         msg->data = json_object_get_object_member(sent, "message");
      } else {
         JsonObject *source = json_object_get_object_member(obj, "source");
-        msg->conversation_name = (char *)json_object_get_string_member(source, "number");
+        msg->conversation_name = (char *)json_object_get_string_member(source, "uuid");
         msg->data = json_object_get_object_member(obj, "data_message");
      }
 
@@ -255,6 +246,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
 
     if (json_object_has_member(msg->data, "group")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
+        // TODO: remove support for obsolete V1 groups completly
     } else if (json_object_has_member(msg->data, "groupV2")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUPV2;
     } else {
@@ -271,6 +263,7 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
 
     json_object_set_string_member(data, "type", "send");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
+    //json_object_set_string_member(data, "account", sa->uuid); // alternative to supplying the username, mutually exclusive
 
     if (type == SIGNALD_MESSAGE_TYPE_DIRECT) {
         signald_set_recipient(sa, data, recipient);

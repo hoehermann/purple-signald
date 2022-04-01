@@ -162,7 +162,7 @@ const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
 {
     JsonObject *address = json_object_get_object_member(obj, address_key);
-    return (const char *)json_object_get_string_member(address, "number");
+    return (const char *)json_object_get_string_member(address, "uuid");
 }
 
 void

@@ -30,8 +30,8 @@ endif
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 COMPAT_FILES := purple_compat.h json_compat.h
-H_FILES := comms.h contacts.h direct.h groups.h link.h message.h libsignald.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
-C_FILES := comms.c contacts.c direct.c groups.c link.c message.c libsignald.c
+H_FILES := comms.h contacts.h direct.h groups.h link.h message.h libsignald.h login.h signald_procmgmt.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
+C_FILES := comms.c contacts.c direct.c groups.c link.c message.c libsignald.c login.c signald_procmgmt.c
 OBJ_FILES:=$(C_FILES:.c=.o)
 
 .PHONY:	all FAILNOPURPLE clean install

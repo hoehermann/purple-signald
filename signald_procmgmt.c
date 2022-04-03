@@ -68,7 +68,6 @@ signald_signald_start(PurpleAccount *account)
             purple_debug_info (SIGNALD_PLUGIN_ID, "return code starting signald: %d\n", signald_ok);
             abort(); // Stop child
         }
-      sleep (SIGNALD_TIME_OUT/2);     // Wait before trying to connect
     }
 
     signald_usages++;

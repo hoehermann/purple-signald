@@ -17,6 +17,10 @@
 #include "purple_compat.h"
 #pragma GCC diagnostic pop
 
+#if !(GLIB_CHECK_VERSION(2, 67, 3))
+#define g_memdup2 g_memdup
+#endif
+
 #include "json_compat.h"
 
 #define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
@@ -30,12 +34,10 @@
 #define SIGNALD_DIALOG_LINK "Link to Signal App"
 #define SIGNALD_DEFAULT_DEVICENAME "Signal-Purple-Plugin" // must fit in HOST_NAME_MAX
 
-#define SIGNALD_TIME_OUT 10
+#define SIGNALD_TIMEOUT_SECONDS 10
 #define SIGNALD_DEFAULT_SOCKET ""
 #define SIGNALD_GLOBAL_SOCKET_FILE  "signald/signald.sock"
 #define SIGNALD_GLOBAL_SOCKET_PATH_VAR "/var/run"
-#define SIGNALD_GLOBAL_SOCKET_PATH_XDG "XDG_RUNTIME_DIR"
-#define SIGNALD_DEFAULT_SOCKET_LOCAL "/tmp/signald.sock" // must not exceed 107+1 bytes (must fit into sockaddr_un.sun_path) // TODO: update for 2022
 
 #define SIGNALD_DATA_PATH "%s/signald"
 #define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
@@ -71,6 +73,7 @@ typedef struct {
     gboolean account_exists; // whether account exists in signald
     gboolean groups_updated; // whether groups have been updated after login
 
+    int socket_paths_count;
     int fd;
     guint watcher;
 

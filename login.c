@@ -3,6 +3,7 @@
 #include "signald_procmgmt.h"
 #include <sys/un.h> // for sockaddr_un
 #include <sys/socket.h> // for socket and read
+#include <errno.h>
 
 void
 signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
@@ -49,11 +50,112 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
+gboolean sockaddr_from_path(struct sockaddr_un * address, const gchar * path) {
+    memset(address, 0, sizeof(struct sockaddr_un));
+    address->sun_family = AF_UNIX;
+    if (strlen(path)-1 > sizeof address->sun_path) {
+      purple_debug_error(SIGNALD_PLUGIN_ID, "socket path %s exceeds maximum length %lu!\n", path, sizeof address->sun_path); // TODO: show error in ui
+      return FALSE;
+    } else {
+        strcpy(address->sun_path, path);
+        return TRUE;
+    }
+}
+
+typedef struct {
+    SignaldAccount *sa;
+    gchar *socket_path;
+    gchar *error_message;
+} SignaldConnection;
+
+static gboolean
+display_connection_error(void *data) {
+    SignaldConnection *sc = data;
+    purple_connection_error(sc->sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, sc->error_message);
+    g_free(sc->error_message);
+    g_free(sc);
+    return FALSE;
+}
+
+#define do_log (!purple_prefs_get_bool("/pidgin/debug/enabled"))
+
+static void *
+do_try_connect(void * arg) {
+    SignaldConnection * sc = arg;
+    struct sockaddr_un address;
+    if (sockaddr_from_path(&address, sc->socket_path))
+     {
+        // create a socket
+        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) {
+            if (do_log) purple_debug_error(SIGNALD_PLUGIN_ID, "socket() error is %s\n", strerror(errno));
+            sc->error_message = g_strdup_printf("Could not create socket: %s", strerror(errno));
+            purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
+        } else {
+            int32_t err = -1;
+            // connect our socket to signald socket
+            for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd == 0; try++) {
+                err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
+                if (do_log) purple_debug_info(SIGNALD_PLUGIN_ID, "Connecting to %s (try #%d)...\n", address.sun_path, try);
+                sleep(1); // altogether wait SIGNALD_TIMEOUT_SECONDS
+            }
+
+            if (err == 0) {
+                // successfully connected, tell purple to use our socket
+                if (do_log) purple_debug_warning(SIGNALD_PLUGIN_ID, "Connected to %s.\n", address.sun_path);
+                sc->sa->fd = fd;
+                sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
+            }
+            if (sc->sa->fd == 0) {
+                if (do_log) purple_debug_warning(SIGNALD_PLUGIN_ID, "No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS);
+                sc->sa->socket_paths_count--;
+                if (sc->sa->socket_paths_count == 0) {
+                    if (do_log) purple_debug_error(SIGNALD_PLUGIN_ID, "Unable to connect to any socket location.\n");
+                    sc->error_message = g_strdup("Unable to connect to any socket location.");
+                    purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
+                }
+            }
+        }
+    }
+    g_free(sc->socket_path);
+    g_free(sc);
+    return NULL;
+}
+
+static void
+try_connect(SignaldAccount *sa, gchar *socket_path) {
+        SignaldConnection *sc = g_new0(SignaldConnection, 1);
+        sc->sa = sa;
+        sc->socket_path = socket_path;
+        pthread_t try_connect_thread;
+        // TODO: handle error int err = 
+        pthread_create(&try_connect_thread, NULL, do_try_connect, (void*)sc);
+}
+
+void
+signald_connect_socket(SignaldAccount *sa) {
+    purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+
+    const gchar * user_socket_path = purple_account_get_string(sa->account, "socket", SIGNALD_DEFAULT_SOCKET);
+    if (user_socket_path && user_socket_path[0]) {
+        sa->socket_paths_count = 1;
+        
+        try_connect(sa, g_strdup(user_socket_path));
+    } else {
+        sa->socket_paths_count = 2;
+        
+        const gchar *xdg_runtime_dir = g_getenv("XDG_RUNTIME_DIR");
+        gchar *xdg_socket_path = g_strdup_printf("%s/%s", xdg_runtime_dir, SIGNALD_GLOBAL_SOCKET_FILE);
+        try_connect(sa, xdg_socket_path);
+        
+        gchar * var_socket_path = g_strdup_printf("%s/%s", SIGNALD_GLOBAL_SOCKET_PATH_VAR, SIGNALD_GLOBAL_SOCKET_FILE);
+        try_connect(sa, var_socket_path);
+    }
+}
+
 void
 signald_login(PurpleAccount *account)
 {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "login\n");
-
     PurpleConnection *pc = purple_account_get_connection(account);
 
     // this protocol does not support anything special right now
@@ -84,121 +186,7 @@ signald_login(PurpleAccount *account)
         signald_signald_start(sa->account);
     }
 
-    purple_connection_set_state(pc, PURPLE_CONNECTION_CONNECTING);
-    // create a socket
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "socket() error is %s\n", strerror(errno));
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not create socket."));
-        return;
-    }
-
-    // connect our socket to signald socket
-    struct sockaddr_un address;
-    memset(&address, 0, sizeof(struct sockaddr_un));
-    address.sun_family = AF_UNIX;
-
-    gchar *socket_file = NULL;
-    gchar *xdg_socket_file;
-    gchar *var_socket_file;
-
-    xdg_socket_file = g_strdup_printf ("%s/%s",
-                                       g_getenv (SIGNALD_GLOBAL_SOCKET_PATH_XDG),
-                                       SIGNALD_GLOBAL_SOCKET_FILE);
-    var_socket_file = g_strdup_printf ("%s/%s",
-                                       SIGNALD_GLOBAL_SOCKET_PATH_VAR,
-                                       SIGNALD_GLOBAL_SOCKET_FILE);
-
-    const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
-    if (purple_strequal (user_socket, "")) {
-        socket_file = g_strdup_printf ("%s", xdg_socket_file);
-        purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", socket_file);
-    } else {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", user_socket);
-        socket_file = g_strdup_printf ("%s", user_socket);
-    }
-    if (strlen(socket_file)-1 > sizeof address.sun_path) {
-      purple_debug_error(
-          SIGNALD_PLUGIN_ID, 
-          "socket location %s exceeds maximum length %lu!\n", 
-          socket_file, 
-          sizeof address.sun_path
-          );
-      return;
-    } else {
-        strcpy(address.sun_path, socket_file);
-    }
-
-    // Try to connect but give signald some time (it was started in background)
-    int32_t try = 0;
-    int32_t err = -1;
-
-    int32_t connecting = 3; // We have max. three socket locations to test
-
-    while (connecting--) {
-
-        try = 0;
-        while ((err != 0) && (try <= SIGNALD_TIME_OUT)) {
-            err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
-            purple_debug_info(SIGNALD_PLUGIN_ID, "connecting ... %d s\n", try);
-            try++;
-            sleep (1);    // altogether wait SIGNALD_TIME_OUT seconds
-        }
-
-        if (err) {
-            if (purple_strequal(socket_file, "")) {
-                // socket is handled by pidgin => connection error
-                connecting = 0;
-            } else {
-                if (connecting == 1) {
-                    // only one location left, has to be var location
-                    socket_file = g_strdup_printf ("%s", var_socket_file);  // var last
-                } else if (connecting == 2) {
-                    // first attempt to connect was not successful
-                    if (purple_strequal (address.sun_path, xdg_socket_file)) {
-                        // the first attempt already was with the xdg location 
-                        connecting = 1;     // only var location left 
-                        socket_file = g_strdup_printf ("%s", var_socket_file);
-                    }
-                    else if (purple_strequal (address.sun_path, var_socket_file)) {
-                        // the first attempt already was with the var location 
-                        connecting = 1;     // only xdg location left 
-                        socket_file = g_strdup_printf ("%s", xdg_socket_file);
-                    } else {
-                        // it was another location, test both default locations
-                        socket_file = g_strdup_printf ("%s", xdg_socket_file);
-                    }
-                }
-                purple_debug_info(SIGNALD_PLUGIN_ID, "global socket location %s\n", address.sun_path);
-            }
-
-            if ((connecting > 0) &&
-                (strlen(socket_file)-1 > sizeof address.sun_path)) {
-                purple_debug_error(
-                SIGNALD_PLUGIN_ID, 
-                "socket location %s exceeds maximum length %lu!\n", 
-                socket_file,
-                sizeof address.sun_path
-                );
-                return;
-            } else {
-                strcpy(address.sun_path, socket_file);
-            }
-        }
-    }
-
-    g_free(socket_file);
-    g_free (xdg_socket_file);
-    g_free (var_socket_file);
-
-    if (err) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "connect() error is %s\n", strerror(errno));
-        purple_connection_error(pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not connect to socket."));
-        return;
-    }
-
-    sa->fd = fd;
-    sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sa);
+    signald_connect_socket(sa);
 
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);

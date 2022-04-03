@@ -106,10 +106,6 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
     return url;
 }
 
-#if !(GLIB_CHECK_VERSION(2, 67, 3))
-#define g_memdup2 g_memdup
-#endif
-
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {

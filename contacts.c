@@ -40,7 +40,22 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
         }
     }
 
+    // default: buddy identified by UUID
     PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
+    
+    // however, ...
+    if (number && number[0]) {
+        // ...if the contact's number is known...
+        PurpleBuddy *number_buddy = purple_find_buddy(sa->account, number);
+        if (number_buddy) {
+            // ...and the number identifies a buddy...
+            purple_blist_rename_buddy(number_buddy, uuid); // rename (not alias) the buddy
+            purple_buddy_set_protocol_data(number_buddy, NULL); // remove superflous UUID from the buddy
+            buddy = number_buddy; // continue with the renamed buddy
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Migrated %s to %s.\n", number, uuid);
+        }
+    }
+    
     if (!buddy) {
         // new buddy
         PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);

@@ -82,6 +82,7 @@ signald_subscribe (SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "subscribe");
+    // FIXME: subscribe with uuid as "account" does not work (account not found)
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
 
     if (!signald_send_json (sa, data)) {
@@ -97,7 +98,7 @@ signald_request_sync(SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "request_sync");
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", sa->uuid);
     json_object_set_boolean_member(data, "contacts", TRUE);
     json_object_set_boolean_member(data, "groups", TRUE);
     json_object_set_boolean_member(data, "configuration", FALSE);
@@ -116,7 +117,7 @@ signald_list_contacts(SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_contacts");
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", sa->uuid);
     // TODO: v1
 
     if (!signald_send_json (sa, data)) {

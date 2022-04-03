@@ -338,7 +338,7 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
         // we are a pending member, join it
         JsonObject *message = json_object_new();
         json_object_set_string_member(message, "type", "accept_invitation");
-        json_object_set_string_member(message, "account", purple_account_get_username(sa->account));
+        json_object_set_string_member(message, "account", sa->uuid);
         json_object_set_string_member(message, "groupID", groupId);
         if (!signald_send_json(sa, message)) {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for accepting group invitation."));
@@ -461,7 +461,7 @@ signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "get_group");
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", sa->uuid);
     json_object_set_string_member(data, "version", "v1");
     json_object_set_string_member(data, "groupID", groupid_str);
 
@@ -480,7 +480,7 @@ signald_request_group_list(SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_groups");
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", sa->uuid);
     json_object_set_string_member(data, "version", "v1");
 
     if (!signald_send_json(sa, data)) {

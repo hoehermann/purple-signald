@@ -435,6 +435,10 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
         json_object_get_string_member(obj, "avatar"),
         json_object_get_array_member(obj, "members")
     );
+
+    purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n",
+                       json_object_get_string_member(obj, "id"),
+                       json_object_get_string_member(obj, "title"));
 }
 
 void

@@ -173,9 +173,17 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal(type, "subscribe")) {
             // v1 ok
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
-            // TODO: request sync before list contacts leads to ConcurrentModificationException for list_contacts request, skip for now
-            // signald_request_sync(sa);
+            JsonObject *errobj = json_object_get_object_member(obj, "error");
+            if (errobj != NULL) {
+                purple_debug_error(SIGNALD_PLUGIN_ID, "Subscribe error: %s\n",
+                                   json_object_get_string_member(obj, "error_type"));
+            } else {
+                purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
+                // request a sync; on repsonse, contacts and groups are requested
+                signald_request_sync(sa);
+            }
+
+        } else if (purple_strequal(type, "request_sync")) {
             signald_list_contacts(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
@@ -188,13 +196,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 signald_request_group_list(sa);
             }
 
-        } else if (purple_strequal(type, "request_sync")) {
-            signald_list_contacts(sa);
-
         } else if (purple_strequal(type, "get_group")) {
             obj = json_object_get_object_member(obj, "data");
             signald_process_groupV2_obj(sa, obj);
-            sa->groups_updated = TRUE;
 
         } else if (purple_strequal(type, "list_groups")) {
             JsonObject *errobj = json_object_get_object_member(obj, "error");

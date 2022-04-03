@@ -462,7 +462,6 @@ signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
 
     json_object_set_string_member(data, "type", "get_group");
     json_object_set_string_member(data, "account", sa->uuid);
-    json_object_set_string_member(data, "version", "v1");
     json_object_set_string_member(data, "groupID", groupid_str);
 
     if (!signald_send_json(sa, data)) {
@@ -481,7 +480,6 @@ signald_request_group_list(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "list_groups");
     json_object_set_string_member(data, "account", sa->uuid);
-    json_object_set_string_member(data, "version", "v1");
 
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request groups."));

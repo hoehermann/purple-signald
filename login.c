@@ -65,19 +65,26 @@ gboolean sockaddr_from_path(struct sockaddr_un * address, const gchar * path) {
 typedef struct {
     SignaldAccount *sa;
     gchar *socket_path;
-    gchar *error_message;
+    gchar *message;
 } SignaldConnection;
 
 static gboolean
 display_connection_error(void *data) {
     SignaldConnection *sc = data;
-    purple_connection_error(sc->sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, sc->error_message);
-    g_free(sc->error_message);
+    purple_connection_error(sc->sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, sc->message);
+    g_free(sc->message);
     g_free(sc);
     return FALSE;
 }
 
-#define do_log (!purple_prefs_get_bool("/pidgin/debug/enabled"))
+static gboolean
+display_debug_info(void *data) {
+    SignaldConnection *sc = data;
+    purple_debug_info(SIGNALD_PLUGIN_ID, "%s",sc->message);
+    g_free(sc->message);
+    g_free(sc);
+    return FALSE;
+}
 
 static void *
 do_try_connect(void * arg) {
@@ -88,30 +95,32 @@ do_try_connect(void * arg) {
         // create a socket
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) {
-            if (do_log) purple_debug_error(SIGNALD_PLUGIN_ID, "socket() error is %s\n", strerror(errno));
-            sc->error_message = g_strdup_printf("Could not create socket: %s", strerror(errno));
+            sc->message = g_strdup_printf("Could not create socket: %s", strerror(errno));
             purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
         } else {
             int32_t err = -1;
             // connect our socket to signald socket
             for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd == 0; try++) {
                 err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
-                if (do_log) purple_debug_info(SIGNALD_PLUGIN_ID, "Connecting to %s (try #%d)...\n", address.sun_path, try);
+                sc->message = g_strdup_printf("Connecting to %s (try #%d)...\n", address.sun_path, try);
+                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
                 sleep(1); // altogether wait SIGNALD_TIMEOUT_SECONDS
             }
 
             if (err == 0) {
                 // successfully connected, tell purple to use our socket
-                if (do_log) purple_debug_warning(SIGNALD_PLUGIN_ID, "Connected to %s.\n", address.sun_path);
+                sc->message = g_strdup_printf("Connected to %s.\n", address.sun_path);
+                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
                 sc->sa->fd = fd;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
             }
             if (sc->sa->fd == 0) {
-                if (do_log) purple_debug_warning(SIGNALD_PLUGIN_ID, "No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS);
+                sc->message = g_strdup_printf("No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS);
+                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
                 sc->sa->socket_paths_count--;
                 if (sc->sa->socket_paths_count == 0) {
-                    if (do_log) purple_debug_error(SIGNALD_PLUGIN_ID, "Unable to connect to any socket location.\n");
-                    sc->error_message = g_strdup("Unable to connect to any socket location.");
+
+                    sc->message = g_strdup("Unable to connect to any socket location.");
                     purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
                 }
             }

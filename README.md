@@ -4,8 +4,6 @@ signald is written by Finn Herzfeld.
 
 An unofficial IRC channel exists on Libera.chat called `##purple-signald` for those who use it.
 
-Windows users and Linux users averse to signald may take a peek at [purple-signal](https://github.com/hoehermann/purple-signal).
-
 **Attention:** As of September 2021, this plug-in is falling apart. I am annoyed by the number of protocol and API changes and I lack motivation keeping up with them.
 
 ### Getting Started
@@ -34,8 +32,7 @@ There have been reports of incoming offline-messages getting lost. As far as I o
 
 * Additional features contributed by [Torsten](https://github.com/ttlmax/libpurple-signald):
 
-  * Link with the master device  
-    Note: For linking with the master device, `qrencode` needs to be installed.
+  * Link with the master device
   * Automatically start signald  
     Note: For automatically starting signald as a child proces, `signald` needs to be in `$PATH`.
   * Group Avatars

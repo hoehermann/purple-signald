@@ -146,7 +146,7 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
 }
 
 void
-signald_link_or_register (SignaldAccount *sa)
+signald_link_or_register(SignaldAccount *sa)
 {
     // TODO: split the function into link and register
     const char *username = purple_account_get_username(sa->account);
@@ -155,16 +155,15 @@ signald_link_or_register (SignaldAccount *sa)
     if (purple_account_get_bool(sa->account, "link", TRUE)) {
         // Link Pidgin to the master device. This fails, if the user is already
         // known. Therefore, remove the related user data from signald configuration
-        gchar *user_file = g_strdup_printf (SIGNALD_DATA_FILE,
-                                            purple_user_dir (), username);
-        remove (user_file);
-        g_free (user_file);
+        gchar *user_file = g_strdup_printf(SIGNALD_DATA_FILE, purple_user_dir(), username);
+        remove(user_file);
+        g_free(user_file);
 
         // Get desired device name
-        if (gethostname (device_name, HOST_NAME_MAX))
-            strcpy (device_name, SIGNALD_DEFAULT_DEVICENAME);
-        strcpy (device_name,
-            purple_account_get_string (sa->account, "device-name", device_name));
+        if (gethostname(device_name, HOST_NAME_MAX)) {
+            strcpy(device_name, SIGNALD_DEFAULT_DEVICENAME);
+        }
+        strcpy(device_name, purple_account_get_string(sa->account, "device-name", device_name));
 
         // Send the link request
         JsonObject *data = json_object_new();
@@ -174,10 +173,10 @@ signald_link_or_register (SignaldAccount *sa)
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
         }
     } else {
-        // TODO: test this for v1
         // Register username (phone number) as new signal account, which
         // requires a registration. From the signald readme:
         // {"type": "register", "username": "+12024561414"}
+        // TODO: test this for v1
 
         json_object_set_string_member(data, "type", "register");
         json_object_set_string_member(data, "username", username);
@@ -226,8 +225,24 @@ void
 signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
 {
     sa->account_exists = FALSE;
-    json_array_foreach_element(data, signald_process_account, sa);
+    json_array_foreach_element(data, signald_process_account, sa); // lookup signald account by Purple username (number)
+    
+    // if Purple account does not exist in signald, link or register
     if (!sa->account_exists) {
         signald_link_or_register(sa);
     }
+}
+
+/*
+ * Request information on accounts, including our own UUID.
+ * This should be the first request after making a connection.
+ */
+void
+signald_request_accounts(SignaldAccount *sa) {
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "list_accounts");
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
+    }
+    json_object_unref(data);
 }

@@ -24,6 +24,7 @@ else
   TARGET = libsignald.so
   DEST = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=plugindir purple)/
   LOCALEDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir purple)/locale
+  # TODO: check for pkg-config pidgin success before setting this:
   PIXMAPDIR = $(DESTDIR)$(shell $(PKG_CONFIG) --variable=datadir pidgin)/pixmaps/pidgin/protocols
 endif
 

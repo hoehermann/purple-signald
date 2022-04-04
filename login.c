@@ -202,12 +202,4 @@ signald_login(PurpleAccount *account)
 
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-
-    // get information on account
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "list_accounts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
-    }
-    json_object_unref(data);
 }

@@ -329,9 +329,8 @@ signald_rename_group(SignaldAccount *sa, const char *groupId, const char *groupN
 void
 signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonArray *pendingMembers)
 {
-    if (sa->uuid == NULL) {
-        // this account's uuid is not known. cannot do anything with v2 groups.
-    }
+    g_return_if_fail(sa->uuid);
+    
     // See if we're a pending member of the group v2.
     gboolean pending = signald_members_contains_uuid(sa, pendingMembers, sa->uuid);
     if (pending) {
@@ -354,6 +353,8 @@ void
 signald_update_group(SignaldAccount *sa, const char *groupId, const char *groupName,
                                          const char *avatar, JsonArray *members)
 {
+    g_return_if_fail(sa->uuid);
+    
     // Find any existing group entry if we have one.
     SignaldGroup *group = g_hash_table_lookup(sa->groups, groupId);
 
@@ -458,6 +459,8 @@ signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 void
 signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
 {
+    g_return_if_fail(sa->uuid);
+    
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "get_group");
@@ -474,6 +477,8 @@ signald_request_group_info(SignaldAccount *sa, const char *groupid_str)
 void
 signald_request_group_list(SignaldAccount *sa)
 {
+    g_return_if_fail(sa->uuid);
+    
     // FIXME: This request currently returns an empty list, see
     // signald issue #112 a https://gitlab.com/signald/signald/-/issues/112
     JsonObject *data = json_object_new();

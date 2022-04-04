@@ -64,6 +64,8 @@ signald_subscribe (SignaldAccount *sa)
 void
 signald_request_sync(SignaldAccount *sa)
 {
+    g_return_if_fail(sa->uuid);
+    
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "request_sync");
@@ -73,8 +75,8 @@ signald_request_sync(SignaldAccount *sa)
     json_object_set_boolean_member(data, "configuration", FALSE);
     json_object_set_boolean_member(data, "blocked", FALSE);
 
-    if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
+    if (!signald_send_json(sa, data)) {
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
     }
 
     json_object_unref(data);
@@ -83,6 +85,8 @@ signald_request_sync(SignaldAccount *sa)
 void
 signald_list_contacts(SignaldAccount *sa)
 {
+    g_return_if_fail(sa->uuid);
+    
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_contacts");
@@ -150,6 +154,12 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // v1 ok
             obj = json_object_get_object_member(obj, "data");
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
+            
+            signald_request_accounts(sa); // Request information on accounts, including our own UUID.
+
+        } else if (purple_strequal(type, "list_accounts")) {
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "subscribe")) {
             // v1 ok
@@ -229,10 +239,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "group_updated")) {
             // Big hammer, but this should work.
             signald_request_group_list(sa);
-
-        } else if (purple_strequal(type, "list_accounts")) {
-            JsonObject *data = json_object_get_object_member(obj, "data");
-            signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "unexpected_error")) {
             signald_handle_unexpected_error(sa, obj);

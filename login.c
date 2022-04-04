@@ -5,6 +5,12 @@
 #include <sys/socket.h> // for socket and read
 #include <errno.h>
 
+/*
+ * Implements the read callback.
+ * Called when data has been sent by signald and is ready to be handled.
+ * 
+ * Should probably be moved in another module.
+ */
 void
 signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 {
@@ -50,78 +56,103 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     }
 }
 
-gboolean sockaddr_from_path(struct sockaddr_un * address, const gchar * path) {
-    memset(address, 0, sizeof(struct sockaddr_un));
-    address->sun_family = AF_UNIX;
-    if (strlen(path)-1 > sizeof address->sun_path) {
-      purple_debug_error(SIGNALD_PLUGIN_ID, "socket path %s exceeds maximum length %lu!\n", path, sizeof address->sun_path); // TODO: show error in ui
-      return FALSE;
-    } else {
-        strcpy(address->sun_path, path);
-        return TRUE;
-    }
-}
-
+/*
+ * This struct exchanges data between threads, see @try_connect.
+ */
 typedef struct {
     SignaldAccount *sa;
     gchar *socket_path;
     gchar *message;
-} SignaldConnection;
+} SignaldConnectionAttempt;
 
+/*
+ * See @execute_on_main_thread.
+ */
 static gboolean
 display_connection_error(void *data) {
-    SignaldConnection *sc = data;
+    SignaldConnectionAttempt *sc = data;
     purple_connection_error(sc->sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, sc->message);
     g_free(sc->message);
     g_free(sc);
     return FALSE;
 }
 
+/*
+ * See @execute_on_main_thread.
+ */
 static gboolean
 display_debug_info(void *data) {
-    SignaldConnection *sc = data;
-    purple_debug_info(SIGNALD_PLUGIN_ID, "%s",sc->message);
+    SignaldConnectionAttempt *sc = data;
+    purple_debug_info(SIGNALD_PLUGIN_ID, "%s", sc->message);
     g_free(sc->message);
     g_free(sc);
     return FALSE;
 }
 
+/*
+ * Every function writing to the GTK UI must be executed from the GTK main thread.
+ * This function is a crutch for wrapping some purple functions:
+ * 
+ * * purple_debug_info in display_debug_info
+ * * purple_connection_error in display_connection_error
+ * 
+ * Can only handle one message string instead of variardic arguments.
+ */
+static void
+execute_on_main_thread(GSourceFunc function, SignaldConnectionAttempt *sc, gchar * message) {
+    sc->message = message;
+    purple_timeout_add(0, function, g_memdup2(sc, sizeof *sc));
+}
+
+/*
+ * Tries to connect to a socket at a given location.
+ * It is ought to be executed in a thread.
+ * Only in case it does noes not succeed AND is the last thread to stop trying,
+ * the situation is considered a connection failure.
+ */
 static void *
 do_try_connect(void * arg) {
-    SignaldConnection * sc = arg;
+    SignaldConnectionAttempt * sc = arg;
+    
     struct sockaddr_un address;
-    if (sockaddr_from_path(&address, sc->socket_path))
-     {
+    if (strlen(sc->socket_path)-1 > sizeof address.sun_path) {
+        execute_on_main_thread(display_connection_error, sc, g_strdup_printf("socket path %s exceeds maximum length %lu!\n", sc->socket_path, sizeof address.sun_path));
+    } else {
+        // convert path to sockaddr
+        memset(&address, 0, sizeof(struct sockaddr_un));
+        address.sun_family = AF_UNIX;
+        strcpy(address.sun_path, sc->socket_path);
+        
         // create a socket
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) {
-            sc->message = g_strdup_printf("Could not create socket: %s", strerror(errno));
-            purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
+            execute_on_main_thread(display_connection_error, sc, g_strdup_printf("Could not create socket: %s", strerror(errno)));
         } else {
             int32_t err = -1;
+            
             // connect our socket to signald socket
             for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd == 0; try++) {
                 err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
-                sc->message = g_strdup_printf("Connecting to %s (try #%d)...\n", address.sun_path, try);
-                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
+                execute_on_main_thread(display_debug_info, sc, g_strdup_printf("Connecting to %s (try #%d)...\n", address.sun_path, try));
                 sleep(1); // altogether wait SIGNALD_TIMEOUT_SECONDS
             }
 
             if (err == 0) {
                 // successfully connected, tell purple to use our socket
-                sc->message = g_strdup_printf("Connected to %s.\n", address.sun_path);
-                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
+                execute_on_main_thread(display_debug_info, sc, g_strdup_printf("Connected to %s.\n", address.sun_path));
                 sc->sa->fd = fd;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
             }
             if (sc->sa->fd == 0) {
-                sc->message = g_strdup_printf("No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS);
-                purple_timeout_add(0, display_debug_info, g_memdup2(sc, sizeof *sc));
-                sc->sa->socket_paths_count--;
+                // no concurrent connection attempt has been successful by now
+                execute_on_main_thread(display_debug_info, sc, g_strdup_printf("No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS));
+                
+                sc->sa->socket_paths_count--; // this tread gives up trying
+                // NOTE: although unlikely, it is possible that above decrement and other modifications or checks happen concurrently.
+                // TODO: use a mutex where appropriate.
                 if (sc->sa->socket_paths_count == 0) {
-
-                    sc->message = g_strdup("Unable to connect to any socket location.");
-                    purple_timeout_add(0, display_connection_error, g_memdup2(sc, sizeof *sc));
+                    // no trying threads are remaining
+                    execute_on_main_thread(display_connection_error, sc, sc->message = g_strdup("Unable to connect to any socket location."));
                 }
             }
         }
@@ -131,16 +162,28 @@ do_try_connect(void * arg) {
     return NULL;
 }
 
+/*
+ * Starts a connection attempt in background.
+ */
 static void
 try_connect(SignaldAccount *sa, gchar *socket_path) {
-        SignaldConnection *sc = g_new0(SignaldConnection, 1);
+        SignaldConnectionAttempt *sc = g_new0(SignaldConnectionAttempt, 1);
         sc->sa = sa;
         sc->socket_path = socket_path;
         pthread_t try_connect_thread;
-        // TODO: handle error int err = 
-        pthread_create(&try_connect_thread, NULL, do_try_connect, (void*)sc);
+        int err = pthread_create(&try_connect_thread, NULL, do_try_connect, (void*)sc);
+        if (err != 0) {
+            gchar *errmsg = g_strdup_printf("Could not create thread for connecting in background: %s", strerror(err));
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, errmsg);
+            g_free(errmsg);
+        }
 }
 
+/*
+ * Connect to signald socket.
+ * Tries multiple possible default socket location at once in background.
+ * In case the user has explicitly defined a socket location, only that one is considered.
+ */
 void
 signald_connect_socket(SignaldAccount *sa) {
     purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);

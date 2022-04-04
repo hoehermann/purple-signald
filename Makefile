@@ -41,7 +41,7 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
 all: $(TARGET)
 
-$(OBJ_FILES): %.o: %.c Makefile $(H_FILES) $(COMPAT_FILES) submodules/MegaMimes/src/MegaMimes.c submodules/QR-Code-generator/c/qrcodegen.c
+$(OBJ_FILES): %.o: %.c Makefile $(H_FILES) $(COMPAT_FILES) submodules/MegaMimes/src/MegaMimes.c submodules/QR-Code-generator/c/qrcodegen.c VERSION
 	$(CC) -c $< $(CFLAGS)
 
 libsignald.so: $(OBJ_FILES) submodules/MegaMimes/src/MegaMimes.o submodules/QR-Code-generator/c/qrcodegen.o

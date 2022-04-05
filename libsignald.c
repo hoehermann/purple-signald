@@ -451,6 +451,14 @@ signald_update_groups (PurplePluginAction* action)
   signald_request_group_list(sa);
 }
 
+static void
+signald_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboolean full)
+{
+    purple_notify_user_info_add_pair_html(
+        user_info, _("Number"), (char *)purple_buddy_get_protocol_data(buddy)
+    );
+}
+
 static GList *
 signald_actions(
 #if !PURPLE_VERSION_CHECK(3, 0, 0)
@@ -516,8 +524,8 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->get_account_text_table = discord_get_account_text_table;
 	prpl_info->list_emblem = discord_list_emblem;
 	prpl_info->status_text = discord_status_text;
-	prpl_info->tooltip_text = discord_tooltip_text;
     */
+	prpl_info->tooltip_text = signald_tooltip_text;
     prpl_info->list_icon = signald_list_icon;
     /*
 	prpl_info->set_status = discord_set_status;

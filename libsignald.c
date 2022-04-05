@@ -249,7 +249,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "WebSocketConnectionState")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             const gchar *state = json_object_get_string_member(data, "state");
-            if  (purple_strequal(state, "CONNECTED")) {
+            if  (purple_strequal(state, "CONNECTED") && sa->uuid) {
                 purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
             }
             // TODO: reflect unexpected disconnection

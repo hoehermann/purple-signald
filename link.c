@@ -209,8 +209,12 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
         // this is the current account
         sa->account_exists = TRUE;
         obj = json_object_get_object_member(obj, "address");
+        
         sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
+        purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
+        // only after having received our own UUID, the connection is ready to be used
+        
         gboolean pending = json_object_get_boolean_member (obj, "pending");
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s registered: %d\n", username, !pending);
         if (!pending) {

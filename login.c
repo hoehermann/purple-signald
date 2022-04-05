@@ -131,7 +131,7 @@ do_try_connect(void * arg) {
             int32_t err = -1;
             
             // connect our socket to signald socket
-            for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd == 0; try++) {
+            for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd < 0; try++) {
                 err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
                 execute_on_main_thread(display_debug_info, sc, g_strdup_printf("Connecting to %s (try #%d)...\n", address.sun_path, try));
                 sleep(1); // altogether wait SIGNALD_TIMEOUT_SECONDS
@@ -143,7 +143,7 @@ do_try_connect(void * arg) {
                 sc->sa->fd = fd;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
             }
-            if (sc->sa->fd == 0) {
+            if (sc->sa->fd < 0) {
                 // no concurrent connection attempt has been successful by now
                 execute_on_main_thread(display_debug_info, sc, g_strdup_printf("No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS));
                 
@@ -187,6 +187,7 @@ try_connect(SignaldAccount *sa, gchar *socket_path) {
 void
 signald_connect_socket(SignaldAccount *sa) {
     purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+    sa->fd = -1; // socket is not connected, no valid value for fd, yet
 
     const gchar * user_socket_path = purple_account_get_string(sa->account, "socket", SIGNALD_DEFAULT_SOCKET);
     if (user_socket_path && user_socket_path[0]) {

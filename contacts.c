@@ -30,10 +30,16 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
     g_return_if_fail(uuid && uuid[0]);
     
     const char *alias = NULL;
+    // try number for an alias
+    if (number && number[0]) {
+        alias = number;
+    }
+    // prefer name over number
     if (name && name[0]) {
         alias = name;
-    } else if (purple_strequal(sa->uuid, uuid)) {
-        // special case: self has no name set
+    }
+    // special case: contact to self
+    if (!alias && purple_strequal(sa->uuid, uuid)) {
         alias = purple_account_get_alias(sa->account);
         if (!alias) {
             alias = purple_account_get_username(sa->account);

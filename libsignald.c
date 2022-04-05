@@ -180,6 +180,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 signald_request_group_list(sa);
             }
 
+        } else if (purple_strequal(type, "get_profile")) {
+            obj = json_object_get_object_member(obj, "data");
+            signald_process_profile(sa, obj);
+
         } else if (purple_strequal(type, "get_group")) {
             obj = json_object_get_object_member(obj, "data");
             signald_process_groupV2_obj(sa, obj);
@@ -302,13 +306,15 @@ signald_close (PurpleConnection *pc)
         purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
         purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
     }
+    json_object_unref(data);
     // TODO: wait for signald to acknowlegde unsubscribe before closing the fd
 
     g_free(sa->uuid);
+    sa->uuid = NULL;
 
     purple_input_remove(sa->watcher);
-
     sa->watcher = 0;
+    
     close(sa->fd);
     sa->fd = 0;
 
@@ -539,6 +545,7 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->get_cb_real_name = discord_get_real_name;
     */
     prpl_info->add_buddy = signald_add_buddy;
+    prpl_info->get_info = signald_get_info;
     /*
 	prpl_info->remove_buddy = discord_buddy_remove;
 	prpl_info->group_buddy = discord_fake_group_buddy;

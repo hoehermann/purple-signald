@@ -342,6 +342,7 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
         if (!signald_send_json(sa, message)) {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send message for accepting group invitation."));
         }
+        json_object_unref(message);
     }
 }
 

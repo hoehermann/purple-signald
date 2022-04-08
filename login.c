@@ -188,18 +188,20 @@ void
 signald_connect_socket(SignaldAccount *sa) {
     purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
     sa->fd = -1; // socket is not connected, no valid value for fd, yet
+    sa->socket_paths_count = 1; // there is one path to try to connect to
 
     const gchar * user_socket_path = purple_account_get_string(sa->account, "socket", SIGNALD_DEFAULT_SOCKET);
     if (user_socket_path && user_socket_path[0]) {
-        sa->socket_paths_count = 1;
-        
         try_connect(sa, g_strdup(user_socket_path));
     } else {
-        sa->socket_paths_count = 2;
-        
         const gchar *xdg_runtime_dir = g_getenv("XDG_RUNTIME_DIR");
-        gchar *xdg_socket_path = g_strdup_printf("%s/%s", xdg_runtime_dir, SIGNALD_GLOBAL_SOCKET_FILE);
-        try_connect(sa, xdg_socket_path);
+        if (xdg_runtime_dir) {
+            sa->socket_paths_count++; // there is another path to try to connect to
+            gchar *xdg_socket_path = g_strdup_printf("%s/%s", xdg_runtime_dir, SIGNALD_GLOBAL_SOCKET_FILE);
+            try_connect(sa, xdg_socket_path);
+        } else {
+            purple_debug_warning(SIGNALD_PLUGIN_ID, "Unable to read environment variable XDG_RUNTIME_DIR. Skipping the related socket location.");
+        }
         
         gchar * var_socket_path = g_strdup_printf("%s/%s", SIGNALD_GLOBAL_SOCKET_PATH_VAR, SIGNALD_GLOBAL_SOCKET_FILE);
         try_connect(sa, var_socket_path);

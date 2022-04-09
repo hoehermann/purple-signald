@@ -193,6 +193,19 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
 
         g_strfreev(lines);
     }
+    
+    if (json_object_has_member(msg->data, "reaction")) {
+        JsonObject *reaction = json_object_get_object_member(msg->data, "reaction");
+        const char *emoji = json_object_get_string_member(reaction, "emoji");
+        const gboolean remove = json_object_get_boolean_member(reaction, "remove");
+        const time_t targetSentTimestamp = json_object_get_int_member(reaction, "targetSentTimestamp") / 1000;
+        struct tm *tm = localtime(&targetSentTimestamp);
+        if (remove) {
+            g_string_printf(*target, "removed their %s reaction.", emoji);
+        } else {
+            g_string_printf(*target, "reacted with %s (to message from %s).", emoji, purple_date_format_long(tm));
+        }
+    }
 
     // append actual message text
     g_string_append(*target, json_object_get_string_member(msg->data, "body"));

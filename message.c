@@ -183,12 +183,22 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     }
 
     if (json_object_has_member(msg->data, "quote")) {
+
         JsonObject *quote = json_object_get_object_member(msg->data, "quote");
+
+        JsonObject *author = json_object_get_object_member(quote, "author");
+        const char *uuid = json_object_get_string_member(author, "uuid");
+        PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
+        const char *alias = purple_buddy_get_alias(buddy);
+
         const char *text = json_object_get_string_member(quote, "text");
         gchar **lines = g_strsplit(text, "\n", 0);
 
-        for (int i = 0; lines[i] != NULL; i++) {
-            g_string_append_printf(*target, "> %s\n", lines[i]);
+        if (lines[0] != NULL) {
+            g_string_append_printf(*target, "> %s: %s\n", alias, lines [0]);
+            for (int i = 1; lines[i] != NULL; i++) {
+                g_string_append_printf(*target, "> %s\n", lines[i]);
+            }
         }
 
         g_strfreev(lines);

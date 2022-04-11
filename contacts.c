@@ -180,4 +180,5 @@ signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     signald_assume_buddy_online(sa->account, buddy);
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
+    // TODO: if buddy name is a number (very likely), try to get their uuid
 }

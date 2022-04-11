@@ -161,13 +161,36 @@ signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
     return (const char *)json_object_get_string_member(address, "uuid");
 }
 
+static gboolean
+signald_is_uuid(const gchar *identifier) {
+    if (identifier) {
+        return strlen(identifier) == 36;
+    } else {
+        return FALSE;
+    }
+}
+
+static gboolean
+signald_is_number(const gchar *identifier) {
+    return identifier && identifier[0] == '+';
+}
+
 void
 signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
 {
+    g_return_if_fail(recipient);
+    g_return_if_fail(obj);
+    char * address_type = NULL;
+    if (signald_is_number(recipient)) {
+        address_type = "number";
+    } else if (signald_is_uuid(recipient)) {
+        address_type = "uuid";
+    }
+    g_return_if_fail(obj);
     JsonObject *address = json_object_new();
-
-    json_object_set_string_member(address, "uuid", recipient);
-    json_object_set_string_member(obj, "recipientAddress", recipient);
+    // if contact was added manually and not yet migrated, the recipient might still be a number, not a UUID
+    json_object_set_string_member(address, address_type, recipient);
+    json_object_set_object_member(obj, "recipientAddress", address);
 }
 
 gboolean

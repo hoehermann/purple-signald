@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 
 #include "libsignald.h"
-#include "qrcodegen.h"
+#include "qrcodegen.h" // TODO: better use libqrencode (available in Debian)
 
 static char device_name[HOST_NAME_MAX+1];
 

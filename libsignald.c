@@ -141,6 +141,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         // error handling
+        // TODO: find out which messages can have this field
         JsonObject *errobj = json_object_get_object_member(obj, "error");
         if (errobj != NULL) {
             purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
@@ -179,6 +180,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             if (! sa->groups_updated) {
                 signald_request_group_list(sa);
             }
+
+        } else if (purple_strequal(type, "InternalError")) {
+            const char * message = json_object_get_string_member(obj, "message");
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
 
         } else if (purple_strequal(type, "get_profile")) {
             obj = json_object_get_object_member(obj, "data");

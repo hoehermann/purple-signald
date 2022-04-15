@@ -109,9 +109,9 @@ void
 signald_parse_linking_successful (void)
 {
     // Linking was successful
+    // TODO: update for v1
     purple_debug_info (SIGNALD_PLUGIN_ID, "Linking successful\n");
     purple_notify_close_with_handle (purple_notify_get_handle ());
-    remove (SIGNALD_TMP_QRFILE);
 }
 
 void

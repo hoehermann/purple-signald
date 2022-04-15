@@ -45,10 +45,6 @@
 #define SIGNALD_AVATAR_FILE_NAME "contact-%s"
 #define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"
 
-#define SIGNALD_TMP_QRFILE "/tmp/signald_link_purple_qrcode.png"
-#define SIGNALD_QRCREATE_CMD "qrencode -s 6 -o " SIGNALD_TMP_QRFILE " '%s'"
-#define SIGNALD_QR_MSG "echo Link by scanning QR with Signal App"
-
 #define SIGNALD_STATUS_STR_ONLINE   "online"
 #define SIGNALD_STATUS_STR_OFFLINE  "offline"
 #define SIGNALD_STATUS_STR_MOBILE   "mobile"
@@ -61,8 +57,6 @@
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS "external-attachments"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR "external-attachments-dir"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"
-
-#define SIGNALD_UUID_LEN 37
 
 typedef struct {
     PurpleAccount *account;

@@ -190,7 +190,7 @@ signald_connect_socket(SignaldAccount *sa) {
     sa->fd = -1; // socket is not connected, no valid value for fd, yet
     sa->socket_paths_count = 1; // there is one path to try to connect to
 
-    const gchar * user_socket_path = purple_account_get_string(sa->account, "socket", SIGNALD_DEFAULT_SOCKET);
+    const gchar * user_socket_path = purple_account_get_string(sa->account, "socket", "");
     if (user_socket_path && user_socket_path[0]) {
         try_connect(sa, g_strdup(user_socket_path));
     } else {

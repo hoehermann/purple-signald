@@ -55,7 +55,10 @@ signald_signald_start(PurpleAccount *account)
             // Start the daemon
             gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_user_dir());
             int signald_ok;
-            const gchar * user_socket = purple_account_get_string(account, "socket", SIGNALD_DEFAULT_SOCKET);
+            const gchar * user_socket = purple_account_get_string(account, "socket", "");
+            if (!user_socket[0]) {
+                user_socket = SIGNALD_DEFAULT_SOCKET;
+            }
 
             if (purple_debug_is_enabled ()) {
                 signald_ok = execlp("signald", "signald", "-v", "-s", user_socket, "-d", data, NULL);

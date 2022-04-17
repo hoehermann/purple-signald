@@ -35,7 +35,6 @@
 #define SIGNALD_DEFAULT_DEVICENAME "Signal-Purple-Plugin" // must fit in HOST_NAME_MAX
 
 #define SIGNALD_TIMEOUT_SECONDS 10
-#define SIGNALD_DEFAULT_SOCKET ""
 #define SIGNALD_GLOBAL_SOCKET_FILE  "signald/signald.sock"
 #define SIGNALD_GLOBAL_SOCKET_PATH_VAR "/var/run"
 

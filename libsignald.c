@@ -141,13 +141,20 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         // error handling
-        // TODO: find out which messages can have this field
-        JsonObject *errobj = json_object_get_object_member(obj, "error");
-        if (errobj != NULL) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
-                                   type,
-                                   json_object_get_string_member(obj, "error_type"));
-            return;
+        gboolean is_error = json_object_get_boolean_member(obj, "error");
+        if (is_error) {
+            purple_debug_error(SIGNALD_PLUGIN_ID, "%s\n", type);
+            // TODO: which errors are "hard errors" (need reconnect?)
+            //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, type);
+        } else {
+            // TODO: find out which messages can have this field
+            JsonObject *errobj = json_object_get_object_member(obj, "error");
+            if (errobj != NULL) {
+                purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
+                                       type,
+                                       json_object_get_string_member(obj, "error_type"));
+                return;
+            }
         }
 
         // no error, actions depending on type
@@ -252,8 +259,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal(type, "send")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
-            time_t timestamp = json_object_get_int_member(data, "timestamp") / 1000;
-            signald_send_acknowledged(sa, timestamp);
+            signald_send_acknowledged(sa, data);
 
         } else if (purple_strequal(type, "WebSocketConnectionState")) {
             JsonObject *data = json_object_get_object_member(obj, "data");

@@ -158,7 +158,11 @@ const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
 {
     JsonObject *address = json_object_get_object_member(obj, address_key);
-    return (const char *)json_object_get_string_member(address, "uuid");
+    if (address == NULL) {
+        return NULL;
+    } else {
+        return (const char *)json_object_get_string_member(address, "uuid");
+    }
 }
 
 static gboolean
@@ -422,12 +426,44 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     return ret;
 }
 
+static void
+signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gpointer user_data) {
+    int * devices_count_ptr = (int *)user_data;
+    JsonObject * result = json_node_get_object(result_node);
+    JsonObject * success = json_object_get_object_member(result, "success");
+    if (success) {
+        JsonArray * devices = json_object_get_array_member(success, "devices");
+        if (devices) {
+            *devices_count_ptr += json_array_get_length(devices);
+        }
+    }
+}
+
 void
-signald_send_acknowledged(SignaldAccount *sa, time_t timestamp) {
+signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
+    time_t timestamp = json_object_get_int_member(data, "timestamp") / 1000;
+    int devices_count = 0;
+    JsonArray * results = json_object_get_array_member(data, "results");
+    if (results) {
+        if (json_array_get_length(results) == 0) {
+            // when sending message to self, the results array is empty
+            // TODO: check if recipient actually was sa->uuid
+            devices_count = 1;
+        } else {
+            json_array_foreach_element(results, signald_send_check_result, &devices_count);
+        }
+    }
     if (sa->last_conversation && sa->uuid && sa->last_message) {
-        PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-        purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp);
-        g_free(sa->last_message);
-        sa->last_message = NULL;
+        if (devices_count > 0) {
+            PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+            purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp);
+            g_free(sa->last_message);
+            sa->last_message = NULL;
+        } else {
+            // form purple_conv_present_error()
+            purple_conversation_write(sa->last_conversation, NULL, "Message was not delivered to any devices.", PURPLE_MESSAGE_ERROR, time(NULL));
+        }
+    } else if (devices_count == 0) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "A message was not delivered to any devices.\n");
     }
 }

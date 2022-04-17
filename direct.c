@@ -42,8 +42,6 @@ signald_send_im(PurpleConnection *pc,
                 const gchar *who, const gchar *message, PurpleMessageFlags flags)
 {
 #endif
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_im: flags: %x msg: »%s«\n", flags, message);
-
     if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
         return 0;
     }

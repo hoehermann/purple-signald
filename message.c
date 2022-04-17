@@ -391,15 +391,43 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
 
     // TODO: check if json_object_set_string_member manages copies of the data it is given (else these would be read from free'd memory)
 
-    int ret = 1;
+    int ret = !purple_account_get_bool(sa->account, SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT, FALSE);
 
     if (!signald_send_json(sa, data)) {
         ret = -errno;
     }
 
-    g_string_free(msg, TRUE);
+    if (ret == 0) {
+        // free last message just in case it still lingers in memory
+        g_free(sa->last_message);
+        // store message for later echo
+        sa->last_message = g_string_free(msg, FALSE);
+        // store this as the currently active conversation
+        sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, recipient, sa->account);
+        if (sa->last_conversation == NULL) {
+            // no appropriate conversation was found. maybe it is a group?
+            SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, recipient);
+            if (group != NULL) {
+                sa->last_conversation = group->conversation;
+            }
+        }
+    } else if (ret > 0) {
+        // do not store message, display immediately
+        g_string_free(msg, TRUE);
+    }
+
     g_free(plain);
     json_object_unref(data);
 
     return ret;
+}
+
+void
+signald_send_acknowledged(SignaldAccount *sa, time_t timestamp) {
+    if (sa->last_conversation && sa->uuid && sa->last_message) {
+        PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+        purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp);
+        g_free(sa->last_message);
+        sa->last_message = NULL;
+    }
 }

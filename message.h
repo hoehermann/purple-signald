@@ -30,4 +30,6 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg);
 int
 signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipient, const char *message);
 
+void
+signald_send_acknowledged(SignaldAccount *sa, time_t timestamp);
 #endif

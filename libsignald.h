@@ -58,6 +58,8 @@
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR "external-attachments-dir"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"
 
+#define SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT "wait-send-acknowledgement"
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
@@ -70,6 +72,9 @@ typedef struct {
     int socket_paths_count;
     int fd;
     guint watcher;
+
+    char *last_message; // the last message which has been sent to signald
+    PurpleConversation *last_conversation; // the conversation the message is relevant to
 
     // Maps signal group IDs to libpurple PurpleConversation objects that represent those chats.
     GHashTable *groups;

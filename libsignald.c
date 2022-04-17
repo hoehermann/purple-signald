@@ -181,7 +181,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 signald_request_group_list(sa);
             }
 
-        } else if (purple_strequal(type, "InternalError")) {
+        } else if (purple_strequal(type, "InternalError") || purple_strequal(type, "InternalError\n")) {
             const char * message = json_object_get_string_member(obj, "message");
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
 
@@ -229,9 +229,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal (type, "linking_error")) {
             signald_parse_linking_error(sa, obj);
-
-            purple_notify_close_with_handle (purple_notify_get_handle ());
-            remove (SIGNALD_TMP_QRFILE);
+            purple_notify_close_with_handle(purple_notify_get_handle());
 
         } else if (signald_strequalprefix(type, "linking_")) {
             gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
@@ -253,7 +251,9 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_handle_unexpected_error(sa, obj);
 
         } else if (purple_strequal(type, "send")) {
-            // TODO: keep track of messages, indicate success
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            time_t timestamp = json_object_get_int_member(data, "timestamp") / 1000;
+            signald_send_acknowledged(sa, timestamp);
 
         } else if (purple_strequal(type, "WebSocketConnectionState")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
@@ -390,6 +390,13 @@ signald_add_account_options(GList *account_options)
                 _("Display all contacts as online"),
                 "fake-online",
                 TRUE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
+                "Wait for send acknowledgement",
+                SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT,
+                FALSE
                 );
     account_options = g_list_append(account_options, option);
 

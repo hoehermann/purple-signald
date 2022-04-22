@@ -102,21 +102,32 @@ signald_list_contacts(SignaldAccount *sa)
     signald_assume_all_buddies_online(sa);
 }
 
-void
-signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
+gboolean
+signald_check_link_or_register_required (SignaldAccount *sa, JsonObject *obj)
 {
-    JsonObject *data = json_object_get_object_member(obj, "data");
-    const gchar *message = json_object_get_string_member(data, "message");
+purple_debug_info (SIGNALD_PLUGIN_ID, "Checking link/register\n");
+
+    const gchar *message = json_object_get_string_member(obj, "message");
     // Analyze the error: Check for failed authorization or unknown user.
     // Do we have to link or register the account?
     // FIXME: This does not work reliably, i.e.,
     //          * there is a connection error without but no attempt to link or register
     //          * the account is enabled and the contacts are loaded but sending a message won't work
     if (message && *message) {
-          if ((signald_strequalprefix (message, SIGNALD_ERR_NONEXISTUSER))
-              || (signald_strequalprefix (message, SIGNALD_ERR_AUTHFAILED))                 ) {
-              signald_link_or_register (sa);
+          purple_debug_info (SIGNALD_PLUGIN_ID, "Error message %s\n", message);
+          if ((strstr (message, SIGNALD_ERR_NONEXISTUSER))
+              || (strstr (message, SIGNALD_ERR_AUTHFAILED))) {
+              return TRUE;
           }
+    }
+    return FALSE;
+}
+
+void
+signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
+{
+    if (signald_check_link_or_register_required (sa, obj)) {
+        signald_link_or_register (sa);
     } else {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
     }
@@ -140,13 +151,21 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         const gchar *type = json_object_get_string_member(obj, "type");
         purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
-        // error handling
+        // error handling, link/registration required?
         JsonObject *errobj = json_object_get_object_member(obj, "error");
         if (errobj != NULL) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
+            if (purple_strequal (type, "subscribe") || 
+                signald_check_link_or_register_required (sa, errobj)) {
+                // error while subscribing or other cases that require
+                // linking/registration detected
+                signald_link_or_register (sa);
+                return;
+            } else {
+                purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
                                    type,
                                    json_object_get_string_member(obj, "error_type"));
             return;
+            }
         }
 
         // no error, actions depending on type
@@ -245,7 +264,8 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_request_group_list(sa);
 
         } else if (purple_strequal(type, "unexpected_error")) {
-            signald_handle_unexpected_error(sa, obj);
+            JsonObject *data = json_object_get_object_member(obj, "data");
+            signald_handle_unexpected_error(sa, data);
 
         } else if (purple_strequal(type, "send")) {
             // TODO: keep track of messages, indicate success

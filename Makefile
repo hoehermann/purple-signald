@@ -5,7 +5,7 @@ GIT_REVISION_ID = $(shell git -C .git rev-parse --short HEAD 2>/dev/null)
 PLUGIN_VERSION ?= $(shell cat VERSION)~git$(GIT_REVISION_ID)
 PKG_DEPS ?= purple glib-2.0 json-glib-1.0
 
-CFLAGS	?= -O0 -g -ggdb -Wall
+CFLAGS	?= -O0 -g -ggdb -Wall -Werror -Wfatal-errors
 LDFLAGS ?= 
 LIBS ?= 
 CC ?= gcc
@@ -31,8 +31,8 @@ endif
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 COMPAT_FILES := purple_compat.h json_compat.h
-H_FILES := comms.h contacts.h direct.h groups.h link.h message.h libsignald.h login.h signald_procmgmt.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
-C_FILES := comms.c contacts.c direct.c groups.c link.c message.c libsignald.c login.c signald_procmgmt.c
+H_FILES := comms.h contacts.h direct.h groups.h link.h message.h attachments.h libsignald.h login.h signald_procmgmt.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
+C_FILES := comms.c contacts.c direct.c groups.c link.c message.c attachments.c libsignald.c login.c signald_procmgmt.c
 OBJ_FILES:=$(C_FILES:.c=.o)
 
 .PHONY:	all FAILNOPURPLE clean install

@@ -235,9 +235,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                     case SIGNALD_MESSAGE_TYPE_DIRECT:
                         signald_process_direct_message(sa, &msg);
                         break;
-                    case SIGNALD_MESSAGE_TYPE_GROUP:
-                        purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring obsolete v1 group message");
-                        break;
                     case SIGNALD_MESSAGE_TYPE_GROUPV2:
                         signald_process_groupV2_message(sa, &msg);
                         break;

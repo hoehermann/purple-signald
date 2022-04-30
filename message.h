@@ -3,7 +3,6 @@
 
 typedef enum {
     SIGNALD_MESSAGE_TYPE_DIRECT = 1,
-    SIGNALD_MESSAGE_TYPE_GROUP = 2,
     SIGNALD_MESSAGE_TYPE_GROUPV2 = 3
 } SignaldMessageType;
 

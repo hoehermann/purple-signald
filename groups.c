@@ -618,7 +618,7 @@ signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessa
         return -1; // TODO: more specific value
     }
 
-    int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUP, groupId, message);
+    int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUPV2, groupId, message);
 
     if (ret > 0) {
         purple_conv_chat_write(conv, groupId, message, flags, time(NULL));

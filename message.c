@@ -278,10 +278,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
     }
 
-    if (json_object_has_member(msg->data, "group")) {
-        msg->type = SIGNALD_MESSAGE_TYPE_GROUP;
-        // TODO: remove support for obsolete V1 groups completly
-    } else if (json_object_has_member(msg->data, "groupV2")) {
+    if (json_object_has_member(msg->data, "groupV2")) {
         msg->type = SIGNALD_MESSAGE_TYPE_GROUPV2;
     } else {
         msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;

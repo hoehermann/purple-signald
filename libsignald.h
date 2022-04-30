@@ -86,10 +86,13 @@ void signald_node_aliased(PurpleBlistNode *node, char *oldname, PurpleConnection
 void signald_handle_input(SignaldAccount *sa, const char * json);
 
 #include "message.h"
+#include "attachments.h"
 #include "direct.h"
 #include "groups.h"
 #include "contacts.h"
 #include "link.h"
 #include "comms.h"
+
+// TODO: untangle header files and impose a more traditional structure
 
 #endif

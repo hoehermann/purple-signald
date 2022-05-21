@@ -500,9 +500,10 @@ signald_request_group_list(SignaldAccount *sa)
 void
 signald_display_group_message(SignaldAccount *sa, const char *groupid_str, SignaldMessage *msg)
 {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_display_group_message\n");
     SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupid_str);
     if (group == NULL) {
-        // I am not (yet) aware of having joined this group.
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "I am not (yet) aware of having joined group %s.\n", groupid_str);
         return;
     }
     PurpleMessageFlags flags = 0;
@@ -515,33 +516,30 @@ signald_display_group_message(SignaldAccount *sa, const char *groupid_str, Signa
         signald_open_conversation(sa, groupid_str);
     }
 
+    purple_debug_info(SIGNALD_PLUGIN_ID, "calling signald_format_message…\n");
     if (signald_format_message(sa, msg, &content, &has_attachment)) {
         if (has_attachment) {
             flags |= PURPLE_MESSAGE_IMAGES;
         }
-
         if (msg->is_sync_message) {
             flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-
-            purple_conv_chat_write(PURPLE_CONV_CHAT(group->conversation),
-                                   msg->conversation_name,
-                                   content->str, flags,
-                                   msg->timestamp);
         } else {
             flags |= PURPLE_MESSAGE_RECV;
-
             // pretend the user's nick was mentioned in order to force
             // a full notification as for instant messages
-            if (purple_account_get_bool (sa->account, "group-msg-notifications", FALSE))
+            if (purple_account_get_bool (sa->account, "group-msg-notifications", FALSE)) {
                 flags |= PURPLE_MESSAGE_NICK;
-
-            purple_serv_got_chat_in(sa->pc,
-                                    group->id,
-                                    msg->conversation_name,
-                                    flags,
-                                    content->str,
-                                    msg->timestamp);
+            }
         }
+        purple_debug_info(SIGNALD_PLUGIN_ID, "calling purple_conv_chat_write(…,%s,%s,…)…\n", msg->conversation_name, content->str);
+        purple_conv_chat_write(
+            PURPLE_CONV_CHAT(group->conversation),
+            msg->conversation_name,
+            content->str, flags,
+            msg->timestamp
+        );
+    } else {
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
     }
     g_string_free(content, TRUE);
 }

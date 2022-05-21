@@ -231,6 +231,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             SignaldMessage msg;
 
             if (signald_parse_message(sa, json_object_get_object_member(obj, "data"), &msg)) {
+                purple_debug_info(SIGNALD_PLUGIN_ID, "signald_parse_message returned type %d.\n", msg.type);
                 switch(msg.type) {
                     case SIGNALD_MESSAGE_TYPE_DIRECT:
                         signald_process_direct_message(sa, &msg);

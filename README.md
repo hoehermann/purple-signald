@@ -4,15 +4,17 @@ signald is written by Finn Herzfeld.
 
 An unofficial IRC channel exists on Libera.chat called `##purple-signald` for those who use it.
 
+### Known Issues
+
 **Attention:** As of September 2021, this plug-in is falling apart. I am annoyed by the number of protocol and API changes and I lack motivation keeping up with them.
+
+If notifications for group chats are enabled, the colors of sender names will differ from those in the member list, see [#69](https://github.com/hoehermann/libpurple-signald/issues/69).
+
+When used with Pidgin, the user must never close a group conversation window or incoming messages will get lost. Deferred messages (sent by others while offline) will always get lost.
 
 ### Getting Started
 
 See [HOWTO](HOWTO.md).
-
-### Known Issues
-
-There have been reports of incoming offline-messages getting lost. As far as I observed, they are not lost but delayed and delivered after a restart of signald.
 
 ### Features
 

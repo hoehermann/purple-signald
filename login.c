@@ -172,7 +172,10 @@ try_connect(SignaldAccount *sa, gchar *socket_path) {
         sc->socket_path = socket_path;
         pthread_t try_connect_thread;
         int err = pthread_create(&try_connect_thread, NULL, do_try_connect, (void*)sc);
-        if (err != 0) {
+        if (err == 0) {
+            // detach thread so it is "free'd" as soon it terminates
+            pthread_detach(try_connect_thread);
+        } else {
             gchar *errmsg = g_strdup_printf("Could not create thread for connecting in background: %s", strerror(err));
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, errmsg);
             g_free(errmsg);

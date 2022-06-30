@@ -1,2 +1,6 @@
+pidgin
+config
+ignore
+build
 *.so
 *.o

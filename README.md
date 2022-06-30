@@ -44,7 +44,7 @@ See [HOWTO](HOWTO.md).
   * Support for group chats.
   * Fine-grained attachment handling (for bitlbee).
 
-![Instant Message](/instant_message.png?raw=true "Instant Message Screenshot")
+![Instant Message](/doc/instant_message.png?raw=true "Instant Message Screenshot")
 
 ### Missing Features
 

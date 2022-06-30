@@ -2,7 +2,7 @@ PKG_CONFIG ?= pkg-config
 
 # Note: Use "-C .git" to avoid ascending to parent dirs if .git not present
 GIT_REVISION_ID = $(shell git -C .git rev-parse --short HEAD 2>/dev/null)
-PLUGIN_VERSION ?= $(shell cat VERSION)~git$(GIT_REVISION_ID)
+PLUGIN_VERSION ?= $(shell cat ../VERSION)~git$(GIT_REVISION_ID)
 PKG_DEPS ?= purple glib-2.0 json-glib-1.0
 
 CFLAGS	?= -O0 -g -ggdb -Wall -Werror -Wfatal-errors
@@ -14,7 +14,7 @@ CFLAGS  += -DSIGNALD_PLUGIN_VERSION='"$(PLUGIN_VERSION)"' -DMARKDOWN_PIDGIN
 CFLAGS  += -std=c99 -fPIC
 LDFLAGS += -Wl,-z,relro
 CFLAGS  += -Ipurple2compat `$(PKG_CONFIG) $(PKG_DEPS) --cflags`
-CFLAGS  += -Isubmodules/MegaMimes/src -Isubmodules/QR-Code-generator/c
+CFLAGS  += -I../submodules/MegaMimes/src -I../submodules/QR-Code-generator/c
 LIBS += `$(PKG_CONFIG) $(PKG_DEPS) --libs`
 
 ifeq ($(shell $(PKG_CONFIG) --exists purple 2>/dev/null && echo "true"),)
@@ -31,7 +31,7 @@ endif
 CFLAGS += -DLOCALEDIR=\"$(LOCALEDIR)\"
 
 COMPAT_FILES := purple_compat.h json_compat.h
-H_FILES := comms.h contacts.h direct.h groups.h link.h message.h attachments.h libsignald.h login.h signald_procmgmt.h submodules/MegaMimes/src/MegaMimes.h submodules/QR-Code-generator/c/qrcodegen.h
+H_FILES := comms.h contacts.h direct.h groups.h link.h message.h attachments.h libsignald.h login.h signald_procmgmt.h ../submodules/MegaMimes/src/MegaMimes.h ../submodules/QR-Code-generator/c/qrcodegen.h
 C_FILES := comms.c contacts.c direct.c groups.c link.c message.c attachments.c libsignald.c login.c signald_procmgmt.c
 OBJ_FILES:=$(C_FILES:.c=.o)
 
@@ -41,10 +41,10 @@ LOCALES = $(patsubst %.po, %.mo, $(wildcard po/*.po))
 
 all: $(TARGET)
 
-$(OBJ_FILES): %.o: %.c Makefile $(H_FILES) $(COMPAT_FILES) submodules/MegaMimes/src/MegaMimes.c submodules/QR-Code-generator/c/qrcodegen.c VERSION
+$(OBJ_FILES): %.o: %.c Makefile $(H_FILES) $(COMPAT_FILES) ../submodules/MegaMimes/src/MegaMimes.c ../submodules/QR-Code-generator/c/qrcodegen.c ../VERSION
 	$(CC) -c $< $(CFLAGS)
 
-libsignald.so: $(OBJ_FILES) submodules/MegaMimes/src/MegaMimes.o submodules/QR-Code-generator/c/qrcodegen.o
+libsignald.so: $(OBJ_FILES) ../submodules/MegaMimes/src/MegaMimes.o ../submodules/QR-Code-generator/c/qrcodegen.o
 	$(CC) $(LDFLAGS) -shared $^ $(LIBS) -o $@
 
 FAILNOPURPLE:
@@ -58,7 +58,7 @@ gdb:
 
 install:
 	install -Dm644 "$(TARGET)" "$(DEST)$(TARGET)" 
-	install -Dm644 icons/16/signal.png "$(PIXMAPDIR)/16/signal.png"
-	install -Dm644 icons/22/signal.png "$(PIXMAPDIR)/22/signal.png"
-	install -Dm644 icons/48/signal.png "$(PIXMAPDIR)/48/signal.png"
+	install -Dm644 ../icons/16/signal.png "$(PIXMAPDIR)/16/signal.png"
+	install -Dm644 ../icons/22/signal.png "$(PIXMAPDIR)/22/signal.png"
+	install -Dm644 ../icons/48/signal.png "$(PIXMAPDIR)/48/signal.png"
 	

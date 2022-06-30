@@ -58,7 +58,7 @@ gdb:
 
 install:
 	install -Dm644 "$(TARGET)" "$(DEST)$(TARGET)" 
-	install -Dm644 ../icons/16/signal.png "$(PIXMAPDIR)/16/signal.png"
-	install -Dm644 ../icons/22/signal.png "$(PIXMAPDIR)/22/signal.png"
-	install -Dm644 ../icons/48/signal.png "$(PIXMAPDIR)/48/signal.png"
+	install -Dm644 ../pixmaps/pidgin/protocols/16/signal.png "$(PIXMAPDIR)/16/signal.png"
+	install -Dm644 ../pixmaps/pidgin/protocols/22/signal.png "$(PIXMAPDIR)/22/signal.png"
+	install -Dm644 ../pixmaps/pidgin/protocols/48/signal.png "$(PIXMAPDIR)/48/signal.png"
 	

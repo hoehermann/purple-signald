@@ -1,5 +1,6 @@
 #include "libsignald.h"
 #include <sys/stat.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <MegaMimes.h>
 
 int
@@ -34,6 +35,19 @@ signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, 
     return 0;
 }
 
+int
+signald_pixbuf_format_mimetype_comparator(GdkPixbufFormat *format, const char *type) {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_pixbuf_format_mimetype_comparator(…,%s)…\n", type);
+    int cmp = 1;
+    gchar **mime_types = gdk_pixbuf_format_get_mime_types(format);
+    for (gchar **mime_type = mime_types; mime_type != NULL && *mime_type != NULL && cmp != 0; mime_type++) {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "mime_type: %s\n", *mime_type);
+        cmp = g_strcmp0(type, *mime_type);
+    }
+    g_strfreev(mime_types);
+    return cmp;
+}
+
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
@@ -47,15 +61,19 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
             g_string_append_printf(message, "<a href=\"%s\">Attachment (type %s): %s</a><br/>", url, type, url);
             g_free(url);
         } else {
-            g_string_append_printf(message, "An error occurred processing an attachment.  Enable debug logging for more information.");
+            g_string_append_printf(message, "An error occurred processing an attachment. Enable debug logging for more information.");
         }
 
         return;
     }
 
-    if (purple_strequal(type, "image/jpeg") || purple_strequal(type, "image/png")) {
-        // TODO: forward "access denied" error to UI
-        PurpleStoredImage *img = purple_imgstore_new_from_file(fn);
+    // check if mimetype is among the formats supported by pixbuf
+    GSList *pixbuf_formats = gdk_pixbuf_get_formats();
+    GSList *pixbuf_format = g_slist_find_custom(pixbuf_formats, type, (GCompareFunc)signald_pixbuf_format_mimetype_comparator);
+    g_slist_free(pixbuf_formats);
+
+    if (pixbuf_format != NULL) {
+        PurpleStoredImage *img = purple_imgstore_new_from_file(fn); // TODO: forward "access denied" error to UI
         size_t size = purple_imgstore_get_size(img);
         int img_id = purple_imgstore_add_with_id(g_memdup2(purple_imgstore_get_data(img), size), size, NULL);
 
@@ -180,7 +198,7 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
 
         return NULL;
     }
-    
+
     GFile *source = g_file_new_for_path(filename);
     char *basename = g_file_get_basename(source);
 
@@ -217,7 +235,7 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
     g_object_unref(destination);
 
     g_free(destpath);
-    
+
     freeMegaStringArray(extensions);
 
     return url;

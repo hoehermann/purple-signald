@@ -4,6 +4,9 @@
 GString *
 signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj);
 
+void
+signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message);
+
 char *
 signald_detach_images(const char *message, JsonArray *attachments);
 

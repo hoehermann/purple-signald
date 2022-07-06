@@ -51,6 +51,12 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     // handle attachments, creating appropriate message content (always allocates *target)
     *target = signald_prepare_attachments_message(sa, msg->data);
 
+    if (json_object_has_member(msg->data, "sticker")) {
+        JsonObject *sticker = json_object_get_object_member(msg->data, "sticker");
+        JsonObject *attachment = json_object_get_object_member(sticker, "attachment");
+        signald_parse_attachment(sa, attachment, *target);
+    }
+
     if ((*target)->len > 0) {
         *has_attachment = TRUE;
     } else {

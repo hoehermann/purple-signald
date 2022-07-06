@@ -11,7 +11,7 @@ typedef struct {
     gboolean is_sync_message;
 
     time_t timestamp;
-    gchar *conversation_name;
+    gchar *sender_uuid;
 
     JsonObject *envelope;
     JsonObject *data;

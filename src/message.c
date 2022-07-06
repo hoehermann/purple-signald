@@ -66,7 +66,7 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
         }
         g_strfreev(lines);
     }
-    
+
     if (json_object_has_member(msg->data, "reaction")) {
         JsonObject *reaction = json_object_get_object_member(msg->data, "reaction");
         const char *emoji = json_object_get_string_member(reaction, "emoji");
@@ -110,11 +110,11 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
             return FALSE;
         }
 
-        msg->conversation_name = (char *)signald_get_uuid_from_address(sent, "destination");
+        msg->sender_uuid = (char *)signald_get_uuid_from_address(sent, "destination");
         msg->data = json_object_get_object_member(sent, "message");
      } else {
         JsonObject *source = json_object_get_object_member(obj, "source");
-        msg->conversation_name = (char *)json_object_get_string_member(source, "uuid");
+        msg->sender_uuid = (char *)json_object_get_string_member(source, "uuid");
         msg->data = json_object_get_object_member(obj, "data_message");
      }
 
@@ -122,8 +122,8 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
         return FALSE;
     }
 
-    if (msg->conversation_name == NULL) {
-        msg->conversation_name = SIGNALD_UNKNOWN_SOURCE_NUMBER;
+    if (msg->sender_uuid == NULL) {
+        msg->sender_uuid = SIGNALD_UNKNOWN_SOURCE_NUMBER;
     }
 
     if (json_object_has_member(msg->data, "groupV2")) {
@@ -138,6 +138,7 @@ signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
 int
 signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipient, const char *message)
 {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_message…\n");
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "send");
@@ -156,7 +157,7 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     char *plain = purple_unescape_html(textonly);
     g_free(textonly);
     json_object_set_string_member(data, "messageBody", plain);
-    
+
     int ret = !purple_account_get_bool(sa->account, SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT, FALSE);
     if (!signald_send_json(sa, data)) {
         ret = -errno;
@@ -174,9 +175,9 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
         sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, recipient, sa->account);
         if (sa->last_conversation == NULL) {
             // no appropriate conversation was found. maybe it is a group?
-            SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, recipient);
-            if (group != NULL) {
-                sa->last_conversation = group->conversation;
+            PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(recipient, sa->account);
+            if (conv_chat != NULL) {
+                sa->last_conversation = conv_chat->conv;
             }
         }
     }

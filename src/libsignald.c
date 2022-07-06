@@ -65,7 +65,7 @@ void
 signald_request_sync(SignaldAccount *sa)
 {
     g_return_if_fail(sa->uuid);
-    
+
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "request_sync");
@@ -86,7 +86,7 @@ void
 signald_list_contacts(SignaldAccount *sa)
 {
     g_return_if_fail(sa->uuid);
-    
+
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "list_contacts");
@@ -162,7 +162,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             JsonObject *errobj = json_object_get_object_member(obj, "error");
             if (errobj != NULL) {
                 // link/registration required?
-                if (purple_strequal (type, "subscribe") || 
+                if (purple_strequal (type, "subscribe") ||
                     signald_check_link_or_register_required (sa, errobj)) {
                     // error while subscribing or other cases that require
                     // linking/registration detected
@@ -182,7 +182,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // v1 ok
             obj = json_object_get_object_member(obj, "data");
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
-            
+
             signald_request_accounts(sa); // Request information on accounts, including our own UUID.
 
         } else if (purple_strequal(type, "list_accounts")) {
@@ -197,16 +197,13 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal(type, "request_sync")) {
             signald_list_contacts(sa);
+            signald_request_group_list(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
             // TODO: check v1
             signald_parse_contact_list(sa,
                 json_object_get_array_member(json_object_get_object_member (obj, "data"),
                 "profiles"));
-
-            if (! sa->groups_updated) {
-                signald_request_group_list(sa);
-            }
 
         } else if (purple_strequal(type, "InternalError") || purple_strequal(type, "InternalError\n")) {
             const char * message = json_object_get_string_member(obj, "message");
@@ -223,9 +220,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         } else if (purple_strequal(type, "list_groups")) {
             obj = json_object_get_object_member(obj, "data");
             signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
-            if (! sa->groups_updated) {
-                sa->groups_updated = TRUE;
-            }
 
         } else if (purple_strequal(type, "IncomingMessage")) {
             SignaldMessage msg;
@@ -295,23 +289,10 @@ signald_handle_input(SignaldAccount *sa, const char * json)
     g_object_unref(parser);
 }
 
-void
-signald_node_aliased(PurpleBlistNode *node, char *oldname, PurpleConnection *pc)
-{
-    if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
-        signald_chat_rename(pc, (PurpleChat *)node);
-    }
-}
-
 static void
 signald_close (PurpleConnection *pc)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-
-    purple_signal_disconnect(purple_blist_get_handle(),
-                            "blist-node-aliased",
-                            purple_connection_get_prpl(pc),
-                            G_CALLBACK(signald_node_aliased));
 
     // free protocol data memory
     GSList *buddies = purple_find_buddies (sa->account, NULL);
@@ -343,7 +324,7 @@ signald_close (PurpleConnection *pc)
 
     purple_input_remove(sa->watcher);
     sa->watcher = 0;
-    
+
     close(sa->fd);
     sa->fd = 0;
 
@@ -425,8 +406,8 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Automatically join group chats on startup"),
-                "auto-join-group-chats",
+                _("Automatically accept invitations."),
+                "auto-accept-invitations",
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
@@ -578,12 +559,12 @@ plugin_init(PurplePlugin *plugin)
 	prpl_info->send_typing = discord_send_typing;
     */
     prpl_info->join_chat = signald_join_chat;
+	prpl_info->get_chat_name = signald_get_chat_name;
     /*
-	prpl_info->get_chat_name = discord_get_chat_name;
 	prpl_info->find_blist_chat = discord_find_chat;
-    */
     prpl_info->chat_invite = signald_chat_invite;
     prpl_info->chat_leave = signald_chat_leave;
+    */
     prpl_info->chat_send = signald_send_chat;
     prpl_info->set_chat_topic = signald_set_chat_topic;
     /*

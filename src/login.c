@@ -8,7 +8,7 @@
 /*
  * Implements the read callback.
  * Called when data has been sent by signald and is ready to be handled.
- * 
+ *
  * Should probably be moved in another module.
  */
 void
@@ -92,10 +92,10 @@ display_debug_info(void *data) {
 /*
  * Every function writing to the GTK UI must be executed from the GTK main thread.
  * This function is a crutch for wrapping some purple functions:
- * 
+ *
  * * purple_debug_info in display_debug_info
  * * purple_connection_error in display_connection_error
- * 
+ *
  * Can only handle one message string instead of variardic arguments.
  */
 static void
@@ -113,7 +113,7 @@ execute_on_main_thread(GSourceFunc function, SignaldConnectionAttempt *sc, gchar
 static void *
 do_try_connect(void * arg) {
     SignaldConnectionAttempt * sc = arg;
-    
+
     struct sockaddr_un address;
     if (strlen(sc->socket_path)-1 > sizeof address.sun_path) {
         execute_on_main_thread(display_connection_error, sc, g_strdup_printf("socket path %s exceeds maximum length %lu!\n", sc->socket_path, sizeof address.sun_path));
@@ -122,14 +122,14 @@ do_try_connect(void * arg) {
         memset(&address, 0, sizeof(struct sockaddr_un));
         address.sun_family = AF_UNIX;
         strcpy(address.sun_path, sc->socket_path);
-        
+
         // create a socket
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) {
             execute_on_main_thread(display_connection_error, sc, g_strdup_printf("Could not create socket: %s", strerror(errno)));
         } else {
             int32_t err = -1;
-            
+
             // connect our socket to signald socket
             for(int try = 1; try <= SIGNALD_TIMEOUT_SECONDS && err != 0 && sc->sa->fd < 0; try++) {
                 err = connect(fd, (struct sockaddr *) &address, sizeof(struct sockaddr_un));
@@ -146,7 +146,7 @@ do_try_connect(void * arg) {
             if (sc->sa->fd < 0) {
                 // no concurrent connection attempt has been successful by now
                 execute_on_main_thread(display_debug_info, sc, g_strdup_printf("No connection to %s after %d tries.\n", address.sun_path, SIGNALD_TIMEOUT_SECONDS));
-                
+
                 sc->sa->socket_paths_count--; // this tread gives up trying
                 // NOTE: although unlikely, it is possible that above decrement and other modifications or checks happen concurrently.
                 // TODO: use a mutex where appropriate.
@@ -205,7 +205,7 @@ signald_connect_socket(SignaldAccount *sa) {
         } else {
             purple_debug_warning(SIGNALD_PLUGIN_ID, "Unable to read environment variable XDG_RUNTIME_DIR. Skipping the related socket location.");
         }
-        
+
         gchar * var_socket_path = g_strdup_printf("%s/%s", SIGNALD_GLOBAL_SOCKET_PATH_VAR, SIGNALD_GLOBAL_SOCKET_FILE);
         try_connect(sa, var_socket_path);
     }
@@ -225,12 +225,6 @@ signald_login(PurpleAccount *account)
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);
-
-    purple_signal_connect(purple_blist_get_handle(),
-                          "blist-node-aliased",
-                          purple_connection_get_prpl(pc),
-                          G_CALLBACK(signald_node_aliased),
-                          pc);
 
     purple_connection_set_protocol_data(pc, sa);
 

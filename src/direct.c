@@ -3,7 +3,7 @@
 void
 signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 {
-    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->conversation_name, sa->account);
+    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->sender_uuid, sa->account);
 
     PurpleMessageFlags flags = 0;
     GString *content = NULL;
@@ -13,7 +13,7 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 
         if (imconv == NULL) {
             // Open conversation if isn't already and if the message is not empty
-            imconv = purple_im_conversation_new(sa->account, msg->conversation_name);
+            imconv = purple_im_conversation_new(sa->account, msg->sender_uuid);
         }
 
         if (has_attachment) {
@@ -22,10 +22,10 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 
         if (msg->is_sync_message) {
             flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-            purple_conv_im_write(imconv, msg->conversation_name, content->str, flags, msg->timestamp);
+            purple_conv_im_write(imconv, msg->sender_uuid, content->str, flags, msg->timestamp);
         } else {
             flags |= PURPLE_MESSAGE_RECV;
-            purple_serv_got_im(sa->pc, msg->conversation_name, content->str, flags, msg->timestamp);
+            purple_serv_got_im(sa->pc, msg->sender_uuid, content->str, flags, msg->timestamp);
         }
     }
     g_string_free(content, TRUE);

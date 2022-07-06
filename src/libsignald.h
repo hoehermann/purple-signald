@@ -82,7 +82,6 @@ typedef struct {
 void
 signald_subscribe (SignaldAccount *sa);
 
-void signald_node_aliased(PurpleBlistNode *node, char *oldname, PurpleConnection *pc);
 void signald_handle_input(SignaldAccount *sa, const char * json);
 
 #include "message.h"

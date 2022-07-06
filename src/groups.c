@@ -22,13 +22,13 @@ PurpleChat * signald_ensure_group_chat_in_blist(
     if (chat == NULL && fetch_contacts) {
         GHashTable *comp = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, g_free);
         g_hash_table_insert(comp, "name", g_strdup(groupId));
+        g_hash_table_insert(comp, "title", g_strdup(title));
         chat = purple_chat_new(account, groupId, comp);
         PurpleGroup *group = signald_get_purple_group();
         purple_blist_add_chat(chat, group, NULL);
     }
 
     if (title != NULL && fetch_contacts) {
-        // components uses free on key (unlike above)
         purple_blist_alias_chat(chat, title);
     }
 
@@ -73,65 +73,6 @@ signald_members_contains_uuid(JsonArray *members, char *uuid)
     gboolean result = g_list_find_custom(uuids, uuid, (GCompareFunc)g_strcmp0) != NULL;
     g_list_free_full(uuids, g_free);
     return result;
-}
-
-/*
- * Functions to manipulate our groups.
- */
-
-/*
- * Function to add a set of users to a Pidgin conversation.
- * The main logic here is setting up the flags appropriately.
- */
- /*
-void
-signald_add_users_to_conv(SignaldAccount *sa, SignaldGroup *group, GList *users)
-{
-    GList *flags = NULL;
-    for(GList *user = users; user != NULL; user = user->next) {
-        char * uuid = user->data;
-        purple_debug_info(SIGNALD_PLUGIN_ID, "%s is member of %s.\n", uuid, group->name);
-        PurpleBuddy * buddy = purple_find_buddy(sa->account, uuid);
-        flags = g_list_append(flags, GINT_TO_POINTER(PURPLE_CBFLAGS_NONE));
-        if (buddy) {
-            user->data = g_strdup((gpointer)purple_buddy_get_name(buddy));
-        }
-    }
-    purple_chat_conversation_add_users(PURPLE_CONV_CHAT(group->conversation), users, NULL, flags, FALSE);
-    g_list_free(flags);
-}
-*/
-
-/*
- * Given a group ID, open up an actual conversation for the group.  This is
- * ultimately what opens the chat window, channel, etc.
- */
-void
-signald_open_conversation(SignaldAccount *sa, const char *groupId)
-{
-//TODO
-/*
-    SignaldGroup *group = (SignaldGroup *)g_hash_table_lookup(sa->groups, groupId);
-
-    if (group == NULL) {
-        return;
-    }
-
-    if (group->conversation != NULL) {
-        return;
-    }
-
-    // This is the magic that triggers the chat to actually open.
-    group->conversation = serv_got_joined_chat(sa->pc, group->id, group->name);
-
-    purple_conv_chat_set_topic(PURPLE_CONV_CHAT(group->conversation), group->name, group->name);
-
-    // Squirrel away the group ID as part of the conversation for easy access later.
-    purple_conversation_set_data(group->conversation, SIGNALD_CONV_GROUPID_KEY, g_strdup(groupId));
-
-    // Populate the channel user list.
-    signald_add_users_to_conv(sa, group, group->users);
-*/
 }
 
 void
@@ -193,19 +134,24 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
 {
     const char *groupId = json_object_get_string_member(obj, "id");
     const char *title = json_object_get_string_member(obj, "title");
-    purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n",
-                       groupId,
-                       title);
+    purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n", groupId, title);
 
     if (purple_account_get_bool(sa->account, "auto-accept-invitations", FALSE)) {
-        signald_accept_groupV2_invitation(sa,
-            groupId,
-            json_object_get_array_member(obj, "pendingMembers")
-        );
+        signald_accept_groupV2_invitation(sa, groupId, json_object_get_array_member(obj, "pendingMembers"));
     }
 
-    signald_ensure_group_chat_in_blist(sa->account, groupId, title);
+    signald_ensure_group_chat_in_blist(sa->account, groupId, title); // for joining later
+
+    // updating a currently active chat
+    // participants
     signald_chat_add_participants(sa->account, groupId, json_object_get_array_member(obj, "members"));
+    // TODO: remove removed participants
+
+    // title as topic
+    PurpleConversation *conv = purple_find_chat(sa->pc, g_str_hash(groupId));
+    if (conv != NULL) {
+        purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
+    }
 }
 
 void
@@ -257,12 +203,15 @@ signald_request_group_list(SignaldAccount *sa)
     json_object_unref(data);
 }
 
-PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *groupId) {
+PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *groupId, const char *title) {
     // use hash of groupId for chat id number
     PurpleConversation *conv = purple_find_chat(pc, g_str_hash(groupId));
     if (conv == NULL) {
         conv = serv_got_joined_chat(pc, g_str_hash(groupId), groupId);
         purple_conversation_set_data(conv, "name", g_strdup(groupId));
+        if (title != NULL) {
+            purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
+        }
         SignaldAccount *sa = purple_connection_get_protocol_data(pc);
         signald_request_group_info(sa, groupId);
     }
@@ -281,7 +230,7 @@ signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
     JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupV2");
     const gchar *groupId = json_object_get_string_member(groupInfo, "id");
 
-    PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId);
+    PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
 
     PurpleMessageFlags flags = 0;
     gboolean has_attachment = FALSE;
@@ -295,7 +244,6 @@ signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
         } else {
             flags |= PURPLE_MESSAGE_RECV;
         }
-        purple_debug_info(SIGNALD_PLUGIN_ID, "calling purple_conv_chat_write(…)…\n");
         purple_conv_chat_write(PURPLE_CONV_CHAT(conv), msg->sender_uuid, content->str, flags, msg->timestamp);
     } else {
         purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
@@ -306,13 +254,10 @@ signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
 int
 signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
 {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_chat…\n");
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     PurpleConversation *conv = purple_find_chat(pc, id);
-    purple_debug_info(SIGNALD_PLUGIN_ID, "conv = %p\n", conv);
     if (conv != NULL) {
         gchar *groupId = (gchar *)purple_conversation_get_data(conv, "name");
-        purple_debug_info(SIGNALD_PLUGIN_ID, "groupId = %p\n", groupId);
         if (groupId != NULL) {
             int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUPV2, groupId, message);
             if (ret > 0) {
@@ -330,13 +275,9 @@ void
 signald_join_chat(PurpleConnection *pc, GHashTable *data)
 {
     const char *groupId = g_hash_table_lookup(data, "name");
+    const char *title = g_hash_table_lookup(data, "title");
     if (groupId != NULL) {
-        // add chat to buddy list (optional)
-        //PurpleAccount *account = purple_connection_get_account(pc);
-        //const char *topic = g_hash_table_lookup(data, "topic");
-        //gowhatsapp_ensure_group_chat_in_blist(account, groupId, topic);
-        // create conversation (important)
-        signald_enter_group_chat(pc, groupId);
+        signald_enter_group_chat(pc, groupId, title);
     }
 }
 

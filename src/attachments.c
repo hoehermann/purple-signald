@@ -1,7 +1,37 @@
 #include "libsignald.h"
 #include <sys/stat.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <MegaMimes.h>
+
+#if __has_include("gdk-pixbuf/gdk-pixbuf.h")
+#include <gdk-pixbuf/gdk-pixbuf.h>
+static int
+pixbuf_format_mimetype_comparator(GdkPixbufFormat *format, const char *type) {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_pixbuf_format_mimetype_comparator(…,%s)…\n", type);
+    int cmp = 1;
+    gchar **mime_types = gdk_pixbuf_format_get_mime_types(format);
+    for (gchar **mime_type = mime_types; mime_type != NULL && *mime_type != NULL && cmp != 0; mime_type++) {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "mime_type: %s\n", *mime_type);
+        cmp = g_strcmp0(type, *mime_type);
+    }
+    g_strfreev(mime_types);
+    return cmp;
+}
+
+static gboolean 
+is_loadable_image_mimetype(const char *mimetype) {
+    // check if mimetype is among the formats supported by pixbuf
+    GSList *pixbuf_formats = gdk_pixbuf_get_formats();
+    GSList *pixbuf_format = g_slist_find_custom(pixbuf_formats, mimetype, (GCompareFunc)pixbuf_format_mimetype_comparator);
+    g_slist_free(pixbuf_formats);
+    return pixbuf_format != NULL;
+}
+#else
+static gboolean 
+is_loadable_image_mimetype(const char *mimetype) {
+    // blindly assume frontend can handle jpeg and png
+    return purple_strequal(mimetype, "image/jpeg") || purple_strequal(mimetype, "image/png");
+}
+#endif
 
 int
 signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, const char **url)
@@ -35,19 +65,6 @@ signald_get_external_attachment_settings(SignaldAccount *sa, const char **path, 
     return 0;
 }
 
-int
-signald_pixbuf_format_mimetype_comparator(GdkPixbufFormat *format, const char *type) {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_pixbuf_format_mimetype_comparator(…,%s)…\n", type);
-    int cmp = 1;
-    gchar **mime_types = gdk_pixbuf_format_get_mime_types(format);
-    for (gchar **mime_type = mime_types; mime_type != NULL && *mime_type != NULL && cmp != 0; mime_type++) {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "mime_type: %s\n", *mime_type);
-        cmp = g_strcmp0(type, *mime_type);
-    }
-    g_strfreev(mime_types);
-    return cmp;
-}
-
 void
 signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 {
@@ -67,12 +84,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         return;
     }
 
-    // check if mimetype is among the formats supported by pixbuf
-    GSList *pixbuf_formats = gdk_pixbuf_get_formats();
-    GSList *pixbuf_format = g_slist_find_custom(pixbuf_formats, type, (GCompareFunc)signald_pixbuf_format_mimetype_comparator);
-    g_slist_free(pixbuf_formats);
-
-    if (pixbuf_format != NULL) {
+    if (is_loadable_image_mimetype(type)) {
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn); // TODO: forward "access denied" error to UI
         size_t size = purple_imgstore_get_size(img);
         int img_id = purple_imgstore_add_with_id(g_memdup2(purple_imgstore_get_data(img), size), size, NULL);

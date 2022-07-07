@@ -8,7 +8,7 @@ if (${PKG_CONFIG_FOUND})
     pkg_get_variable(PURPLE_PLUGIN_DIR purple plugindir)
     pkg_get_variable(PURPLE_DATA_DIR purple datarootdir)
     pkg_check_modules(JSON REQUIRED json-glib-1.0)
-    pkg_check_modules(PIXBUF REQUIRED gdk-pixbuf-2.0) # TODO: this is actually optional
+    pkg_check_modules(PIXBUF gdk-pixbuf-2.0)
 elseif(${Purple_FOUND})
     message(STATUS "Purple was configured manually. Proceeding without checks.")
 else()

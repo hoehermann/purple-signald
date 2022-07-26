@@ -13,7 +13,7 @@ PurpleGroup * signald_get_purple_group() {
  * Add group chat to blist. Updates existing group chat if found.
  */
 PurpleChat * signald_ensure_group_chat_in_blist(
-    PurpleAccount *account, const char *groupId, const char *title
+    PurpleAccount *account, const char *groupId, const char *title, const char *avatar
 ) {
     gboolean fetch_contacts = TRUE;
 
@@ -30,6 +30,14 @@ PurpleChat * signald_ensure_group_chat_in_blist(
 
     if (title != NULL && fetch_contacts) {
         purple_blist_alias_chat(chat, title);
+    }
+
+    // set or update avatar
+    if ((avatar != NULL) && (chat != NULL) &&
+        ((! purple_buddy_icons_node_has_custom_icon ((PurpleBlistNode*)chat))
+         || purple_account_get_bool(account, "use-group-avatar", TRUE))) {
+        purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode*)chat, avatar);
+        purple_blist_update_node_icon ((PurpleBlistNode*)chat);
     }
 
     return chat;
@@ -134,13 +142,15 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
 {
     const char *groupId = json_object_get_string_member(obj, "id");
     const char *title = json_object_get_string_member(obj, "title");
+    const char *avatar = json_object_get_string_member(obj, "avatar");
+
     purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n", groupId, title);
 
     if (purple_account_get_bool(sa->account, "auto-accept-invitations", FALSE)) {
         signald_accept_groupV2_invitation(sa, groupId, json_object_get_array_member(obj, "pendingMembers"));
     }
 
-    signald_ensure_group_chat_in_blist(sa->account, groupId, title); // for joining later
+    signald_ensure_group_chat_in_blist(sa->account, groupId, title, avatar); // for joining later
 
     // updating a currently active chat
     // participants

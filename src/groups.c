@@ -28,6 +28,10 @@ PurpleChat * signald_ensure_group_chat_in_blist(
         purple_blist_add_chat(chat, group, NULL);
     }
 
+    // if gtk-persistent is set, the user may close the gtk conversation window without leaving the chat
+    // however, the window remains hidden even if new messages arrive
+    //purple_blist_node_set_bool(&chat->node, "gtk-persistent", TRUE);
+
     if (title != NULL && fetch_contacts) {
         purple_blist_alias_chat(chat, title);
     }

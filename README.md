@@ -6,11 +6,8 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 
 ### Known Issues
 
-**Attention:** As of September 2021, this plug-in is falling apart. I am annoyed by the number of protocol and API changes and I lack motivation keeping up with them.
-
-If notifications for group chats are enabled, the colors of sender names will differ from those in the member list, see [#69](https://github.com/hoehermann/libpurple-signald/issues/69).
-
-When used with Pidgin, the user must never close a group conversation window or incoming messages will get lost. Deferred messages (sent by others while offline) will always get lost.
+* Deferred messages (sent by others while offline) will always get lost.
+* In group chats, on outgoing messages the sender name may have a different color than displayed in the list of chat participants.
 
 ### Getting Started
 
@@ -22,6 +19,11 @@ See [HOWTO](HOWTO.md).
 
   * Receive messages
   * Send messages
+
+* Additional features:
+
+  * Emoji reactions are displayed
+  * Stickers can be displayed if GDK headers were available at build-time and a [GDK webp pixbuf loader](https://github.com/aruiz/webp-pixbuf-loader) is present in the system at run-time. Stickers are not animated.
 
 * Additional features contributed by [Hermann Kraus](https://github.com/herm/):
 
@@ -41,7 +43,6 @@ See [HOWTO](HOWTO.md).
 
 * Additional features contributed by [Brett Kosinski](https://github.com/fancypantalons/):
 
-  * Support for group chats.
   * Fine-grained attachment handling (for bitlbee).
 
 ![Instant Message](/doc/instant_message.png?raw=true "Instant Message Screenshot")
@@ -53,7 +54,7 @@ See [HOWTO](HOWTO.md).
 * Updating contact details
 * Contact colors
 * Expiring messages
-* Messages with quotes
+* Support for old-style groups
 
 ### Security Considerations
 

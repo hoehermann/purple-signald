@@ -102,37 +102,6 @@ signald_list_contacts(SignaldAccount *sa)
     signald_assume_all_buddies_online(sa);
 }
 
-gboolean
-signald_check_link_or_register_required (SignaldAccount *sa, JsonObject *obj)
-{
-purple_debug_info (SIGNALD_PLUGIN_ID, "Checking link/register\n");
-
-    const gchar *message = json_object_get_string_member(obj, "message");
-    // Analyze the error: Check for failed authorization or unknown user.
-    // Do we have to link or register the account?
-    // FIXME: This does not work reliably, i.e.,
-    //          * there is a connection error without but no attempt to link or register
-    //          * the account is enabled and the contacts are loaded but sending a message won't work
-    if (message && *message) {
-          purple_debug_info (SIGNALD_PLUGIN_ID, "Error message %s\n", message);
-          if ((strstr (message, SIGNALD_ERR_NONEXISTUSER))
-              || (strstr (message, SIGNALD_ERR_AUTHFAILED))) {
-              return TRUE;
-          }
-    }
-    return FALSE;
-}
-
-void
-signald_handle_unexpected_error(SignaldAccount *sa, JsonObject *obj)
-{
-    if (signald_check_link_or_register_required (sa, obj)) {
-        signald_link_or_register (sa);
-    } else {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, _("signald reported an unexpected error. View the console output in debug mode for more information."));
-    }
-}
-
 void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
@@ -152,28 +121,29 @@ signald_handle_input(SignaldAccount *sa, const char * json)
         purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
         // error handling
-        gboolean is_error = json_object_get_boolean_member(obj, "error");
-        if (is_error) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "%s\n", type);
+        // TODO: which messages use boolean error fields? which use objects?
+        
+        //gboolean is_error = json_object_get_boolean_member(obj, "error");
+        //if (is_error) {
+        //    purple_debug_error(SIGNALD_PLUGIN_ID, "%s\n", type);
             // TODO: which errors are "hard errors" (need reconnect?)
             //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, type);
-        } else {
-            // TODO: find out which messages can have this field
-            JsonObject *errobj = json_object_get_object_member(obj, "error");
-            if (errobj != NULL) {
-                // link/registration required?
-                if (purple_strequal (type, "subscribe") ||
-                    signald_check_link_or_register_required (sa, errobj)) {
-                    // error while subscribing or other cases that require
-                    // linking/registration detected
-                    signald_link_or_register (sa);
-                    return;
-                } else {
-                    purple_debug_error(SIGNALD_PLUGIN_ID, "%s ERROR: %s\n",
-                                       type,
-                                       json_object_get_string_member(obj, "error_type"));
+        //} else {
+
+        // subscribe can have an error object
+        JsonObject *errobj = json_object_get_object_member(obj, "error");
+        if (errobj != NULL) {
+            const char *error_type = json_object_get_string_member(obj, "error_type");
+            if (purple_strequal(type, "subscribe") && !purple_strequal(error_type, "InternalError")) {
+                // error while subscribing
+                signald_link_or_register(sa);
                 return;
-                }
+            } else {
+                const char *message = json_object_get_string_member(errobj, "message");
+                char *error_message = g_strdup_printf("%s occurred on %s: %s\n", error_type, type, message);
+                purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, error_message);
+                g_free(error_message);
+                return;
             }
         }
 
@@ -266,9 +236,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             // Big hammer, but this should work.
             signald_request_group_list(sa);
 
-        } else if (purple_strequal(type, "unexpected_error")) {
-            signald_handle_unexpected_error(sa, obj);
-
         } else if (purple_strequal(type, "send")) {
             JsonObject *data = json_object_get_object_member(obj, "data");
             signald_send_acknowledged(sa, data);
@@ -341,7 +308,7 @@ signald_status_types(PurpleAccount *account)
     GList *types = NULL;
     PurpleStatusType *status;
 
-    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, _("Online"), TRUE, FALSE, FALSE);
+    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, _("Online"), TRUE, TRUE, FALSE);
     types = g_list_append(types, status);
 
     status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, SIGNALD_STATUS_STR_OFFLINE, _("Offline"), TRUE, TRUE, FALSE);

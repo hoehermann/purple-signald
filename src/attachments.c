@@ -212,7 +212,7 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
     }
 
     GFile *source = g_file_new_for_path(filename);
-    char *basename = g_file_get_basename(source);
+    char *basename = g_file_get_basename(source); // TODO: stickers are using "hash/id" – do not simply use the basename or stickers will get overwritten
 
     gchar * ext = "unknown";
     char ** extensions = (char **)getMegaMimeExtensions(mimetype_remote);
@@ -224,23 +224,24 @@ signald_write_external_attachment(SignaldAccount *sa, const char *filename, cons
     gchar *destpath = g_strconcat(path, "/", basename, ".", ext, NULL);
 
     GFile *destination = g_file_new_for_path(destpath);
-    GError *error;
 
-    purple_debug_error(SIGNALD_PLUGIN_ID, "Copying attachment from '%s' to '%s'", filename, destpath);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Copying attachment from '%s' to '%s'...\n", filename, destpath);
 
+    GError *gerror = NULL;
     if (g_file_copy(source,
                     destination,
                     G_FILE_COPY_NONE,
                     NULL /* cancellable */,
                     NULL /* progress cb */,
                     NULL /* progress cb data */,
-                    &error)) {
+                    &gerror)) {
 
         url = g_strconcat(baseurl, "/", basename, ".", ext, NULL);
     } else {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Error saving attachment to '%s': %s", destpath, error->message);
+        // TODO: print this in conversation window
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Error saving attachment to '%s': %s\n", destpath, gerror->message);
 
-        g_error_free(error);
+        g_error_free(gerror);
     }
 
     g_object_unref(source);

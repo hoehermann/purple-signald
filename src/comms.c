@@ -34,22 +34,33 @@ signald_send_json(SignaldAccount *sa, JsonObject *data)
     return success;
 }
 
+gboolean
+signald_send_json_or_display_error(SignaldAccount *sa, JsonObject *data)
+{
+    if (!signald_send_json(sa, data)) {
+        const gchar *type = json_object_get_string_member(data, "type");
+        char *error_message = g_strdup_printf("Could not write %s message.", type);
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error_message);
+        g_free(error_message);
+    }
+}
+
 gchar *
 json_object_to_string(JsonObject *obj)
 {
-	JsonNode *node;
-	gchar *str;
-	JsonGenerator *generator;
+    JsonNode *node;
+    gchar *str;
+    JsonGenerator *generator;
 
-	node = json_node_new(JSON_NODE_OBJECT);
-	json_node_set_object(node, obj);
+    node = json_node_new(JSON_NODE_OBJECT);
+    json_node_set_object(node, obj);
 
-	// a json string ...
-	generator = json_generator_new();
-	json_generator_set_root(generator, node);
-	str = json_generator_to_data(generator, NULL);
-	g_object_unref(generator);
-	json_node_free(node);
+    // a json string ...
+    generator = json_generator_new();
+    json_generator_set_root(generator, node);
+    str = json_generator_to_data(generator, NULL);
+    g_object_unref(generator);
+    json_node_free(node);
 
-	return str;
+    return str;
 }

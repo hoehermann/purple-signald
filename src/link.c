@@ -15,9 +15,7 @@ signald_set_device_name (SignaldAccount *sa)
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
     json_object_set_string_member(data, "device_name", device_name);
 
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));
-    }
+    signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
 }
 
@@ -30,9 +28,7 @@ signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
     json_object_set_string_member(data, "session_id", sa->session_id);
     json_object_set_boolean_member(data, "overwrite", TRUE); // TODO: ask user before overwrting
     
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));
-    }
+    signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
 }
 
@@ -135,9 +131,7 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
     json_object_set_string_member(data, "type", "verify");
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
     json_object_set_string_member(data, "code", input);
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write verification message."));
-    }
+    signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
 
     // TODO: Is there an acknowledge on successful registration? If yes,
@@ -170,9 +164,7 @@ signald_link_or_register(SignaldAccount *sa)
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "generate_linking_uri");
 
-        if (!signald_send_json(sa, data)) {
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write link message."));
-        }
+        signald_send_json_or_display_error(sa, data);
     } else {
         // Register username (phone number) as new signal account, which
         // requires a registration. From the signald readme:
@@ -181,9 +173,7 @@ signald_link_or_register(SignaldAccount *sa)
 
         json_object_set_string_member(data, "type", "register");
         json_object_set_string_member(data, "username", username);
-        if (!signald_send_json(sa, data)) {
-            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write registration message."));
-        }
+        signald_send_json_or_display_error(sa, data);
 
         // TODO: Test registering thoroughly
         purple_request_input (sa->pc, SIGNALD_DIALOG_TITLE, "Verify registration",
@@ -243,8 +233,6 @@ void
 signald_request_accounts(SignaldAccount *sa) {
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "list_accounts");
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write list account message."));
-    }
+    signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
 }

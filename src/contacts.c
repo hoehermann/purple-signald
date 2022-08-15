@@ -121,16 +121,14 @@ void
 signald_get_info(PurpleConnection *pc, const char *who) {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     g_return_if_fail(sa->uuid);
-    JsonObject *message = json_object_new();
-    json_object_set_string_member(message, "type", "get_profile");
-    json_object_set_string_member(message, "account", sa->uuid);
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "get_profile");
+    json_object_set_string_member(data, "account", sa->uuid);
     JsonObject *address = json_object_new();
     json_object_set_string_member(address, "uuid", who);
-    json_object_set_object_member(message, "address", address);
-    if (!signald_send_json(sa, message)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not send request to get profile.."));
-    }
-    json_object_unref(message);
+    json_object_set_object_member(data, "address", address);
+    signald_send_json_or_display_error(sa, data);
+    json_object_unref(data);
 }
 
 /*

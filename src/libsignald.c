@@ -54,9 +54,7 @@ signald_subscribe (SignaldAccount *sa)
     // FIXME: subscribe with uuid as "account" does not work (account not found)
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
 
-    if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write subscription message."));
-    }
+    signald_send_json_or_display_error(sa, data);
 
     json_object_unref(data);
 }
@@ -75,9 +73,7 @@ signald_request_sync(SignaldAccount *sa)
     json_object_set_boolean_member(data, "configuration", FALSE);
     json_object_set_boolean_member(data, "blocked", FALSE);
 
-    if (!signald_send_json(sa, data)) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact sync."));
-    }
+    signald_send_json_or_display_error(sa, data);
 
     json_object_unref(data);
 }
@@ -91,11 +87,8 @@ signald_list_contacts(SignaldAccount *sa)
 
     json_object_set_string_member(data, "type", "list_contacts");
     json_object_set_string_member(data, "account", sa->uuid);
-    // TODO: v1
 
-    if (!signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not request contact list."));
-    }
+    signald_send_json_or_display_error(sa, data);
 
     json_object_unref(data);
 

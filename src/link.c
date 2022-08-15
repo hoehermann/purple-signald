@@ -28,6 +28,7 @@ signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "finish_link");
     json_object_set_string_member(data, "session_id", sa->session_id);
+    json_object_set_boolean_member(data, "overwrite", TRUE); // TODO: ask user before overwrting
     
     if (!signald_send_json(sa, data)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write finish_link message."));

@@ -2,4 +2,4 @@
 
 #include "structs.h"
 
-void signald_handle_input(SignaldAccount *sa, const char * json);
+void signald_parse_input(SignaldAccount *sa, const char * json);

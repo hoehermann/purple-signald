@@ -29,7 +29,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         if(b[-1] == '\n') {
             *b = 0;
             purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", buf);
-            signald_handle_input(sa, buf);
+            signald_parse_input(sa, buf);
             // reset buffer
             *buf = 0;
             b = buf;

@@ -122,8 +122,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_linking_uri(sa, obj);
 
         } else if (purple_strequal (type, "finish_link")) {
-            signald_set_device_name(sa);
-            signald_subscribe(sa);
+            signald_process_finish_link(sa, obj);
 
         } else if (purple_strequal (type, "set_device_name")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Device name set successfully.\n");

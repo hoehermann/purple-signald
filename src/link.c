@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE // for gethostname in unistd.h
-#include <unistd.h>
 #include <sys/stat.h>
 #include "defines.h"
 #include "purple_compat.h"
@@ -9,14 +7,15 @@
 #include "qrcodegen.h" // TODO: better use libqrencode (available in Debian)
 #include <json-glib/json-glib.h>
 
-static char device_name[HOST_NAME_MAX+1];
-
 void
 signald_set_device_name (SignaldAccount *sa)
 {
+    g_return_if_fail(sa->uuid != NULL);
+    
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "set_device_name");
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    json_object_set_string_member(data, "account", sa->uuid);
+    const char * device_name = purple_account_get_string(sa->account, "device-name", SIGNALD_DEFAULT_DEVICENAME);
     json_object_set_string_member(data, "device_name", device_name);
 
     signald_send_json_or_display_error(sa, data);
@@ -57,22 +56,18 @@ signald_scan_qrcode(SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen)
                  qrimgdata, qrimglen);
     purple_request_field_group_add_field(group, field);
 
-    gchar *msg = g_strdup_printf("Link to master device as \"%s\"", device_name);
-
     purple_request_fields(
-        sa->pc, "Signal Protocol", msg,
+        sa->pc, "Signal Protocol", "Link to master device",
         "For linking this account to a Signal master device, "
-          "please scan the QR code below. In the Signal App, "
-          "go to \"Preferences\" and \"Linked devices\".", 
-          fields,
+        "please scan the QR code below. In the Signal App, "
+        "go to \"Preferences\" and \"Linked devices\".", 
+        fields,
         "Done", G_CALLBACK(signald_scan_qrcode_done), 
         "Cancel", G_CALLBACK(signald_scan_qrcode_cancel),
         sa->account, 
         purple_account_get_username(sa->account), 
         NULL, 
         sa);
-
-    g_free(msg);
 }
 
 void
@@ -86,11 +81,11 @@ signald_parse_linking_uri(SignaldAccount *sa, JsonObject *obj)
     purple_debug_info(SIGNALD_PLUGIN_ID, "Link URI = '%s'\n", uri);
     purple_debug_info(SIGNALD_PLUGIN_ID, "Sesison ID = '%s'\n", session_id);
 
-	enum qrcodegen_Ecc errCorLvl = qrcodegen_Ecc_LOW;
-	uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
-	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
-	bool ok = qrcodegen_encodeText(uri, tempBuffer, qrcode, errCorLvl, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
-	if (ok) {
+    enum qrcodegen_Ecc errCorLvl = qrcodegen_Ecc_LOW;
+    uint8_t qrcode[qrcodegen_BUFFER_LEN_MAX];
+    uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
+    bool ok = qrcodegen_encodeText(uri, tempBuffer, qrcode, errCorLvl, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+    if (ok) {
         int border = 4;
         int zoom = 4;
         int qrcodesize = qrcodegen_getSize(qrcode);
@@ -219,4 +214,19 @@ signald_request_accounts(SignaldAccount *sa) {
     json_object_set_string_member(data, "type", "list_accounts");
     signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
+}
+
+void
+signald_process_finish_link(SignaldAccount *sa, JsonObject *obj) {
+    // sync account's UUID with the one reported by signal
+    obj = json_object_get_object_member(obj, "data");
+    if (obj) {
+        obj = json_object_get_object_member(obj, "address");
+        if (obj) {
+            sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
+        }
+    }
+    // publish device name
+    signald_set_device_name(sa);
+    signald_subscribe(sa);
 }

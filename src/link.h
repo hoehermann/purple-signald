@@ -17,3 +17,6 @@ signald_link_or_register (SignaldAccount *sa);
 
 void
 signald_parse_account_list (SignaldAccount *sa, JsonArray *data);
+
+void
+signald_process_finish_link(SignaldAccount *sa, JsonObject *obj);

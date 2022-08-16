@@ -16,7 +16,6 @@
 #define SIGNALD_GLOBAL_SOCKET_PATH_VAR "/var/run"
 
 #define SIGNALD_DATA_PATH "%s/signald"
-#define SIGNALD_DATA_FILE SIGNALD_DATA_PATH "/data/%s"
 #define SIGNALD_AVATARS_SIGNALD_DATA_PATH "/avatars/"
 #define SIGNALD_AVATAR_FILE_NAME "contact-%s"
 #define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"

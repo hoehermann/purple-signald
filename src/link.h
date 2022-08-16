@@ -13,12 +13,6 @@ void
 signald_parse_linking_uri (SignaldAccount *sa, JsonObject *obj);
 
 void
-signald_parse_linking_successful (void);
-
-void
-signald_parse_linking_error (SignaldAccount *sa, JsonObject *obj);
-
-void
 signald_link_or_register (SignaldAccount *sa);
 
 void

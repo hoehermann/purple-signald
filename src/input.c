@@ -9,15 +9,6 @@
 #include "message.h"
 #include "login.h"
 
-static int
-signald_strequalprefix (const char *s1, const char *s2)
-{
-    int l1 = strlen (s1);
-    int l2 = strlen (s2);
-
-    return 0 == strncmp (s1, s2, l1 < l2 ? l1 : l2);
-}
-
 void
 signald_handle_input(SignaldAccount *sa, const char * json)
 {
@@ -125,24 +116,11 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_linking_uri(sa, obj);
 
         } else if (purple_strequal (type, "finish_link")) {
-            signald_parse_linking_successful();
-            // FIXME: Sometimes, messages are not received by pidgin after
-            //        linking to the main account and are only shown there.
-            //        Is it robust to subscribe here?
-            signald_subscribe (sa);
             signald_set_device_name(sa);
-
-        } else if (purple_strequal (type, "linking_error")) {
-            signald_parse_linking_error(sa, obj);
-            purple_notify_close_with_handle(purple_notify_get_handle());
-
-        } else if (signald_strequalprefix(type, "linking_")) {
-            gchar *text = g_strdup_printf("Unknown message related to linking:\n%s", type);
-            purple_notify_warning (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-            g_free (text);
+            signald_subscribe(sa);
 
         } else if (purple_strequal (type, "set_device_name")) {
-            purple_debug_info (SIGNALD_PLUGIN_ID, "Device name set\n");
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Device name set successfully.\n");
 
         } else if (purple_strequal(type, "group_created")) {
             // Big hammer, but this should work.

@@ -107,29 +107,7 @@ signald_parse_linking_uri(SignaldAccount *sa, JsonObject *obj)
 }
 
 void
-signald_parse_linking_successful (void)
-{
-    // Linking was successful
-    // TODO: update for v1
-    purple_debug_info (SIGNALD_PLUGIN_ID, "Linking successful\n");
-    purple_notify_close_with_handle (purple_notify_get_handle ());
-}
-
-void
-signald_parse_linking_error (SignaldAccount *sa, JsonObject *obj)
-{
-    // Error: Linking was not successful
-    JsonObject *data = json_object_get_object_member(obj, "data");
-    const gchar *msg = json_object_get_string_member(data, "message");
-    gchar *text = g_strdup_printf ("Linking not successful!\n%s", msg);
-    purple_notify_error (NULL, SIGNALD_DIALOG_TITLE, SIGNALD_DIALOG_LINK, text);
-    g_free (text);
-
-    json_object_unref(data);
-}
-
-void
-signald_verify_ok_cb (SignaldAccount *sa, const char* input)
+signald_verify_ok_cb(SignaldAccount *sa, const char* input)
 {
     JsonObject *data = json_object_new();
     json_object_set_string_member(data, "type", "verify");
@@ -152,22 +130,9 @@ signald_link_or_register(SignaldAccount *sa)
     JsonObject *data = json_object_new();
 
     if (purple_account_get_bool(sa->account, "link", TRUE)) {
-        // Link Pidgin to the master device. This fails, if the user is already
-        // known. Therefore, remove the related user data from signald configuration
-        gchar *user_file = g_strdup_printf(SIGNALD_DATA_FILE, purple_user_dir(), username);
-        remove(user_file);
-        g_free(user_file);
-
-        // Get desired device name
-        if (gethostname(device_name, HOST_NAME_MAX)) {
-            strcpy(device_name, SIGNALD_DEFAULT_DEVICENAME);
-        }
-        strcpy(device_name, purple_account_get_string(sa->account, "device-name", device_name));
-
-        // Send the link request
+        // Link Pidgin to the master device.
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "generate_linking_uri");
-
         signald_send_json_or_display_error(sa, data);
     } else {
         // Register username (phone number) as new signal account, which

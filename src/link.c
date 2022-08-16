@@ -174,21 +174,25 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
 
-    const char *username = json_object_get_string_member(obj, "account_id");
-    if (purple_strequal(username, purple_account_get_username(sa->account))) {
+    const char *username = purple_account_get_username(sa->account);
+    JsonObject *address = json_object_get_object_member(obj, "address");
+    const char *uuid = json_object_get_string_member(address, "uuid");
+    const char *account_id = json_object_get_string_member(address, "account_id");
+    if (purple_strequal(account_id, username) || purple_strequal(uuid, username)) {
         // this is the current account
         sa->account_exists = TRUE;
-        obj = json_object_get_object_member(obj, "address");
 
-        sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
+        sa->uuid = g_strdup(uuid);
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
 
-        gboolean pending = json_object_get_boolean_member (obj, "pending");
-        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s pending: %d\n", username, pending);
-        if (!pending) {
-            signald_subscribe(sa); // Subscribe if account is registered
+        gboolean pending = json_object_get_boolean_member (address, "pending");
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s pending: %d\n", account_id, pending);
+        if (pending) {
+            // account is pending verification, try to link again
+            signald_link_or_register(sa);
         } else {
-            signald_link_or_register(sa);  // Link or register if not
+            // account allegedly is ready for usage
+            signald_subscribe(sa);
         }
     }
 }

@@ -88,6 +88,8 @@ void signald_handle_input(SignaldAccount *sa, const char * json);
 #include "contacts.h"
 #include "link.h"
 #include "comms.h"
+#include "admin.h"
+#include "input.h"
 
 // TODO: untangle header files and impose a more traditional structure
 

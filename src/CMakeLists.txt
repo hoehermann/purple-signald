@@ -22,6 +22,10 @@ add_library(${TARGET_NAME} SHARED
     message.h
     purple_compat.h
     signald_procmgmt.h
+    input.h
+    input.c
+    admin.h
+    admin.c
     ../submodules/MegaMimes/src/MegaMimes.c
     ../submodules/QR-Code-generator/c/qrcodegen.c
 )

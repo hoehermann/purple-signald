@@ -56,7 +56,12 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
         if (number_buddy) {
             // ...and the number identifies a buddy...
             purple_blist_rename_buddy(number_buddy, uuid); // rename (not alias) the buddy
-            purple_buddy_set_protocol_data(number_buddy, NULL); // remove superflous UUID from the buddy
+            // remove superflous UUID from the buddy if set
+            gpointer data = purple_buddy_get_protocol_data(buddy);
+            if (data) {
+                g_free(data);
+                purple_buddy_set_protocol_data(number_buddy, NULL);
+            }
             buddy = number_buddy; // continue with the renamed buddy
             purple_debug_info(SIGNALD_PLUGIN_ID, "Migrated %s to %s.\n", number, uuid);
         }

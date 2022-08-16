@@ -59,7 +59,7 @@ signald_get_group_member_uuid(JsonNode *node)
 
 /*
  * Given a list of members, get back the list of corresponding uuid.
- * This function makes a copy of the number so it must be freed.
+ * This function makes a copy of the uuids so they must be freed via g_list_free_full.
  */
 GList *
 signald_members_to_uuids(JsonArray *members)

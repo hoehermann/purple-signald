@@ -472,108 +472,72 @@ plugin_unload(PurplePlugin *plugin, GError **error)
 static gboolean
 libpurple2_plugin_load(PurplePlugin *plugin)
 {
-	return plugin_load(plugin, NULL);
+    return plugin_load(plugin, NULL);
 }
 
 static gboolean
 libpurple2_plugin_unload(PurplePlugin *plugin)
 {
-	return plugin_unload(plugin, NULL);
+    return plugin_unload(plugin, NULL);
 }
 
 static void
 plugin_init(PurplePlugin *plugin)
 {
-	PurplePluginInfo *info;
-	PurplePluginProtocolInfo *prpl_info = g_new0(PurplePluginProtocolInfo, 1);
-
-	info = plugin->info;
-
-	if (info == NULL) {
-		plugin->info = info = g_new0(PurplePluginInfo, 1);
-	}
-
-	info->extra_info = prpl_info;
-
+    PurplePluginProtocolInfo *prpl_info = g_new0(PurplePluginProtocolInfo, 1);
+    PurplePluginInfo *info = plugin->info;
+    if (info == NULL) {
+        plugin->info = info = g_new0(PurplePluginInfo, 1);
+    }
+    info->extra_info = prpl_info;
+    // base protocol information
     prpl_info->options = OPT_PROTO_NO_PASSWORD | OPT_PROTO_IM_IMAGE;
     prpl_info->protocol_options = signald_add_account_options(prpl_info->protocol_options);
-
-    /*
-	prpl_info->get_account_text_table = discord_get_account_text_table;
-	prpl_info->list_emblem = discord_list_emblem;
-	prpl_info->status_text = discord_status_text;
-    */
-	prpl_info->tooltip_text = signald_tooltip_text;
     prpl_info->list_icon = signald_list_icon;
-    /*
-	prpl_info->set_status = discord_set_status;
-	prpl_info->set_idle = discord_set_idle;
-    */
     prpl_info->status_types = signald_status_types; // this actually needs to exist, else the protocol cannot be set to "online"
-    prpl_info->chat_info = signald_chat_info;
-    prpl_info->chat_info_defaults = signald_chat_info_defaults;
     prpl_info->login = signald_login;
     prpl_info->close = signald_close;
     prpl_info->send_im = signald_send_im;
-    /*
-	prpl_info->send_typing = discord_send_typing;
-    */
+    prpl_info->add_buddy = signald_add_buddy;
+    // extra contact information
+    prpl_info->tooltip_text = signald_tooltip_text;
+    prpl_info->get_info = signald_get_info;
+    // group-chat related functions
+    prpl_info->chat_info = signald_chat_info;
+    prpl_info->chat_info_defaults = signald_chat_info_defaults;
     prpl_info->join_chat = signald_join_chat;
-	prpl_info->get_chat_name = signald_get_chat_name;
-    /*
-	prpl_info->find_blist_chat = discord_find_chat;
-    prpl_info->chat_invite = signald_chat_invite;
-    prpl_info->chat_leave = signald_chat_leave;
-    */
+    prpl_info->get_chat_name = signald_get_chat_name;
     prpl_info->chat_send = signald_send_chat;
     prpl_info->set_chat_topic = signald_set_chat_topic;
-    /*
-	prpl_info->get_cb_real_name = discord_get_real_name;
-    */
-    prpl_info->add_buddy = signald_add_buddy;
-    prpl_info->get_info = signald_get_info;
-    /*
-	prpl_info->remove_buddy = discord_buddy_remove;
-	prpl_info->group_buddy = discord_fake_group_buddy;
-	prpl_info->rename_group = discord_fake_group_rename;
-	prpl_info->get_info = discord_get_info;
-	prpl_info->add_deny = discord_block_user;
-	prpl_info->rem_deny = discord_unblock_user;
-
-	prpl_info->roomlist_get_list = discord_roomlist_get_list;
-	prpl_info->roomlist_room_serialize = discord_roomlist_serialize;
-    */
 }
 
 static PurplePluginInfo info = {
-	PURPLE_PLUGIN_MAGIC,
-	/*	PURPLE_MAJOR_VERSION,
-		PURPLE_MINOR_VERSION,
-	*/
-	2, 1,
-	PURPLE_PLUGIN_PROTOCOL,			/* type */
-	NULL,							/* ui_requirement */
-	0,								/* flags */
-	NULL,							/* dependencies */
-	PURPLE_PRIORITY_DEFAULT,		/* priority */
-	SIGNALD_PLUGIN_ID,				/* id */
-    "signald",						/* name */
-	SIGNALD_PLUGIN_VERSION,			/* version */
-	"",								/* summary */
-	"",								/* description */
+    PURPLE_PLUGIN_MAGIC,
+    PURPLE_MAJOR_VERSION,
+    PURPLE_MINOR_VERSION,
+    PURPLE_PLUGIN_PROTOCOL,            /* type */
+    NULL,                            /* ui_requirement */
+    0,                                /* flags */
+    NULL,                            /* dependencies */
+    PURPLE_PRIORITY_DEFAULT,        /* priority */
+    SIGNALD_PLUGIN_ID,                /* id */
+    "signald",                        /* name */
+    SIGNALD_PLUGIN_VERSION,            /* version */
+    "",                                /* summary */
+    "",                                /* description */
     "Hermann Hoehne <hoehermann@gmx.de>", /* author */
-	SIGNALD_PLUGIN_WEBSITE,			/* homepage */
-	libpurple2_plugin_load,			/* load */
-	libpurple2_plugin_unload,		/* unload */
-	NULL,							/* destroy */
-	NULL,							/* ui_info */
-	NULL,							/* extra_info */
-	NULL,							/* prefs_info */
-    signald_actions,				/* actions */
-	NULL,							/* padding */
-	NULL,
-	NULL,
-	NULL
+    SIGNALD_PLUGIN_WEBSITE,            /* homepage */
+    libpurple2_plugin_load,            /* load */
+    libpurple2_plugin_unload,        /* unload */
+    NULL,                            /* destroy */
+    NULL,                            /* ui_info */
+    NULL,                            /* extra_info */
+    NULL,                            /* prefs_info */
+    signald_actions,                /* actions */
+    NULL,                            /* padding */
+    NULL,
+    NULL,
+    NULL
 };
 
 PURPLE_INIT_PLUGIN(signald, plugin_init, info);

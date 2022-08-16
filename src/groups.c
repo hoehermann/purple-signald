@@ -300,7 +300,7 @@ signald_chat_info(PurpleConnection *pc)
     struct proto_chat_entry *pce;
 
     pce = g_new0(struct proto_chat_entry, 1);
-    pce->label = _("_Group Name:");
+    pce->label = "Group Name:";
     pce->identifier = "name";
     pce->required = TRUE;
     infos = g_list_append(infos, pce);

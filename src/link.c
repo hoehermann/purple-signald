@@ -27,7 +27,7 @@ signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
     json_object_set_string_member(data, "type", "finish_link");
     json_object_set_string_member(data, "session_id", sa->session_id);
     json_object_set_boolean_member(data, "overwrite", TRUE); // TODO: ask user before overwrting
-    
+
     signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
 }
@@ -43,18 +43,18 @@ signald_scan_qrcode(SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen)
     purple_request_fields_add_group(fields, group);
 
     field = purple_request_field_image_new(
-                "qr_code", _("QR code"),
+                "qr_code", "QR code",
                  qrimgdata, qrimglen);
     purple_request_field_group_add_field(group, field);
 
-    gchar *msg = g_strdup_printf(_("Link to master device as \"%s\""), device_name);
+    gchar *msg = g_strdup_printf("Link to master device as \"%s\"", device_name);
 
     purple_request_fields(
-        sa->pc, _("Signal Protocol"), msg,
-        _("For linking this account to a Signal master device, "
+        sa->pc, "Signal Protocol", msg,
+        "For linking this account to a Signal master device, "
           "please scan the QR code below. In the Signal App, "
-          "go to \"Preferences\" and \"Linked devices\"."), fields,
-        _("Done"), G_CALLBACK(signald_scan_qrcode_done), _("Close"), NULL,
+          "go to \"Preferences\" and \"Linked devices\".", fields,
+        "Done", G_CALLBACK(signald_scan_qrcode_done), "Close", NULL,
         sa->account, purple_account_get_username(sa->account), NULL, sa);
 
     g_free(msg);
@@ -137,7 +137,7 @@ signald_verify_ok_cb (SignaldAccount *sa, const char* input)
     // TODO: Is there an acknowledge on successful registration? If yes,
     //       subscribe afterwards or display an error otherwise
     // signald_subscribe(sa);
-    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Verification code was sent. Reconnect needed."));
+    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Verification code was sent. Reconnect needed.");
 }
 
 void
@@ -193,16 +193,16 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
 {
     SignaldAccount *sa = (SignaldAccount *)user_data;
     JsonObject *obj = json_node_get_object(element_node);
-        
+
     const char *username = json_object_get_string_member(obj, "account_id");
     if (purple_strequal(username, purple_account_get_username(sa->account))) {
         // this is the current account
         sa->account_exists = TRUE;
         obj = json_object_get_object_member(obj, "address");
-        
+
         sa->uuid = g_strdup(json_object_get_string_member(obj, "uuid"));
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
-        
+
         gboolean pending = json_object_get_boolean_member (obj, "pending");
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s pending: %d\n", username, pending);
         if (!pending) {
@@ -218,7 +218,7 @@ signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
 {
     sa->account_exists = FALSE;
     json_array_foreach_element(data, signald_process_account, sa); // lookup signald account by Purple username (number)
-    
+
     // if Purple account does not exist in signald, link or register
     if (!sa->account_exists) {
         signald_link_or_register(sa);

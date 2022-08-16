@@ -60,8 +60,8 @@ signald_close (PurpleConnection *pc)
     json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
 
     if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED && !signald_send_json (sa, data)) {
-        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Could not write message for unsubscribing."));
-        purple_debug_error(SIGNALD_PLUGIN_ID, _("Could not write message for unsubscribing: %s"), strerror(errno));
+        purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Could not write message for unsubscribing.");
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Could not write message for unsubscribing: %s", strerror(errno));
     }
     json_object_unref(data);
     // TODO: wait for signald to acknowlegde unsubscribe before closing the fd
@@ -88,10 +88,10 @@ signald_status_types(PurpleAccount *account)
     GList *types = NULL;
     PurpleStatusType *status;
 
-    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, _("Online"), TRUE, TRUE, FALSE);
+    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, "Online", TRUE, TRUE, FALSE);
     types = g_list_append(types, status);
 
-    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, SIGNALD_STATUS_STR_OFFLINE, _("Offline"), TRUE, TRUE, FALSE);
+    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, SIGNALD_STATUS_STR_OFFLINE, "Offline", TRUE, TRUE, FALSE);
     types = g_list_append(types, status);
 
     status = purple_status_type_new_full(PURPLE_STATUS_MOBILE, SIGNALD_STATUS_STR_MOBILE, NULL, FALSE, FALSE, TRUE);
@@ -106,7 +106,7 @@ signald_add_account_options(GList *account_options)
     PurpleAccountOption *option;
 
     option = purple_account_option_bool_new(
-                _("Link to an existing account"),
+                "Link to an existing account",
                 "link",
                 TRUE
                 );
@@ -118,28 +118,28 @@ signald_add_account_options(GList *account_options)
     }
 
     option = purple_account_option_string_new(
-                _("Name of the device for linking"),
+                "Name of the device for linking",
                 "device-name",
                 hostname // strdup happens internally
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Daemon signald is controlled by pidgin, not globally or by the user"),
+                "Daemon signald is controlled by pidgin, not globally or by the user",
                 "handle-signald",
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_string_new(
-                _("Custom socket location"),
+                "Custom socket location",
                 "socket",
                 ""
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Display all contacts as online"),
+                "Display all contacts as online",
                 "fake-online",
                 TRUE
                 );
@@ -153,42 +153,42 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Automatically accept invitations."),
+                "Automatically accept invitations.",
                 "auto-accept-invitations",
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Receive notifications for all group messages"),
+                "Receive notifications for all group messages",
                 "group-msg-notifications",
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Overwrite custom group icons by group avatar"),
+                "Overwrite custom group icons by group avatar",
                 "use-group-avatar",
                 TRUE
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                _("Serve attachments from external server"),
+                "Serve attachments from external server",
                 SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS,
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_string_new(
-                _("External attachment storage directory"),
+                "External attachment storage directory",
                 SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR,
                 ""
                 );
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_string_new(
-                _("External attachment URL"),
+                "External attachment URL",
                 SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL,
                 ""
                 );
@@ -220,7 +220,7 @@ signald_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboole
 {
     char * number = purple_buddy_get_protocol_data(buddy);
     if (number && number[0]) {
-        purple_notify_user_info_add_pair_plaintext(user_info, _("Number"), number);
+        purple_notify_user_info_add_pair_plaintext(user_info, "Number", number);
     }
 }
 

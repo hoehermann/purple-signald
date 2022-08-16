@@ -40,7 +40,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         read = recv(sa->fd, b, 1, MSG_DONTWAIT);
     }
     if (read == 0) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, _("Connection to signald lost."));
+        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Connection to signald lost.");
     }
     if (read < 0) {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {

@@ -1,13 +1,6 @@
 #ifndef __SIGNALD_LIBSIGNALD_H__
 #define __SIGNALD_LIBSIGNALD_H__
 
-#ifdef ENABLE_NLS
-// TODO: implement localisation
-#else
-#      define _(a) (a)
-#      define N_(a) (a)
-#endif
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wall"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"

@@ -113,9 +113,14 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         const gchar *state = json_object_get_string_member(data, "state");
         if  (purple_strequal(state, "CONNECTED") && sa->uuid) {
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
+        } else if  (purple_strequal(state, "CONNECTING") && sa->uuid) {
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+        } else if  (purple_strequal(state, "DISCONNECTED") && sa->uuid) {
+            // setting the connection state to DISCONNECTED invokes the destruction of the instance
+            // we probably do not want that (signald might already be doing a reconnect)
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+            //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Disconnected.");
         }
-        // TODO: reflect unexpected disconnection
-        //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Disconnected.");
     } else {
         purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
     }

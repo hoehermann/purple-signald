@@ -46,8 +46,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
                 // TODO: rather check json array error.exceptions for "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
                 signald_link_or_register(sa);
                 return;
-            }
-            if (purple_strequal(type, "subscribe") && !purple_strequal(error_type, "InternalError")) {
+            } else if (purple_strequal(type, "subscribe")) {
                 // error while subscribing
                 signald_link_or_register(sa);
                 return;

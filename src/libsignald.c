@@ -212,11 +212,15 @@ signald_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboole
 static GList *
 signald_actions(PurplePlugin *plugin, gpointer context)
 {
-    PurplePluginAction *act = purple_plugin_action_new (("Update Contacts ..."), &signald_update_contacts);
-    GList* acts = g_list_append(NULL, act);
-    act = purple_plugin_action_new (("Update Groups ..."), &signald_update_groups);
-    acts = g_list_append(acts, act);
-
+    GList* acts = NULL;
+    {
+        PurplePluginAction *act = purple_plugin_action_new("Update Contacts", &signald_update_contacts);
+        acts = g_list_append(acts, act);
+    }
+    {
+        PurplePluginAction *act = purple_plugin_action_new("Update Groups", &signald_update_groups);
+        acts = g_list_append(acts, act);
+    }
     return acts;
 }
 

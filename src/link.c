@@ -23,8 +23,8 @@ signald_set_device_name (SignaldAccount *sa)
     json_object_unref(data);
 }
 
-void
-signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
+static void
+signald_scan_qrcode_done(SignaldAccount *sa , PurpleRequestFields *fields)
 {
     // Send finish link
     JsonObject *data = json_object_new();
@@ -34,6 +34,12 @@ signald_scan_qrcode_done (SignaldAccount *sa , PurpleRequestFields *fields)
 
     signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
+}
+
+static void
+signald_scan_qrcode_cancel(SignaldAccount *sa , PurpleRequestFields *fields)
+{
+    purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, "Linking was cancelled.");
 }
 
 void
@@ -57,9 +63,14 @@ signald_scan_qrcode(SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen)
         sa->pc, "Signal Protocol", msg,
         "For linking this account to a Signal master device, "
           "please scan the QR code below. In the Signal App, "
-          "go to \"Preferences\" and \"Linked devices\".", fields,
-        "Done", G_CALLBACK(signald_scan_qrcode_done), "Close", NULL,
-        sa->account, purple_account_get_username(sa->account), NULL, sa);
+          "go to \"Preferences\" and \"Linked devices\".", 
+          fields,
+        "Done", G_CALLBACK(signald_scan_qrcode_done), 
+        "Cancel", G_CALLBACK(signald_scan_qrcode_cancel),
+        sa->account, 
+        purple_account_get_username(sa->account), 
+        NULL, 
+        sa);
 
     g_free(msg);
 }

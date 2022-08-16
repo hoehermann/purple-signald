@@ -1,5 +1,4 @@
-#ifndef __SIGNALD_SUBSCRIBE_H__
-#define __SIGNALD_SUBSCRIBE_H__
+#pragma once
 
 void
 signald_request_accounts(SignaldAccount *sa);
@@ -24,5 +23,3 @@ signald_link_or_register (SignaldAccount *sa);
 
 void
 signald_parse_account_list (SignaldAccount *sa, JsonArray *data);
-
-#endif

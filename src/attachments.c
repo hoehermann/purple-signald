@@ -1,6 +1,9 @@
-#include "libsignald.h"
 #include <sys/stat.h>
 #include <MegaMimes.h>
+#include "defines.h"
+#include "structs.h"
+#include "attachments.h"
+#include <json-glib/json-glib.h>
 
 #if __has_include("gdk-pixbuf/gdk-pixbuf.h")
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -17,7 +20,7 @@ pixbuf_format_mimetype_comparator(GdkPixbufFormat *format, const char *type) {
     return cmp;
 }
 
-static gboolean 
+static gboolean
 is_loadable_image_mimetype(const char *mimetype) {
     // check if mimetype is among the formats supported by pixbuf
     GSList *pixbuf_formats = gdk_pixbuf_get_formats();
@@ -26,7 +29,7 @@ is_loadable_image_mimetype(const char *mimetype) {
     return pixbuf_format != NULL;
 }
 #else
-static gboolean 
+static gboolean
 is_loadable_image_mimetype(const char *mimetype) {
     // blindly assume frontend can handle jpeg and png
     return purple_strequal(mimetype, "image/jpeg") || purple_strequal(mimetype, "image/png");

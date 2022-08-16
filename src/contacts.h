@@ -1,5 +1,7 @@
-#ifndef __SIGNALD_CONTACTS_H__
-#define __SIGNALD_CONTACTS_H__
+#pragma once
+
+#include "structs.h"
+#include <json-glib/json-glib.h>
 
 void
 signald_assume_all_buddies_online(SignaldAccount *sa);
@@ -14,11 +16,6 @@ void
 signald_process_profile(SignaldAccount *sa, JsonObject *obj);
 
 void
-signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
-#if PURPLE_VERSION_CHECK(3, 0, 0)
-                  ,
-                  const char *message
-#endif
-                  );
+signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group);
 
-#endif
+void signald_list_contacts(SignaldAccount *sa);

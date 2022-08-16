@@ -1,10 +1,12 @@
-#include "libsignald.h"
+#include "contacts.h"
+#include "defines.h"
+#include "comms.h"
 
 void
 signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
 {
     g_return_if_fail(buddy != NULL);
-    
+
     if (purple_account_get_bool(account, "fake-online", TRUE)) {
         purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
         purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
@@ -28,7 +30,7 @@ static void
 signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *name, const char *uuid, const char *avatar)
 {
     g_return_if_fail(uuid && uuid[0]);
-    
+
     const char *alias = NULL;
     // try number for an alias
     if (number && number[0]) {
@@ -48,7 +50,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
 
     // default: buddy identified by UUID
     PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
-    
+
     // however, ...
     if (number && number[0]) {
         // ...if the contact's number is known...
@@ -66,7 +68,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
             purple_debug_info(SIGNALD_PLUGIN_ID, "Migrated %s to %s.\n", number, uuid);
         }
     }
-    
+
     if (!buddy) {
         // new buddy
         PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
@@ -119,7 +121,7 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *profiles)
 
 /*
  * Purple function: Request information about a buddy.
- * 
+ *
  * See @signald_process_profile on how the answer is parsed.
  */
 void
@@ -165,7 +167,7 @@ signald_process_profile(SignaldAccount *sa, JsonObject *obj) {
     g_return_if_fail(address);
     const char *uuid = json_object_get_string_member(address, "uuid");
     g_return_if_fail(uuid && uuid[0]);
-    
+
     PurpleNotifyUserInfo *user_info = purple_notify_user_info_new();
     json_object_foreach_member(obj, signald_process_profile_info_member, (gpointer) user_info);
     purple_notify_userinfo(sa->pc, uuid, user_info, NULL, NULL);
@@ -173,15 +175,28 @@ signald_process_profile(SignaldAccount *sa, JsonObject *obj) {
 }
 
 void
-signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group
-#if PURPLE_VERSION_CHECK(3, 0, 0)
-                  ,
-                  const char *message
-#endif
-                  )
+signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     signald_assume_buddy_online(sa->account, buddy);
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
     // TODO: if buddy name is a number (very likely), try to get their uuid
 }
+
+void
+signald_list_contacts(SignaldAccount *sa)
+{
+    g_return_if_fail(sa->uuid);
+
+    JsonObject *data = json_object_new();
+
+    json_object_set_string_member(data, "type", "list_contacts");
+    json_object_set_string_member(data, "account", sa->uuid);
+
+    signald_send_json_or_display_error(sa, data);
+
+    json_object_unref(data);
+
+    signald_assume_all_buddies_online(sa);
+}
+

@@ -1,9 +1,10 @@
 #include <errno.h>
 #include <gmodule.h>
-
-#include "libsignald.h"
-
-#pragma GCC diagnostic pop
+#include "purple_compat.h"
+#include "structs.h"
+#include "defines.h"
+#include "comms.h"
+#include <json-glib/json-glib.h>
 
 gboolean
 signald_send_str(SignaldAccount *sa, char *s)

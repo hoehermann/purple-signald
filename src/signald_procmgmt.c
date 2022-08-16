@@ -1,4 +1,6 @@
+#include <unistd.h>
 #include "signald_procmgmt.h"
+#include "defines.h"
 
 static int signald_usages = 0;
 

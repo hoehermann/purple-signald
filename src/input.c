@@ -1,4 +1,22 @@
-#include "libsignald.h"
+#include "purple_compat.h"
+#include "input.h"
+#include "defines.h"
+#include "structs.h"
+#include "link.h"
+#include "admin.h"
+#include "groups.h"
+#include "contacts.h"
+#include "message.h"
+#include "login.h"
+
+static int
+signald_strequalprefix (const char *s1, const char *s2)
+{
+    int l1 = strlen (s1);
+    int l2 = strlen (s2);
+
+    return 0 == strncmp (s1, s2, l1 < l2 ? l1 : l2);
+}
 
 void
 signald_handle_input(SignaldAccount *sa, const char * json)
@@ -20,7 +38,7 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         // error handling
         // TODO: which messages use boolean error fields? which use objects?
-        
+
         //gboolean is_error = json_object_get_boolean_member(obj, "error");
         //if (is_error) {
         //    purple_debug_error(SIGNALD_PLUGIN_ID, "%s\n", type);

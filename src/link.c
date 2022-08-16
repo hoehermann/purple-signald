@@ -1,9 +1,13 @@
 #define _DEFAULT_SOURCE // for gethostname in unistd.h
 #include <unistd.h>
 #include <sys/stat.h>
-
-#include "libsignald.h"
+#include "defines.h"
+#include "purple_compat.h"
+#include "structs.h"
+#include "comms.h"
+#include "login.h"
 #include "qrcodegen.h" // TODO: better use libqrencode (available in Debian)
+#include <json-glib/json-glib.h>
 
 static char device_name[HOST_NAME_MAX+1];
 

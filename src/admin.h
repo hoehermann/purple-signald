@@ -1,7 +1,5 @@
-#ifndef __SIGNALD_INPUT_H__
-#define __SIGNALD_INPUT_H__
+#pragma once
+
+#include "structs.h"
 
 void signald_request_sync(SignaldAccount *sa);
-void signald_list_contacts(SignaldAccount *sa);
-
-#endif

@@ -15,37 +15,27 @@
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE // for gethostname in unistd.h
 #include <unistd.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <gmodule.h>
-
-#include "libsignald.h"
+#include "purple_compat.h"
+#include "structs.h"
+#include "defines.h"
+#include "comms.h"
 #include "login.h"
-#include "input.h"
+#include "message.h"
+#include "contacts.h"
+#include "groups.h"
 #include "signald_procmgmt.h"
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
 {
     return "signal";
-}
-
-void
-signald_subscribe (SignaldAccount *sa)
-{
-    // subscribe to the configured number
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "subscribe");
-    // TODO: subscribe with uuid
-    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
-    signald_send_json_or_display_error(sa, data);
-    json_object_unref(data);
 }
 
 static void
@@ -225,13 +215,7 @@ signald_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboole
 }
 
 static GList *
-signald_actions(
-#if !PURPLE_VERSION_CHECK(3, 0, 0)
-  PurplePlugin *plugin, gpointer context
-#else
-  PurpleConnection *pc
-#endif
-  )
+signald_actions(PurplePlugin *plugin, gpointer context)
 {
     PurplePluginAction *act = purple_plugin_action_new (("Update Contacts ..."), &signald_update_contacts);
     GList* acts = g_list_append(NULL, act);
@@ -255,7 +239,6 @@ plugin_unload(PurplePlugin *plugin, GError **error)
 }
 
 /* Purple2 Plugin Load Functions */
-#if !PURPLE_VERSION_CHECK(3, 0, 0)
 static gboolean
 libpurple2_plugin_load(PurplePlugin *plugin)
 {
@@ -328,8 +311,3 @@ static PurplePluginInfo info = {
 };
 
 PURPLE_INIT_PLUGIN(signald, plugin_init, info);
-
-#else
-/* Purple 3 plugin load functions */
-#error Purple 3 not supported.
-#endif

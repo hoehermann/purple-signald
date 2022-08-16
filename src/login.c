@@ -1,9 +1,12 @@
-#include "libsignald.h"
-#include "login.h"
-#include "signald_procmgmt.h"
 #include <sys/un.h> // for sockaddr_un
 #include <sys/socket.h> // for socket and read
 #include <errno.h>
+#include "purple_compat.h"
+#include "structs.h"
+#include "defines.h"
+#include "comms.h"
+#include "signald_procmgmt.h"
+#include "input.h"
 
 /*
  * Implements the read callback.
@@ -242,4 +245,16 @@ signald_login(PurpleAccount *account)
 
     // Initialize the container where we'll store our group mappings
     sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+}
+
+
+void signald_subscribe(SignaldAccount *sa)
+{
+    // subscribe to the configured number
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "subscribe");
+    // TODO: subscribe with uuid
+    json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
+    signald_send_json_or_display_error(sa, data);
+    json_object_unref(data);
 }

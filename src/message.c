@@ -1,6 +1,11 @@
 #include <sys/types.h>
 #include <errno.h>
-#include "libsignald.h"
+#include <json-glib/json-glib.h>
+#include "message.h"
+#include "defines.h"
+#include "attachments.h"
+#include "comms.h"
+#include "purple_compat.h"
 
 const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
@@ -237,4 +242,47 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
     } else if (devices_count == 0) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "A message was not delivered to any devices.\n");
     }
+}
+
+void
+signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
+{
+    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->sender_uuid, sa->account);
+
+    PurpleMessageFlags flags = 0;
+    GString *content = NULL;
+    gboolean has_attachment = FALSE;
+
+    if (signald_format_message(sa, msg, &content, &has_attachment)) {
+
+        if (imconv == NULL) {
+            // Open conversation if isn't already and if the message is not empty
+            imconv = purple_im_conversation_new(sa->account, msg->sender_uuid);
+        }
+
+        if (has_attachment) {
+            flags |= PURPLE_MESSAGE_IMAGES;
+        }
+
+        if (msg->is_sync_message) {
+            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
+            purple_conv_im_write(imconv, msg->sender_uuid, content->str, flags, msg->timestamp);
+        } else {
+            flags |= PURPLE_MESSAGE_RECV;
+            purple_serv_got_im(sa->pc, msg->sender_uuid, content->str, flags, msg->timestamp);
+        }
+    }
+    g_string_free(content, TRUE);
+}
+
+int
+signald_send_im(PurpleConnection *pc, const gchar *who, const gchar *message, PurpleMessageFlags flags)
+{
+    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
+        return 0;
+    }
+
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+    return signald_send_message(sa, SIGNALD_MESSAGE_TYPE_DIRECT, (char *)who, message);
 }

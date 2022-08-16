@@ -1,5 +1,7 @@
-#ifndef __SIGNALD_GROUPS_H__
-#define __SIGNALD_GROUPS_H__
+#pragma once
+
+#include "structs.h"
+#include <json-glib/json-glib.h>
 
 void
 signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj);
@@ -33,5 +35,3 @@ void
 signald_request_group_list(SignaldAccount *sa);
 
 char *signald_get_chat_name(GHashTable *components);
-
-#endif

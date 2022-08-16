@@ -1,4 +1,8 @@
-#include "libsignald.h"
+#include "groups.h"
+#include "purple_compat.h"
+#include "defines.h"
+#include "comms.h"
+#include "message.h"
 
 PurpleGroup * signald_get_purple_group() {
     PurpleGroup *group = purple_blist_find_group("Signal");

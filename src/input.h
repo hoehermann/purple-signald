@@ -1,6 +1,5 @@
-#ifndef __SIGNALD_INPUT_H__
-#define __SIGNALD_INPUT_H__
+#pragma once
+
+#include "structs.h"
 
 void signald_handle_input(SignaldAccount *sa, const char * json);
-
-#endif

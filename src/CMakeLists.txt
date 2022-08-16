@@ -3,7 +3,6 @@ add_library(${TARGET_NAME} SHARED
     attachments.c
     comms.c
     contacts.c
-    direct.c
     groups.c
     libsignald.c
     link.c
@@ -13,10 +12,7 @@ add_library(${TARGET_NAME} SHARED
     attachments.h
     comms.h
     contacts.h
-    direct.h
     groups.h
-    json_compat.h
-    libsignald.h
     link.h
     login.h
     message.h
@@ -24,6 +20,8 @@ add_library(${TARGET_NAME} SHARED
     signald_procmgmt.h
     input.h
     input.c
+    defines.h
+    structs.h
     admin.h
     admin.c
     ../submodules/MegaMimes/src/MegaMimes.c

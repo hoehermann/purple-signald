@@ -35,3 +35,5 @@ void
 signald_request_group_list(SignaldAccount *sa);
 
 char *signald_get_chat_name(GHashTable *components);
+
+PurpleRoomlist *signald_roomlist_get_list(PurpleConnection *pc);

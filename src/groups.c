@@ -168,6 +168,13 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
     if (conv != NULL) {
         purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
     }
+    
+    // the user might have requested a room list, fill it
+    if (sa->roomlist) {
+        PurpleRoomlistRoom *room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, groupId, NULL); // this sets the room's name
+        purple_roomlist_room_add_field(sa->roomlist, room, title); // this sets the room's title
+        purple_roomlist_room_add(sa->roomlist, room);
+    }
 }
 
 void
@@ -182,6 +189,13 @@ void
 signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 {
     json_array_foreach_element(groups, signald_process_groupV2, sa);
+    
+    if (sa->roomlist) {
+        // in case the user explicitly requested a room list, the query is finished now
+        purple_roomlist_set_in_progress(sa->roomlist, FALSE);
+        purple_roomlist_unref(sa->roomlist); // unref here, roomlist may remain in ui
+        sa->roomlist = NULL;
+    }
 }
 
 void
@@ -204,14 +218,10 @@ void
 signald_request_group_list(SignaldAccount *sa)
 {
     g_return_if_fail(sa->uuid);
-
     JsonObject *data = json_object_new();
-
     json_object_set_string_member(data, "type", "list_groups");
     json_object_set_string_member(data, "account", sa->uuid);
-
     signald_send_json_or_display_error(sa, data);
-
     json_object_unref(data);
 }
 
@@ -345,4 +355,33 @@ char *signald_get_chat_name(GHashTable *components)
 {
     const char *groupId = g_hash_table_lookup(components, "name");
     return g_strdup(groupId);
+}
+
+/*
+ * This requests a list of rooms representing the Signal group chats.
+ * The request is asynchronous. Responses are handled by signald_roomlist_add_room.
+ * 
+ * A purple room has an identifying name – for Signal that is the UUID.
+ * A purple room has a list of fields – in our case only Signal group name.
+ * 
+ * Some services like spectrum expect the human readable group name field key to be "topic", 
+ * see RoomlistProgress in https://github.com/SpectrumIM/spectrum2/blob/518ba5a/backends/libpurple/main.cpp#L1997
+ * In purple, the roomlist field "name" gets overwritten in purple_roomlist_room_join, see libpurple/roomlist.c.
+ */
+PurpleRoomlist *
+signald_roomlist_get_list(PurpleConnection *pc) {
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    if (sa->roomlist != NULL) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "Already getting roomlist.");
+    } else {
+        sa->roomlist = purple_roomlist_new(sa->account);
+        purple_roomlist_set_in_progress(sa->roomlist, TRUE);
+        GList *fields = NULL;
+        fields = g_list_append(fields, purple_roomlist_field_new(
+            PURPLE_ROOMLIST_FIELD_STRING, "Group Name", "topic", FALSE
+        ));
+        purple_roomlist_set_fields(sa->roomlist, fields);
+        signald_request_group_list(sa);
+    }
+    return sa->roomlist;
 }

@@ -65,8 +65,6 @@ signald_close (PurpleConnection *pc)
     close(sa->fd);
     sa->fd = 0;
 
-    g_hash_table_destroy(sa->groups);
-
     g_free(sa);
 
     signald_connection_closed();
@@ -278,6 +276,7 @@ plugin_init(PurplePlugin *plugin)
     prpl_info->get_chat_name = signald_get_chat_name;
     prpl_info->chat_send = signald_send_chat;
     prpl_info->set_chat_topic = signald_set_chat_topic;
+    prpl_info->roomlist_get_list = signald_roomlist_get_list;
 }
 
 static PurplePluginInfo info = {

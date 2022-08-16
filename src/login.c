@@ -242,9 +242,6 @@ signald_login(PurpleAccount *account)
     }
 
     signald_connect_socket(sa);
-
-    // Initialize the container where we'll store our group mappings
-    sa->groups = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 }
 
 

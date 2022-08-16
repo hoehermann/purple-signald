@@ -62,10 +62,8 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         // no error, actions depending on type
         if (purple_strequal(type, "version")) {
-            // v1 ok
             obj = json_object_get_object_member(obj, "data");
             purple_debug_info(SIGNALD_PLUGIN_ID, "signald version: %s\n", json_object_get_string_member(obj, "version"));
-
             signald_request_accounts(sa); // Request information on accounts, including our own UUID.
 
         } else if (purple_strequal(type, "list_accounts")) {
@@ -73,22 +71,23 @@ signald_handle_input(SignaldAccount *sa, const char * json)
             signald_parse_account_list(sa, json_object_get_array_member(data, "accounts"));
 
         } else if (purple_strequal(type, "subscribe")) {
-            // v1 ok
             purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
-            // request a sync; on repsonse, contacts and groups are requested
+            // request a sync from other devices
             signald_request_sync(sa);
 
         } else if (purple_strequal(type, "request_sync")) {
+            // sync from other devices completed,
+            // now pull contacts and groups
             signald_list_contacts(sa);
             signald_request_group_list(sa);
 
         } else if (purple_strequal(type, "list_contacts")) {
-            // TODO: check v1
             signald_parse_contact_list(sa,
                 json_object_get_array_member(json_object_get_object_member (obj, "data"),
-                "profiles"));
+                "profiles")
+            );
 
-        } else if (purple_strequal(type, "InternalError") || purple_strequal(type, "InternalError\n")) {
+        } else if (purple_strequal(type, "InternalError")) {
             const char * message = json_object_get_string_member(obj, "message");
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
 
@@ -126,14 +125,6 @@ signald_handle_input(SignaldAccount *sa, const char * json)
 
         } else if (purple_strequal (type, "set_device_name")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Device name set successfully.\n");
-
-        } else if (purple_strequal(type, "group_created")) {
-            // Big hammer, but this should work.
-            signald_request_group_list(sa);
-
-        } else if (purple_strequal(type, "group_updated")) {
-            // Big hammer, but this should work.
-            signald_request_group_list(sa);
 
         } else if (purple_strequal(type, "send")) {
             JsonObject *data = json_object_get_object_member(obj, "data");

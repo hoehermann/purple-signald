@@ -52,6 +52,9 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
         // request a sync from other devices
         signald_request_sync(sa);
+        
+    } else if (purple_strequal(type, "unsubscribe")) {
+        purple_connection_set_state(sa->pc, PURPLE_CONNECTION_DISCONNECTED);
 
     } else if (purple_strequal(type, "request_sync")) {
         // sync from other devices completed,

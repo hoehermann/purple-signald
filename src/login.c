@@ -9,57 +9,6 @@
 #include "input.h"
 
 /*
- * Implements the read callback.
- * Called when data has been sent by signald and is ready to be handled.
- *
- * Should probably be moved in another module.
- */
-void
-signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
-{
-    SignaldAccount *sa = data;
-    // this function essentially just reads bytes into a buffer until a newline is reached
-    // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
-    const size_t BUFSIZE = 500000; // TODO: research actual maximum message size
-    char buf[BUFSIZE];
-    char *b = buf;
-    gssize read = recv(sa->fd, b, 1, MSG_DONTWAIT);
-    while (read > 0) {
-        b += read;
-        if(b[-1] == '\n') {
-            *b = 0;
-            purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", buf);
-            signald_parse_input(sa, buf);
-            // reset buffer
-            *buf = 0;
-            b = buf;
-        }
-        if (b-buf+1 == BUFSIZE) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "message exceeded buffer size: %s\n", buf);
-            b = buf;
-            // NOTE: incomplete message may be passed to handler during next call
-            return;
-        }
-        read = recv(sa->fd, b, 1, MSG_DONTWAIT);
-    }
-    if (read == 0) {
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Connection to signald lost.");
-    }
-    if (read < 0) {
-        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-            // assume the message is complete and was probably handled
-        } else {
-            // TODO: error out?
-            purple_debug_error(SIGNALD_PLUGIN_ID, "recv error is %s\n",strerror(errno));
-            return;
-        }
-    }
-    if (*buf) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", buf);
-    }
-}
-
-/*
  * This struct exchanges data between threads, see @try_connect.
  */
 typedef struct {
@@ -144,6 +93,7 @@ do_try_connect(void * arg) {
                 // successfully connected, tell purple to use our socket
                 execute_on_main_thread(display_debug_info, sc, g_strdup_printf("Connected to %s.\n", address.sun_path));
                 sc->sa->fd = fd;
+                sc->sa->readflags = MSG_DONTWAIT;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
             }
             if (sc->sa->fd < 0) {

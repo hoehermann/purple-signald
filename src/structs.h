@@ -13,6 +13,7 @@ typedef struct {
 
     int socket_paths_count;
     int fd;
+    int readflags;
     guint watcher;
 
     char *last_message; // the last message which has been sent to signald

@@ -277,6 +277,10 @@ plugin_init(PurplePlugin *plugin)
     prpl_info->chat_send = signald_send_chat;
     prpl_info->set_chat_topic = signald_set_chat_topic;
     prpl_info->roomlist_get_list = signald_roomlist_get_list;
+    #if PURPLE_VERSION_CHECK(2,14,0)
+    //prpl_info->get_cb_alias
+    //prpl_info->chat_send_file
+    #endif
 }
 
 static PurplePluginInfo info = {

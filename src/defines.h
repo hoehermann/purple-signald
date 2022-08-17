@@ -21,6 +21,7 @@
 #define SIGNALD_PID_FILE SIGNALD_DATA_PATH "/pid"
 
 #define SIGNALD_STATUS_STR_ONLINE   "online"
+#define SIGNALD_STATUS_STR_AWAY     "away"
 #define SIGNALD_STATUS_STR_OFFLINE  "offline"
 #define SIGNALD_STATUS_STR_MOBILE   "mobile"
 

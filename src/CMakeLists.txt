@@ -20,6 +20,8 @@ add_library(${TARGET_NAME} SHARED
     signald_procmgmt.h
     input.h
     input.c
+    options.h
+    options.c
     defines.h
     structs.h
     admin.h

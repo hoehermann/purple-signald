@@ -3,25 +3,21 @@
 #include "comms.h"
 
 void
-signald_assume_buddy_online(PurpleAccount *account, PurpleBuddy *buddy)
+signald_assume_buddy_state(PurpleAccount *account, PurpleBuddy *buddy)
 {
     g_return_if_fail(buddy != NULL);
 
-    if (purple_account_get_bool(account, "fake-online", TRUE)) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_online %s\n", buddy->name);
-        purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_ONLINE, NULL);
-        purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
-    } else {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "signald_assume_buddy_offline %s\n", buddy->name);
-    }
+    const gchar *status_str = purple_account_get_string(account, "fake-status", SIGNALD_STATUS_STR_ONLINE);
+    purple_prpl_got_user_status(account, buddy->name, status_str, NULL);
+    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
 }
 
 void
-signald_assume_all_buddies_online(SignaldAccount *sa)
+signald_assume_all_buddies_state(SignaldAccount *sa)
 {
     GSList *buddies = purple_find_buddies(sa->account, NULL);
     while (buddies != NULL) {
-        signald_assume_buddy_online(sa->account, buddies->data);
+        signald_assume_buddy_state(sa->account, buddies->data);
         buddies = g_slist_delete_link(buddies, buddies);
     }
 }
@@ -78,7 +74,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
         }
         buddy = purple_buddy_new(sa->account, uuid, alias);
         purple_blist_add_buddy(buddy, NULL, g, NULL);
-        signald_assume_buddy_online(sa->account, buddy);
+        signald_assume_buddy_state(sa->account, buddy);
     }
     if (number && number[0]) {
         // add/update number
@@ -178,7 +174,7 @@ void
 signald_add_buddy(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group)
 {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    signald_assume_buddy_online(sa->account, buddy);
+    signald_assume_buddy_state(sa->account, buddy);
     // does not actually do anything. buddy is added to pidgin's local list and is usable from there.
     // TODO: if buddy name is a number (very likely), try to get their uuid
 }
@@ -197,6 +193,6 @@ signald_list_contacts(SignaldAccount *sa)
 
     json_object_unref(data);
 
-    signald_assume_all_buddies_online(sa);
+    signald_assume_all_buddies_state(sa);
 }
 

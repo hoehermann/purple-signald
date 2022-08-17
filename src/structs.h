@@ -21,20 +21,3 @@ typedef struct {
 
     PurpleRoomlist *roomlist;
 } SignaldAccount;
-
-
-typedef enum {
-    SIGNALD_MESSAGE_TYPE_DIRECT = 1,
-    SIGNALD_MESSAGE_TYPE_GROUPV2 = 3
-} SignaldMessageType;
-
-typedef struct {
-    SignaldMessageType type;
-    gboolean is_sync_message;
-
-    time_t timestamp;
-    gchar *sender_uuid;
-
-    JsonObject *envelope;
-    JsonObject *data;
-} SignaldMessage;

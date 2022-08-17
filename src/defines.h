@@ -25,8 +25,6 @@
 #define SIGNALD_STATUS_STR_OFFLINE  "offline"
 #define SIGNALD_STATUS_STR_MOBILE   "mobile"
 
-#define SIGNALD_UNKNOWN_SOURCE_NUMBER "unknown"
-
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS "external-attachments"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_DIR "external-attachments-dir"
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"

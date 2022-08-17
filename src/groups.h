@@ -9,9 +9,6 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj);
 void
 signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups);
 
-void
-signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg);
-
 GList *
 signald_chat_info(PurpleConnection *pc);
 
@@ -21,14 +18,13 @@ GHashTable
 void
 signald_join_chat(PurpleConnection *pc, GHashTable *data);
 
-int
-signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags);
-
 void
 signald_set_chat_topic(PurpleConnection *pc, int id, const char *topic);
 
 void
 signald_request_group_list(SignaldAccount *sa);
+
+PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *groupId, const char *title);
 
 char *signald_get_chat_name(GHashTable *components);
 

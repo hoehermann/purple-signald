@@ -52,7 +52,7 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         purple_debug_info(SIGNALD_PLUGIN_ID, "Subscribed!\n");
         // request a sync from other devices
         signald_request_sync(sa);
-        
+
     } else if (purple_strequal(type, "unsubscribe")) {
         purple_connection_set_state(sa->pc, PURPLE_CONNECTION_DISCONNECTED);
 
@@ -85,19 +85,15 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
 
     } else if (purple_strequal(type, "IncomingMessage")) {
-        SignaldMessage msg;
-
-        if (signald_parse_message(sa, json_object_get_object_member(obj, "data"), &msg)) {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "signald_parse_message returned type %d.\n", msg.type);
-            switch(msg.type) {
-                case SIGNALD_MESSAGE_TYPE_DIRECT:
-                    signald_process_direct_message(sa, &msg);
-                    break;
-                case SIGNALD_MESSAGE_TYPE_GROUPV2:
-                    signald_process_groupV2_message(sa, &msg);
-                    break;
-            }
+        obj = json_object_get_object_member(obj, "data");
+        if (json_object_has_member(obj, "receipt_message")) {
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Ignoring receipt.\n");
+        } else if (json_object_has_member(obj, "typing_message")) {
+            purple_debug_info(SIGNALD_PLUGIN_ID, "Ignoring typing message.\n");
+        } else {
+            signald_process_incoming_message(sa, obj);
         }
+
     } else if (purple_strequal(type, "generate_linking_uri")) {
         signald_parse_linking_uri(sa, obj);
 

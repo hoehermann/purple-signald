@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "attachments.h"
 #include "comms.h"
+#include "groups.h"
 #include "purple_compat.h"
 
 const char *
@@ -33,7 +34,7 @@ signald_is_number(const gchar *identifier) {
 }
 
 void
-signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
+signald_set_recipient(SignaldAccount *sa, JsonObject *obj, const gchar *recipient)
 {
     g_return_if_fail(recipient);
     g_return_if_fail(obj);
@@ -51,13 +52,13 @@ signald_set_recipient(SignaldAccount *sa, JsonObject *obj, gchar *recipient)
 }
 
 gboolean
-signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target, gboolean *has_attachment)
+signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, gboolean *has_attachment)
 {
     // handle attachments, creating appropriate message content (always allocates *target)
-    *target = signald_prepare_attachments_message(sa, msg->data);
+    *target = signald_prepare_attachments_message(sa, data);
 
-    if (json_object_has_member(msg->data, "sticker")) {
-        JsonObject *sticker = json_object_get_object_member(msg->data, "sticker");
+    if (json_object_has_member(data, "sticker")) {
+        JsonObject *sticker = json_object_get_object_member(data, "sticker");
         JsonObject *attachment = json_object_get_object_member(sticker, "attachment");
         signald_parse_attachment(sa, attachment, *target);
     }
@@ -68,8 +69,8 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
         *has_attachment = FALSE;
     }
 
-    if (json_object_has_member(msg->data, "quote")) {
-        JsonObject *quote = json_object_get_object_member(msg->data, "quote");
+    if (json_object_has_member(data, "quote")) {
+        JsonObject *quote = json_object_get_object_member(data, "quote");
         JsonObject *author = json_object_get_object_member(quote, "author");
         const char *uuid = json_object_get_string_member(author, "uuid");
         PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
@@ -85,8 +86,8 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
         g_strfreev(lines);
     }
 
-    if (json_object_has_member(msg->data, "reaction")) {
-        JsonObject *reaction = json_object_get_object_member(msg->data, "reaction");
+    if (json_object_has_member(data, "reaction")) {
+        JsonObject *reaction = json_object_get_object_member(data, "reaction");
         const char *emoji = json_object_get_string_member(reaction, "emoji");
         const gboolean remove = json_object_get_boolean_member(reaction, "remove");
         const time_t targetSentTimestamp = json_object_get_int_member(reaction, "targetSentTimestamp") / 1000;
@@ -99,74 +100,68 @@ signald_format_message(SignaldAccount *sa, SignaldMessage *msg, GString **target
     }
 
     // append actual message text
-    g_string_append(*target, json_object_get_string_member(msg->data, "body"));
+    g_string_append(*target, json_object_get_string_member(data, "body"));
 
     return (*target)->len > 0; // message not empty
 }
 
-gboolean
-signald_parse_message(SignaldAccount *sa, JsonObject *obj, SignaldMessage *msg)
+void
+signald_process_incoming_message(SignaldAccount *sa, JsonObject *obj)
 {
-    if (msg == NULL) {
-        return FALSE;
-    }
-
-    JsonObject *syncMessage = json_object_get_object_member(obj, "sync_message");
-
     // Signal's integer timestamps are in milliseconds
-    // timestamp, timestampISO and dataMessage.timestamp seem to always be the same value (message sent time)
-    // serverTimestamp is when the server received the message
-
-    msg->envelope = obj;
-    msg->timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
-    msg->is_sync_message = (syncMessage != NULL);
-
-    if (syncMessage != NULL) {
-        JsonObject *sent = json_object_get_object_member(syncMessage, "sent");
-
-        if (sent == NULL) {
-            return FALSE;
+    // timestamp and data_message.timestamp seem to always be the same value (message sent time)
+    // server_receiver_timestamp is when the server received the message
+    // server_deliver_timestamp is when the server delivered the message
+    time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
+    
+    const gchar * sender_uuid = NULL;
+    JsonObject *message_data = NULL;
+    JsonObject * sent = NULL;
+    
+    // source is always the author of the message
+    JsonObject * source = json_object_get_object_member(obj, "source");
+    sender_uuid = json_object_get_string_member(source, "uuid");
+    
+    if (json_object_has_member(obj, "sync_message")) {
+        JsonObject * sync_message = json_object_get_object_member(obj, "sync_message");
+        if (json_object_has_member(sync_message, "sent")) {
+            sent = json_object_get_object_member(sync_message, "sent");
+            if (json_object_has_member(sent, "destination")) {
+                // for synced messages, purple does not need the author,
+                // but rather the conversation defined by recipient
+                // this does it for direc messages, chats are handled below
+                sender_uuid = signald_get_uuid_from_address(sent, "destination");
+            }
+            message_data = json_object_get_object_member(sent, "message");
         }
-
-        msg->sender_uuid = (char *)signald_get_uuid_from_address(sent, "destination");
-        msg->data = json_object_get_object_member(sent, "message");
-     } else {
-        JsonObject *source = json_object_get_object_member(obj, "source");
-        msg->sender_uuid = (char *)json_object_get_string_member(source, "uuid");
-        msg->data = json_object_get_object_member(obj, "data_message");
-     }
-
-    if (msg->data == NULL) {
-        return FALSE;
+    } else if (json_object_has_member(obj, "data_message")) {
+        message_data = json_object_get_object_member(obj, "data_message");
     }
-
-    if (msg->sender_uuid == NULL) {
-        msg->sender_uuid = SIGNALD_UNKNOWN_SOURCE_NUMBER;
-    }
-
-    if (json_object_has_member(msg->data, "groupV2")) {
-        msg->type = SIGNALD_MESSAGE_TYPE_GROUPV2;
+    
+    if (message_data == NULL) {
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring message without usable payload.\n");
     } else {
-        msg->type = SIGNALD_MESSAGE_TYPE_DIRECT;
+        const gchar *groupId = NULL;
+        if (json_object_has_member(message_data, "groupV2")) {
+            JsonObject *groupInfo = json_object_get_object_member(message_data, "groupV2");
+            groupId = json_object_get_string_member(groupInfo, "id");
+        }
+        signald_display_message(sa, sender_uuid, groupId, timestamp, sent != NULL, message_data);
     }
-
-    return TRUE;
 }
 
 int
-signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipient, const char *message)
+signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, const char *message)
 {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_send_message…\n");
     JsonObject *data = json_object_new();
 
     json_object_set_string_member(data, "type", "send");
-    json_object_set_string_member(data, "username", purple_account_get_username(sa->account));
-    //json_object_set_string_member(data, "account", sa->uuid); // alternative to supplying the username, mutually exclusive
+    json_object_set_string_member(data, "account", sa->uuid);
 
-    if (type == SIGNALD_MESSAGE_TYPE_DIRECT) {
-        signald_set_recipient(sa, data, recipient);
+    if (is_chat) {
+        json_object_set_string_member(data, "recipientGroupId", who);
     } else {
-        json_object_set_string_member(data, "recipientGroupId", recipient);
+        signald_set_recipient(sa, data, who);
     }
 
     JsonArray *attachments = json_array_new();
@@ -184,16 +179,18 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     // TODO: check if json_object_set_string_member manages copies of the data it is given
     g_free(plain);
 
+    // wait for signald to acknowledge the message has been sent
+    // for displaying the outgoing message later, it is stored locally
     if (ret == 0) {
         // free last message just in case it still lingers in memory
         g_free(sa->last_message);
         // store message for later echo
         sa->last_message = g_strdup(message);
         // store this as the currently active conversation
-        sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, recipient, sa->account);
+        sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, who, sa->account);
         if (sa->last_conversation == NULL) {
             // no appropriate conversation was found. maybe it is a group?
-            PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(recipient, sa->account);
+            PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(who, sa->account);
             if (conv_chat != NULL) {
                 sa->last_conversation = conv_chat->conv;
             }
@@ -272,32 +269,33 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
 }
 
 void
-signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
+signald_display_message(SignaldAccount *sa, const char *who, const char *groupId, time_t timestamp, gboolean is_sync_message, JsonObject *message_data)
 {
-    PurpleIMConversation *imconv = purple_conversations_find_im_with_account(msg->sender_uuid, sa->account);
-
     PurpleMessageFlags flags = 0;
     GString *content = NULL;
     gboolean has_attachment = FALSE;
-
-    if (signald_format_message(sa, msg, &content, &has_attachment)) {
-
-        if (imconv == NULL) {
-            // Open conversation if isn't already and if the message is not empty
-            imconv = purple_im_conversation_new(sa->account, msg->sender_uuid);
-        }
-
+    if (signald_format_message(sa, message_data, &content, &has_attachment)) {
         if (has_attachment) {
             flags |= PURPLE_MESSAGE_IMAGES;
         }
-
-        if (msg->is_sync_message) {
+        if (is_sync_message) {
             flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-            purple_conv_im_write(imconv, msg->sender_uuid, content->str, flags, msg->timestamp);
         } else {
             flags |= PURPLE_MESSAGE_RECV;
-            purple_serv_got_im(sa->pc, msg->sender_uuid, content->str, flags, msg->timestamp);
         }
+        if (groupId) {
+            PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
+            purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp);
+        } else {
+            PurpleIMConversation *imconv = purple_conversations_find_im_with_account(who, sa->account);
+            if (imconv == NULL) {
+                // open conversation if isn't already 
+                imconv = purple_im_conversation_new(sa->account, who);
+            }
+            purple_conv_im_write(imconv, who, content->str, flags, timestamp);
+        }
+    } else {
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
     }
     g_string_free(content, TRUE);
 }
@@ -305,11 +303,26 @@ signald_process_direct_message(SignaldAccount *sa, SignaldMessage *msg)
 int
 signald_send_im(PurpleConnection *pc, const gchar *who, const gchar *message, PurpleMessageFlags flags)
 {
-    if (purple_strequal(who, SIGNALD_UNKNOWN_SOURCE_NUMBER)) {
-        return 0;
-    }
-
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    return signald_send_message(sa, who, FALSE, message);
+}
 
-    return signald_send_message(sa, SIGNALD_MESSAGE_TYPE_DIRECT, (char *)who, message);
+int
+signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
+{
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    PurpleConversation *conv = purple_find_chat(pc, id);
+    if (conv != NULL) {
+        gchar *groupId = (gchar *)purple_conversation_get_data(conv, "name");
+        if (groupId != NULL) {
+            int ret = signald_send_message(sa, groupId, TRUE, message);
+            if (ret > 0) {
+                // immediate local echo (ret == 0 indicates delayed local echo)
+                purple_conversation_write(conv, sa->uuid, message, flags, time(NULL));
+            }
+            return ret;
+        }
+        return -6; // a negative value to indicate failure. chose ENXIO "no such address"
+    }
+    return -6; // a negative value to indicate failure. chose ENXIO "no such address"
 }

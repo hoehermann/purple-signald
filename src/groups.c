@@ -113,7 +113,7 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
  * This handles incoming Signal group information,
  * overwriting participant lists where appropriate.
  */
-// TODO: a soft "remove who left, add who was added" would be nicer than 
+// TODO: a soft "remove who left, add who was added" would be nicer than
 // this blunt-force "remove everyone and re-add" approach
 void
 signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
@@ -153,7 +153,7 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
     if (conv != NULL) {
         purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
     }
-    
+
     // the user might have requested a room list, fill it
     if (sa->roomlist) {
         PurpleRoomlistRoom *room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, groupId, NULL); // this sets the room's name
@@ -174,7 +174,7 @@ void
 signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 {
     json_array_foreach_element(groups, signald_process_groupV2, sa);
-    
+
     if (sa->roomlist) {
         // in case the user explicitly requested a room list, the query is finished now
         purple_roomlist_set_in_progress(sa->roomlist, FALSE);
@@ -223,59 +223,6 @@ PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *
         signald_request_group_info(sa, groupId);
     }
     return conv;
-}
-
-/*
- * Process a message we've received from signald that's directed at a group
- * v2 chat.
- *
- * Can only receive messages, no administrative functions are implemented.
- */
-void
-signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg)
-{
-    JsonObject *groupInfo = json_object_get_object_member(msg->data, "groupV2");
-    const gchar *groupId = json_object_get_string_member(groupInfo, "id");
-
-    PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
-
-    PurpleMessageFlags flags = 0;
-    gboolean has_attachment = FALSE;
-    GString *content = NULL;
-    if (signald_format_message(sa, msg, &content, &has_attachment)) {
-        if (has_attachment) {
-            flags |= PURPLE_MESSAGE_IMAGES;
-        }
-        if (msg->is_sync_message) {
-            flags |= PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-        } else {
-            flags |= PURPLE_MESSAGE_RECV;
-        }
-        purple_conv_chat_write(PURPLE_CONV_CHAT(conv), msg->sender_uuid, content->str, flags, msg->timestamp);
-    } else {
-        purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
-    }
-    g_string_free(content, TRUE);
-}
-
-int
-signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags)
-{
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-    PurpleConversation *conv = purple_find_chat(pc, id);
-    if (conv != NULL) {
-        gchar *groupId = (gchar *)purple_conversation_get_data(conv, "name");
-        if (groupId != NULL) {
-            int ret = signald_send_message(sa, SIGNALD_MESSAGE_TYPE_GROUPV2, groupId, message);
-            if (ret > 0) {
-                // immediate local echo (ret == 0 indicates delayed local echo)
-                purple_conversation_write(conv, sa->uuid, message, flags, time(NULL));
-            }
-            return ret;
-        }
-        return -6; // a negative value to indicate failure. chose ENXIO "no such address"
-    }
-    return -6; // a negative value to indicate failure. chose ENXIO "no such address"
 }
 
 void
@@ -345,11 +292,11 @@ char *signald_get_chat_name(GHashTable *components)
 /*
  * This requests a list of rooms representing the Signal group chats.
  * The request is asynchronous. Responses are handled by signald_roomlist_add_room.
- * 
+ *
  * A purple room has an identifying name – for Signal that is the UUID.
  * A purple room has a list of fields – in our case only Signal group name.
- * 
- * Some services like spectrum expect the human readable group name field key to be "topic", 
+ *
+ * Some services like spectrum expect the human readable group name field key to be "topic",
  * see RoomlistProgress in https://github.com/SpectrumIM/spectrum2/blob/518ba5a/backends/libpurple/main.cpp#L1997
  * In purple, the roomlist field "name" gets overwritten in purple_roomlist_room_join, see libpurple/roomlist.c.
  */

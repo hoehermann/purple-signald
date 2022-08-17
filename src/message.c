@@ -202,35 +202,62 @@ signald_send_message(SignaldAccount *sa, SignaldMessageType type, gchar *recipie
     return ret;
 }
 
+struct SignaldSendResult {
+  SignaldAccount *sa;
+  int devices_count;
+};
+
 static void
 signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gpointer user_data) {
-    int * devices_count_ptr = (int *)user_data;
+    struct SignaldSendResult * sr = (struct SignaldSendResult *)user_data;
     JsonObject * result = json_node_get_object(result_node);
     JsonObject * success = json_object_get_object_member(result, "success");
     if (success) {
         JsonArray * devices = json_object_get_array_member(success, "devices");
         if (devices) {
-            *devices_count_ptr += json_array_get_length(devices);
+            sr->devices_count += json_array_get_length(devices);
         }
+    }
+    
+    const gchar * failure = NULL;
+    // NOTE: These failures are actually orthogonal, but I am lazy.
+    if (json_object_has_member(result, "identityFailure")) {
+        failure = "identityFailure";
+    } else if (json_object_get_boolean_member(result, "networkFailure")) {
+        failure = "networkFailure";
+    } else if (json_object_has_member(result, "proof_required_failure")) {
+        failure = "proof_required_failure";
+    } else if (json_object_get_boolean_member(result, "unregisteredFailure")) {
+        failure = "unregisteredFailure";
+    }
+    if (failure) {
+        JsonObject * address = json_object_get_object_member(result, "address");
+        const gchar * number = json_object_get_string_member(address, "number");
+        const gchar * uuid = json_object_get_string_member(address, "uuid");
+        gchar * errmsg = g_strdup_printf("Message was not delivered to %s (%s) due to %s.", number, uuid, failure);
+        purple_conversation_write(sr->sa->last_conversation, NULL, errmsg, PURPLE_MESSAGE_ERROR, time(NULL));
+        g_free(errmsg);
     }
 }
 
 void
 signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
     time_t timestamp = json_object_get_int_member(data, "timestamp") / 1000;
-    int devices_count = 0;
+    struct SignaldSendResult sr;
+    sr.sa = sa;
+    sr.devices_count = 0;
     JsonArray * results = json_object_get_array_member(data, "results");
     if (results) {
         if (json_array_get_length(results) == 0) {
             // when sending message to self, the results array is empty
             // TODO: check if recipient actually was sa->uuid
-            devices_count = 1;
+            sr.devices_count = 1;
         } else {
-            json_array_foreach_element(results, signald_send_check_result, &devices_count);
+            json_array_foreach_element(results, signald_send_check_result, &sr);
         }
     }
     if (sa->last_conversation && sa->uuid && sa->last_message) {
-        if (devices_count > 0) {
+        if (sr.devices_count > 0) {
             PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
             purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp);
             g_free(sa->last_message);
@@ -239,7 +266,7 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
             // form purple_conv_present_error()
             purple_conversation_write(sa->last_conversation, NULL, "Message was not delivered to any devices.", PURPLE_MESSAGE_ERROR, time(NULL));
         }
-    } else if (devices_count == 0) {
+    } else if (sr.devices_count == 0) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "A message was not delivered to any devices.\n");
     }
 }

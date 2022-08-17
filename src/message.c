@@ -220,7 +220,7 @@ signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gp
     }
     
     const gchar * failure = NULL;
-    // NOTE: These failures are actually orthogonal, but I am lazy.
+    // NOTE: These failures might actually be orthogonal. This only regards the first one.
     if (json_object_has_member(result, "identityFailure")) {
         failure = "identityFailure";
     } else if (json_object_get_boolean_member(result, "networkFailure")) {

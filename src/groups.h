@@ -12,10 +12,6 @@ signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups);
 void
 signald_process_groupV2_message(SignaldAccount *sa, SignaldMessage *msg);
 
-/*
- * Pidgin hooks for group handling
- */
-
 GList *
 signald_chat_info(PurpleConnection *pc);
 

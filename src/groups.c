@@ -110,34 +110,21 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
 }
 
 /*
- * Determines if user is participating in conversation.
- */
-int signald_user_in_conv_chat(PurpleConvChat *conv_chat, const char *uuid) {
-    for (GList *users = purple_conv_chat_get_users(conv_chat); users != NULL;
-        users = users->next) {
-        PurpleConvChatBuddy *buddy = (PurpleConvChatBuddy *) users->data;
-        if (!strcmp(buddy->name, uuid)) {
-            return TRUE;
-        }
-    }
-    return FALSE;
-}
-
-/*
  * This handles incoming Signal group information,
- * adding participants to all chats currently active.
+ * overwriting participant lists where appropriate.
  */
+// TODO: a soft "remove who left, add who was added" would be nicer than 
+// this blunt-force "remove everyone and re-add" approach
 void
-signald_chat_add_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
+signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
     GList *uuids = signald_members_to_uuids(members);
     PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(groupId, account);
     if (conv_chat != NULL) { // only consider active chats
+        purple_conv_chat_clear_users(conv_chat);
         for (GList * uuid_elem = uuids; uuid_elem != NULL; uuid_elem = uuid_elem->next) {
             const char* uuid = uuid_elem->data;
-            if (!signald_user_in_conv_chat(conv_chat, uuid)) {
-                PurpleConvChatBuddyFlags flags = 0;
-                purple_conv_chat_add_user(conv_chat, uuid, NULL, flags, FALSE);
-            }
+            PurpleConvChatBuddyFlags flags = 0;
+            purple_conv_chat_add_user(conv_chat, uuid, NULL, flags, FALSE);
         }
     }
     g_list_free_full(uuids, g_free);
@@ -158,12 +145,10 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
 
     signald_ensure_group_chat_in_blist(sa->account, groupId, title, avatar); // for joining later
 
-    // updating a currently active chat
-    // participants
-    signald_chat_add_participants(sa->account, groupId, json_object_get_array_member(obj, "members"));
-    // TODO: remove removed participants
+    // update participants
+    signald_chat_set_participants(sa->account, groupId, json_object_get_array_member(obj, "members"));
 
-    // title as topic
+    // set title as topic
     PurpleConversation *conv = purple_find_chat(sa->pc, g_str_hash(groupId));
     if (conv != NULL) {
         purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);

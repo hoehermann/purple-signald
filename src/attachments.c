@@ -9,11 +9,9 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 static int
 pixbuf_format_mimetype_comparator(GdkPixbufFormat *format, const char *type) {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_pixbuf_format_mimetype_comparator(…,%s)…\n", type);
     int cmp = 1;
     gchar **mime_types = gdk_pixbuf_format_get_mime_types(format);
     for (gchar **mime_type = mime_types; mime_type != NULL && *mime_type != NULL && cmp != 0; mime_type++) {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "mime_type: %s\n", *mime_type);
         cmp = g_strcmp0(type, *mime_type);
     }
     g_strfreev(mime_types);

@@ -29,6 +29,9 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
             // error while subscribing
             signald_link_or_register(sa);
             return;
+        } else if (strstr(error_message, "SQLITE_BUSY")) {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "SQLite database busy.");
+            return;
         } else {
             const char *message = json_object_get_string_member(errobj, "message");
             char *error_message = g_strdup_printf("%s occurred on %s: %s\n", error_type, type, message);
@@ -120,6 +123,10 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
             purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
             //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Disconnected.");
         }
+        
+    } else if (purple_strequal(type, "ListenerState")) {
+        // obsolete variant of WebSocketConnectionState. ignore silently.
+        
     } else {
         purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
     }

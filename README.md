@@ -8,6 +8,7 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 
 * Sometimes, group chats are added to the buddy list more than once.
 * In group chats, on outgoing messages the sender name may have a different color than displayed in the list of chat participants.
+* When sending an image with delayed acknowledgements, the image is not displayed locally.
 
 ### Getting Started
 

@@ -67,8 +67,15 @@ signald_add_account_options(GList *account_options)
     }
 
     option = purple_account_option_bool_new(
-                "Mark messages as read.",
+                "Mark messages as read",
                 SIGNALD_OPTION_MARK_READ,
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
+                "Display receipts in conversation",
+                SIGNALD_OPTION_DISPLAY_RECEIPTS,
                 FALSE
                 );
     account_options = g_list_append(account_options, option);
@@ -81,7 +88,7 @@ signald_add_account_options(GList *account_options)
     account_options = g_list_append(account_options, option);
 
     option = purple_account_option_bool_new(
-                "Automatically accept invitations.",
+                "Automatically accept invitations to groups",
                 "auto-accept-invitations",
                 FALSE
                 );

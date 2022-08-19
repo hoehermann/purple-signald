@@ -9,7 +9,7 @@ gboolean
 signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, gboolean *has_attachment);
 
 void
-signald_process_incoming_message(SignaldAccount *sa, JsonObject *obj);
+signald_process_message(SignaldAccount *sa, JsonObject *obj);
 
 int
 signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, const char *message);

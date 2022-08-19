@@ -29,3 +29,42 @@ void signald_mark_read_chat(SignaldAccount * sa, gint64 timestamp_micro, GHashTa
     }
     g_list_free(uuids);
 }
+
+void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
+    if (purple_account_get_bool(sa->account, SIGNALD_OPTION_DISPLAY_RECEIPTS, FALSE)) {
+        // receipts carry no groupV2 information
+        // source is always the reader
+        JsonObject * source = json_object_get_object_member(obj, "source");
+        const gchar * who = json_object_get_string_member(source, "uuid");
+        PurpleConversation * conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
+        if (conv) {
+            // only display receipt if the conversation is currently open
+            
+            JsonObject * receipt_message = json_object_get_object_member(obj, "receipt_message");
+            const gchar * type = json_object_get_string_member(receipt_message, "type");
+            gint64 when = json_object_get_int_member(receipt_message, "when");
+            time_t timestamp = when / 1000;
+
+            // concatenate list of timestamps into one message
+            GString *message = g_string_new(type);
+            message = g_string_append(message, " receipt for message from ");
+            JsonArray * timestamps = json_object_get_array_member(receipt_message, "timestamps");
+            GList * timestamp_list = json_array_get_elements(timestamps);
+            for (GList * elem = timestamp_list; elem != NULL ; elem = elem->next) {
+                guint64 timestamp_micro = json_node_get_int(elem->data);
+                time_t timestamp = timestamp_micro / 1000;
+                struct tm *tm = localtime(&timestamp);
+                message = g_string_append(message, purple_date_format_long(tm));
+                if (elem->next) {
+                    message = g_string_append(message, ", ");
+                }
+            }
+            g_list_free(timestamp_list);
+            
+            PurpleMessageFlags flags = PURPLE_MESSAGE_NO_LOG;
+            purple_conv_im_write(PURPLE_CONV_IM(conv), who, message->str, flags, timestamp);
+            
+            g_string_free(message, TRUE);
+        }
+    }
+}

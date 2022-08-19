@@ -114,7 +114,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
 }
 
 void
-signald_process_incoming_message(SignaldAccount *sa, JsonObject *obj)
+signald_process_message(SignaldAccount *sa, JsonObject *obj)
 {
     // timestamp and data_message.timestamp seem to always be the same value (message sent time)
     // server_receiver_timestamp is when the server received the message

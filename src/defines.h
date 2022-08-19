@@ -31,3 +31,4 @@
 
 #define SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT "wait-send-acknowledgement"
 #define SIGNALD_OPTION_MARK_READ "mark-read"
+#define SIGNALD_OPTION_DISPLAY_RECEIPTS "display-receipts"

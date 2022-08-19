@@ -8,6 +8,7 @@
 #include "contacts.h"
 #include "message.h"
 #include "login.h"
+#include "receipt.h"
 
 static void
 signald_handle_input(SignaldAccount *sa, JsonNode *root)
@@ -94,11 +95,11 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
     } else if (purple_strequal(type, "IncomingMessage")) {
         obj = json_object_get_object_member(obj, "data");
         if (json_object_has_member(obj, "receipt_message")) {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Ignoring receipt.\n");
+            signald_process_receipt(sa, obj);
         } else if (json_object_has_member(obj, "typing_message")) {
             purple_debug_info(SIGNALD_PLUGIN_ID, "Ignoring typing message.\n");
         } else {
-            signald_process_incoming_message(sa, obj);
+            signald_process_message(sa, obj);
         }
 
     } else if (purple_strequal(type, "generate_linking_uri")) {

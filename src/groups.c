@@ -211,15 +211,16 @@ signald_request_group_list(SignaldAccount *sa)
 }
 
 PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *groupId, const char *title) {
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     // use hash of groupId for chat id number
     PurpleConversation *conv = purple_find_chat(pc, g_str_hash(groupId));
     if (conv == NULL) {
         conv = serv_got_joined_chat(pc, g_str_hash(groupId), groupId);
         purple_conversation_set_data(conv, "name", g_strdup(groupId));
+        purple_conv_chat_set_nick(PURPLE_CONV_CHAT(conv), sa->uuid); // identify ourselves in this chat
         if (title != NULL) {
             purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
         }
-        SignaldAccount *sa = purple_connection_get_protocol_data(pc);
         signald_request_group_info(sa, groupId);
     }
     return conv;

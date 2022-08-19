@@ -288,14 +288,21 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
         if (groupId) {
             PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
             purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp_milli);
-            signald_mark_read_chat(sa, timestamp_micro, purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv)));
+            // TODO: use serv_got_chat_in for more traditonal behaviour
+            // though it compares who against chat->nick and sets the SEND/RECV flags itself
+            signald_mark_read_chat(sa, timestamp_micro, PURPLE_CONV_CHAT(conv)->users);
         } else {
-            PurpleIMConversation *imconv = purple_conversations_find_im_with_account(who, sa->account);
-            if (imconv == NULL) {
-                // open conversation if isn't already 
-                imconv = purple_im_conversation_new(sa->account, who);
+            if (flags | PURPLE_MESSAGE_RECV) {
+                // incoming message
+                purple_serv_got_im(sa->pc, who, content->str, flags, timestamp_milli);
+            } else {
+                // synced message (sent by ourselves via other device)
+                PurpleConversation * conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
+                if (conv == NULL) {
+                    conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, sa->account, who);
+                }
+                purple_conv_im_write(PURPLE_CONV_IM(conv), who, content->str, flags, timestamp_milli);
             }
-            purple_conv_im_write(imconv, who, content->str, flags, timestamp_milli);
             signald_mark_read(sa, timestamp_micro, who);
         }
     } else {

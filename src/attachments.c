@@ -5,6 +5,10 @@
 #include "attachments.h"
 #include <json-glib/json-glib.h>
 
+#if !(GLIB_CHECK_VERSION(2, 67, 3))
+#define g_memdup2 g_memdup
+#endif
+
 #if __has_include("gdk-pixbuf/gdk-pixbuf.h")
 #include <gdk-pixbuf/gdk-pixbuf.h>
 static int

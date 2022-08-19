@@ -8,6 +8,10 @@
 #include "signald_procmgmt.h"
 #include "input.h"
 
+#if !(GLIB_CHECK_VERSION(2, 67, 3))
+#define g_memdup2 g_memdup
+#endif
+
 /*
  * This struct exchanges data between threads, see @try_connect.
  */

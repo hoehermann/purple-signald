@@ -87,6 +87,10 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         obj = json_object_get_object_member(obj, "data");
         signald_parse_groupV2_list(sa, json_object_get_array_member(obj, "groups"));
 
+    } else if (purple_strequal(type, "leave_group")) {
+        obj = json_object_get_object_member(obj, "data");
+        signald_process_leave_group(sa, obj);
+
     } else if (purple_strequal(type, "IncomingMessage")) {
         obj = json_object_get_object_member(obj, "data");
         if (json_object_has_member(obj, "receipt_message")) {

@@ -29,3 +29,9 @@ PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *
 char *signald_get_chat_name(GHashTable *components);
 
 PurpleRoomlist *signald_roomlist_get_list(PurpleConnection *pc);
+
+GList *signald_blist_node_menu(PurpleBlistNode *node);
+
+void signald_process_leave_group(SignaldAccount *sa, JsonObject *data);
+
+void signald_chat_leave(PurpleConnection *pc, int id);

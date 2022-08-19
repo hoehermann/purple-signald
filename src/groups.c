@@ -318,3 +318,100 @@ signald_roomlist_get_list(PurpleConnection *pc) {
     }
     return sa->roomlist;
 }
+
+
+static void signald_leave_group(SignaldAccount *sa, const char *groupID)
+{
+    g_return_if_fail(groupID != NULL);
+    g_return_if_fail(sa->uuid != NULL);
+
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "leave_group");
+    json_object_set_string_member(data, "account", sa->uuid);
+    json_object_set_string_member(data, "groupID", groupID);
+    signald_send_json_or_display_error(sa, data);
+    json_object_unref(data);
+}
+
+static void
+signald_leave_chat(PurpleBlistNode *node, gpointer userdata)
+{
+    g_return_if_fail(node != NULL);
+    PurpleChat *chat = (PurpleChat *)node;
+    
+    PurpleAccount *account = purple_chat_get_account(chat);
+    PurpleConnection *pc = purple_account_get_connection(account);
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    GHashTable *components = purple_chat_get_components(chat);
+    const char * groupID = g_hash_table_lookup(components, "name");
+    
+    signald_leave_group(sa, groupID);
+}
+
+static GList *
+signald_chat_menu(PurpleChat *chat)
+{
+    GList *menu = NULL;
+
+    PurpleMenuAction * act = purple_menu_action_new(
+        "Leave Group",
+        PURPLE_CALLBACK(signald_leave_chat),
+        NULL, /* userdata passed to the callback */
+        NULL /* child menu items */
+    );
+    menu = g_list_append(menu, act);
+
+    return menu;
+}
+
+GList *signald_blist_node_menu(PurpleBlistNode *node) {
+    if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+        return signald_chat_menu((PurpleChat *) node);
+    } else {
+        return NULL;
+    }
+}
+
+void signald_process_leave_group(SignaldAccount *sa, JsonObject *data) {
+    JsonObject *v2 = json_object_get_object_member(data, "v2");
+    const gchar *id = json_object_get_string_member(v2, "id");
+    PurpleChat * chat = purple_blist_find_chat(sa->account, id);
+    purple_blist_remove_chat(chat);
+}
+
+static PurpleChat * signald_blist_find_chat(PurpleAccount *account, int id) {
+    for (PurpleBlistNode *group = purple_blist_get_root(); group != NULL; group = group->next) {
+        for (PurpleBlistNode *node = group->child; node != NULL; node = node->next) {
+            if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+                PurpleChat *chat = (PurpleChat*)node;
+                if (account == chat->account) {
+                    const gchar *groupId = g_hash_table_lookup(chat->components, "name");
+                    if (id == g_str_hash(groupId)) {
+                        return chat;
+                    }
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+/*
+ * The user wants to leave a chat.
+ * 
+ * Unfortunately, this is called whenever a Pidgin chat window is closed
+ * unless gtk-persistent is set.
+ * 
+ * This leaves the chat iff it was not added to the buddy list.
+ */
+void
+signald_chat_leave(PurpleConnection *pc, int id) {
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    PurpleChat * chat = signald_blist_find_chat(sa->account, id);
+    if (!chat) {
+        PurpleConversation *conv = purple_find_chat(pc, id);
+        const gchar * groupID = purple_conversation_get_name(conv);
+        signald_leave_group(sa, groupID);
+    }
+}
+

@@ -99,6 +99,13 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
             g_string_printf(*target, "reacted with %s (to message from %s).", emoji, purple_date_format_long(tm));
         }
     }
+    
+    if (json_object_has_member(data, "groupV2")) {
+        JsonObject *groupV2 = json_object_get_object_member(data, "groupV2");
+        if (json_object_has_member(groupV2, "group_change")) {
+            g_string_append(*target, "made changes to this group (settings, permissions, members). This plug-in cannot show the details.");
+        }
+    }
 
     // append actual message text
     g_string_append(*target, json_object_get_string_member(data, "body"));

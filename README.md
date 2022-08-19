@@ -26,6 +26,7 @@ See [HOWTO](HOWTO.md).
 
   * Emoji reactions are displayed
   * Stickers can be displayed if GDK headers were available at build-time and a [GDK webp pixbuf loader](https://github.com/aruiz/webp-pixbuf-loader) is present in the system at run-time. Stickers are not animated.
+  * It is possible to leave a Signal group by leaving the Pidgin chat (close the window) after removing it from the Pidgin buddy list.
 
 * Additional features contributed by [Hermann Kraus](https://github.com/herm/):
 

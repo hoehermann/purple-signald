@@ -30,6 +30,7 @@
 #include "groups.h"
 #include "options.h"
 #include "signald_procmgmt.h"
+#include "blist.h"
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -187,10 +188,12 @@ plugin_init(PurplePlugin *plugin)
     prpl_info->chat_info = signald_chat_info;
     prpl_info->chat_info_defaults = signald_chat_info_defaults;
     prpl_info->join_chat = signald_join_chat;
+    prpl_info->chat_leave = signald_chat_leave;
     prpl_info->get_chat_name = signald_get_chat_name;
     prpl_info->chat_send = signald_send_chat;
     prpl_info->set_chat_topic = signald_set_chat_topic;
     prpl_info->roomlist_get_list = signald_roomlist_get_list;
+    prpl_info->blist_node_menu = signald_blist_node_menu;
     #if PURPLE_VERSION_CHECK(2,14,0)
     //prpl_info->get_cb_alias
     //prpl_info->chat_send_file

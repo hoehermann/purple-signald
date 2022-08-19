@@ -22,6 +22,8 @@ add_library(${TARGET_NAME} SHARED
     input.c
     options.h
     options.c
+    receipt.h
+    receipt.c
     defines.h
     structs.h
     admin.h

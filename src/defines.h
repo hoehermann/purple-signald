@@ -30,3 +30,4 @@
 #define SIGNALD_ACCOUNT_OPT_EXT_ATTACHMENTS_URL "external-attachments-url"
 
 #define SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT "wait-send-acknowledgement"
+#define SIGNALD_OPTION_MARK_READ "mark-read"

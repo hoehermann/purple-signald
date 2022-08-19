@@ -67,6 +67,13 @@ signald_add_account_options(GList *account_options)
     }
 
     option = purple_account_option_bool_new(
+                "Mark messages as read.",
+                SIGNALD_OPTION_MARK_READ,
+                FALSE
+                );
+    account_options = g_list_append(account_options, option);
+
+    option = purple_account_option_bool_new(
                 "Wait for send acknowledgement",
                 SIGNALD_OPTION_WAIT_SEND_ACKNOWLEDEMENT,
                 FALSE

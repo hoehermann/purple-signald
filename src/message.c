@@ -7,6 +7,7 @@
 #include "comms.h"
 #include "groups.h"
 #include "purple_compat.h"
+#include "receipt.h"
 
 const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
@@ -34,7 +35,7 @@ signald_is_number(const gchar *identifier) {
 }
 
 void
-signald_set_recipient(SignaldAccount *sa, JsonObject *obj, const gchar *recipient)
+signald_set_recipient(JsonObject *obj, const gchar *key, const gchar *recipient)
 {
     g_return_if_fail(recipient);
     g_return_if_fail(obj);
@@ -48,7 +49,7 @@ signald_set_recipient(SignaldAccount *sa, JsonObject *obj, const gchar *recipien
     JsonObject *address = json_object_new();
     // if contact was added manually and not yet migrated, the recipient might still be a number, not a UUID
     json_object_set_string_member(address, address_type, recipient);
-    json_object_set_object_member(obj, "recipientAddress", address);
+    json_object_set_object_member(obj, key, address);
 }
 
 gboolean
@@ -108,12 +109,11 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
 void
 signald_process_incoming_message(SignaldAccount *sa, JsonObject *obj)
 {
-    // Signal's integer timestamps are in milliseconds
     // timestamp and data_message.timestamp seem to always be the same value (message sent time)
     // server_receiver_timestamp is when the server received the message
     // server_deliver_timestamp is when the server delivered the message
-    time_t timestamp = json_object_get_int_member(obj, "timestamp") / 1000;
-    
+    gint64 timestamp = json_object_get_int_member(obj, "timestamp");
+
     const gchar * sender_uuid = NULL;
     JsonObject *message_data = NULL;
     JsonObject * sent = NULL;
@@ -161,7 +161,7 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
     if (is_chat) {
         json_object_set_string_member(data, "recipientGroupId", who);
     } else {
-        signald_set_recipient(sa, data, who);
+        signald_set_recipient(data, "recipientAddress", who);
     }
 
     JsonArray *attachments = json_array_new();
@@ -269,8 +269,10 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
 }
 
 void
-signald_display_message(SignaldAccount *sa, const char *who, const char *groupId, time_t timestamp, gboolean is_sync_message, JsonObject *message_data)
+signald_display_message(SignaldAccount *sa, const char *who, const char *groupId, gint64 timestamp_micro, gboolean is_sync_message, JsonObject *message_data)
 {
+    // Signal's integer timestamps are in microseconds, but purple time_t in milliseconds.
+    time_t timestamp_milli = timestamp_micro / 1000;
     PurpleMessageFlags flags = 0;
     GString *content = NULL;
     gboolean has_attachment = FALSE;
@@ -285,14 +287,16 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
         }
         if (groupId) {
             PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
-            purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp);
+            purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp_milli);
+            signald_mark_read_chat(sa, timestamp_micro, purple_conv_chat_get_users(PURPLE_CONV_CHAT(conv)));
         } else {
             PurpleIMConversation *imconv = purple_conversations_find_im_with_account(who, sa->account);
             if (imconv == NULL) {
                 // open conversation if isn't already 
                 imconv = purple_im_conversation_new(sa->account, who);
             }
-            purple_conv_im_write(imconv, who, content->str, flags, timestamp);
+            purple_conv_im_write(imconv, who, content->str, flags, timestamp_milli);
+            signald_mark_read(sa, timestamp_micro, who);
         }
     } else {
         purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");

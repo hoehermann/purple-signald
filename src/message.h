@@ -18,10 +18,13 @@ void
 signald_send_acknowledged(SignaldAccount *sa, JsonObject *data);
 
 void
-signald_display_message(SignaldAccount *sa, const char *who, const char *groupId, time_t timestamp, gboolean is_sync_message, JsonObject *message_data);
+signald_display_message(SignaldAccount *sa, const char *who, const char *groupId, gint64 timestamp, gboolean is_sync_message, JsonObject *message_data);
 
 int
 signald_send_im(PurpleConnection *pc, const gchar *who, const gchar *message, PurpleMessageFlags flags);
 
 int
 signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessageFlags flags);
+
+void
+signald_set_recipient(JsonObject *obj, const gchar *key, const gchar *recipient);

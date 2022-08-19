@@ -109,6 +109,9 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
     } else if (purple_strequal(type, "send")) {
         JsonObject *data = json_object_get_object_member(obj, "data");
         signald_send_acknowledged(sa, data);
+        
+    } else if (purple_strequal(type, "mark_read")) {
+        // I do not really care if sending read receipts succeed.
 
     } else if (purple_strequal(type, "WebSocketConnectionState")) {
         JsonObject *data = json_object_get_object_member(obj, "data");

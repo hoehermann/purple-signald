@@ -79,7 +79,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
     }
     if (number && number[0]) {
         // add/update number
-        // NOTE: the number is currently never used
+        // NOTE: the number is currently never used except for displaying in the buddy list tooltip text
         purple_buddy_set_protocol_data(buddy, g_strdup(number));
     }
     if (alias) {
@@ -99,7 +99,13 @@ void
 signald_process_contact(SignaldAccount *sa, JsonNode *node)
 {
     JsonObject *obj = json_node_get_object(node);
-    const char *name = json_object_get_string_member(obj, "name");
+    const char *name = json_object_get_string_member_or_null(obj, "name");
+    if (name == NULL || name[0] == 0) {
+        name = json_object_get_string_member_or_null(obj, "contact_name");
+    }
+    if (name == NULL || name[0] == 0) {
+        name = json_object_get_string_member_or_null(obj, "profile_name");
+    }
     const char *avatar = json_object_get_string_member_or_null(obj, "avatar");
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *number = json_object_get_string_member(address, "number");

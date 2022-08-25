@@ -9,6 +9,7 @@
 #include "message.h"
 #include "login.h"
 #include "receipt.h"
+#include "json-utils.h"
 
 static void
 signald_handle_input(SignaldAccount *sa, JsonNode *root)
@@ -18,7 +19,7 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
     purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
     // catch and display errors
-    JsonObject *errobj = json_object_get_object_member(obj, "error");
+    JsonObject *errobj = json_object_get_object_member_or_null(obj, "error");
     if (errobj != NULL) {
         const char *error_type = json_object_get_string_member(obj, "error_type");
         const char *error_message = json_object_get_string_member(errobj, "message");
@@ -67,10 +68,8 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         signald_request_group_list(sa);
 
     } else if (purple_strequal(type, "list_contacts")) {
-        signald_parse_contact_list(sa,
-            json_object_get_array_member(json_object_get_object_member (obj, "data"),
-            "profiles")
-        );
+        obj = json_object_get_object_member(obj, "data");
+        signald_parse_contact_list(sa, json_object_get_array_member(obj,"profiles"));
 
     } else if (purple_strequal(type, "InternalError")) {
         const char * message = json_object_get_string_member(obj, "message");

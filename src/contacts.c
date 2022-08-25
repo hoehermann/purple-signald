@@ -1,6 +1,7 @@
 #include "contacts.h"
 #include "defines.h"
 #include "comms.h"
+#include "json-utils.h"
 
 void
 signald_assume_buddy_state(PurpleAccount *account, PurpleBuddy *buddy)
@@ -99,7 +100,7 @@ signald_process_contact(SignaldAccount *sa, JsonNode *node)
 {
     JsonObject *obj = json_node_get_object(node);
     const char *name = json_object_get_string_member(obj, "name");
-    const char *avatar = json_object_get_string_member(obj, "avatar");
+    const char *avatar = json_object_get_string_member_or_null(obj, "avatar");
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *number = json_object_get_string_member(address, "number");
     const char *uuid = json_object_get_string_member(address, "uuid");

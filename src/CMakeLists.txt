@@ -28,6 +28,7 @@ add_library(${TARGET_NAME} SHARED
     structs.h
     admin.h
     admin.c
+    json-utils.h
     ../submodules/MegaMimes/src/MegaMimes.c
     ../submodules/QR-Code-generator/c/qrcodegen.c
 )

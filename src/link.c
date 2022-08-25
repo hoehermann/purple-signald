@@ -172,7 +172,7 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
     const char *username = purple_account_get_username(sa->account);
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *uuid = json_object_get_string_member(address, "uuid");
-    const char *account_id = json_object_get_string_member(address, "account_id");
+    const char *account_id = json_object_get_string_member(obj, "account_id");
     if (purple_strequal(account_id, username) || purple_strequal(uuid, username)) {
         // this is the current account
         sa->account_exists = TRUE;
@@ -180,7 +180,7 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
         sa->uuid = g_strdup(uuid);
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account uuid: %s\n", sa->uuid);
 
-        gboolean pending = json_object_get_boolean_member (address, "pending");
+        gboolean pending = json_object_has_member(obj, "pending") && json_object_get_boolean_member(obj, "pending");
         purple_debug_info(SIGNALD_PLUGIN_ID, "Account %s pending: %d\n", account_id, pending);
         if (pending) {
             // account is pending verification, try to link again

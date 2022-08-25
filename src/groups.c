@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "comms.h"
 #include "message.h"
+#include "json-utils.h"
 
 PurpleGroup * signald_get_purple_group() {
     PurpleGroup *group = purple_blist_find_group("Signal");
@@ -135,7 +136,7 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
 {
     const char *groupId = json_object_get_string_member(obj, "id");
     const char *title = json_object_get_string_member(obj, "title");
-    const char *avatar = json_object_get_string_member(obj, "avatar");
+    const char *avatar = json_object_get_string_member_or_null(obj, "avatar");
 
     purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n", groupId, title);
 

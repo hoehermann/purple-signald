@@ -1,11 +1,12 @@
 #include <sys/stat.h>
 #include "defines.h"
-#include "purple_compat.h"
+#include <purple.h>
 #include "structs.h"
 #include "comms.h"
 #include "login.h"
 #include "qrcodegen.h" // TODO: better use libqrencode (available in Debian)
 #include <json-glib/json-glib.h>
+#include "purple-3/compat.h"
 
 void
 signald_set_device_name (SignaldAccount *sa)
@@ -64,9 +65,7 @@ signald_scan_qrcode(SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen)
         fields,
         "Done", G_CALLBACK(signald_scan_qrcode_done), 
         "Cancel", G_CALLBACK(signald_scan_qrcode_cancel),
-        sa->account, 
-        purple_account_get_username(sa->account), 
-        NULL, 
+        purple_request_cpar_from_account(sa->account),
         sa);
 }
 
@@ -157,7 +156,7 @@ signald_link_or_register(SignaldAccount *sa)
                               "000-000", FALSE, FALSE, NULL,
                               "OK", G_CALLBACK (signald_verify_ok_cb),
                               "Cancel", NULL,
-                              sa->account, username, NULL, sa);
+                              purple_request_cpar_from_account(sa->account), sa);
     }
 
     json_object_unref(data);

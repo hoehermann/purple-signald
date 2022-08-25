@@ -1,11 +1,12 @@
 #include <errno.h>
 #include <sys/socket.h> // for socket and read
-#include "purple_compat.h"
+#include <purple.h>
 #include "structs.h"
 #include "defines.h"
 #include "comms.h"
 #include "input.h"
 #include <json-glib/json-glib.h>
+#include "purple-3/compat.h"
 
 /*
  * Implements the read callback.

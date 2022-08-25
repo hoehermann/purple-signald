@@ -3,6 +3,7 @@
 #include "comms.h"
 #include "defines.h"
 #include "message.h"
+#include "purple-3/compat.h"
 #include <json-glib/json-glib.h>
 
 //static int signald_send_receipt(char * uuid, JsonArray * timestamps, SignaldAccount * sa)
@@ -70,7 +71,7 @@ void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
         // source is always the reader
         JsonObject * source = json_object_get_object_member(obj, "source");
         const gchar * who = json_object_get_string_member(source, "uuid");
-        PurpleConversation * conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
+        PurpleConversation * conv = purple_conversation_find_im_by_name(who, sa->account);
         if (conv) {
             // only display receipt if the conversation is currently open
             
@@ -88,7 +89,7 @@ void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
                 guint64 timestamp_micro = json_node_get_int(elem->data);
                 time_t timestamp = timestamp_micro / 1000;
                 struct tm *tm = localtime(&timestamp);
-                message = g_string_append(message, purple_date_format_long(tm));
+                message = g_string_append(message, purple_date_format_full(tm));
                 if (elem->next) {
                     message = g_string_append(message, ", ");
                 }
@@ -96,7 +97,9 @@ void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
             g_list_free(timestamp_list);
             
             PurpleMessageFlags flags = PURPLE_MESSAGE_NO_LOG;
+            #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
             purple_conv_im_write(PURPLE_CONV_IM(conv), who, message->str, flags, timestamp);
+            #endif
             
             g_string_free(message, TRUE);
         }

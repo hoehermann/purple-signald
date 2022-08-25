@@ -1,7 +1,7 @@
 #include <sys/un.h> // for sockaddr_un
 #include <sys/socket.h> // for socket and read
 #include <errno.h>
-#include "purple_compat.h"
+#include <purple.h>
 #include "structs.h"
 #include "defines.h"
 #include "comms.h"
@@ -9,10 +9,7 @@
 #include "input.h"
 #include "reply.h"
 #include "receipt.h"
-
-#if !(GLIB_CHECK_VERSION(2, 67, 3))
-#define g_memdup2 g_memdup
-#endif
+#include "purple-3/compat.h"
 
 /*
  * This struct exchanges data between threads, see @try_connect.
@@ -179,9 +176,8 @@ signald_login(PurpleAccount *account)
     // this protocol does not support anything special right now
     PurpleConnectionFlags pc_flags;
     pc_flags = purple_connection_get_flags(pc);
-    pc_flags |= PURPLE_CONNECTION_NO_FONTSIZE;
-    pc_flags |= PURPLE_CONNECTION_NO_BGCOLOR;
-    pc_flags |= PURPLE_CONNECTION_ALLOW_CUSTOM_SMILEY;
+    pc_flags |= PURPLE_CONNECTION_FLAG_NO_FONTSIZE;
+    pc_flags |= PURPLE_CONNECTION_FLAG_NO_BGCOLOR;
     purple_connection_set_flags(pc, pc_flags);
 
     SignaldAccount *sa = g_new0(SignaldAccount, 1);

@@ -4,10 +4,7 @@
 #include "structs.h"
 #include "attachments.h"
 #include <json-glib/json-glib.h>
-
-#if !(GLIB_CHECK_VERSION(2, 67, 3))
-#define g_memdup2 g_memdup
-#endif
+#include "purple-3/compat.h"
 
 #if __has_include("gdk-pixbuf/gdk-pixbuf.h")
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -89,6 +86,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         return;
     }
 
+    #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
     if (is_loadable_image_mimetype(type)) {
         PurpleStoredImage *img = purple_imgstore_new_from_file(fn); // TODO: forward "access denied" error to UI
         size_t size = purple_imgstore_get_size(img);
@@ -100,6 +98,7 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
         //TODO: Receive file using libpurple's file transfer API
         g_string_append_printf(message, "<a href=\"file://%s\">Attachment (type: %s)</a><br/>", fn, type);
     }
+    #endif
 
     purple_debug_info(SIGNALD_PLUGIN_ID, "Attachment: %s", message->str);
 }
@@ -124,6 +123,7 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
 char *
 signald_detach_images(const char *message, JsonArray *attachments) {
     GString *msg = g_string_new(""); // this shall hold the actual message body (without the <img> tags)
+    #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
     GData *attribs;
     const char *start, *end, *last;
 
@@ -165,10 +165,6 @@ signald_detach_images(const char *message, JsonArray *attachments) {
                     chmod(tmp_fn, 0644);
                     JsonObject *attachment = json_object_new();
                     json_object_set_string_member(attachment, "filename", tmp_fn);
-//                    json_object_set_string_member(attachment, "caption", "Caption");
-//                    json_object_set_string_member(attachment, "contentType", "image/png");
-//                    json_object_set_int_member(attachment, "width", 150);
-//                    json_object_set_int_member(attachment, "height", 150);
                     json_array_add_object_element(attachments, attachment);
                 }
                 g_free(tmp_fn);
@@ -188,7 +184,7 @@ signald_detach_images(const char *message, JsonArray *attachments) {
     if (last && *last) {
         g_string_append(msg, last);
     }
-
+    #endif
     return g_string_free(msg, FALSE);
 }
 

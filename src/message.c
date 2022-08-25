@@ -6,7 +6,7 @@
 #include "attachments.h"
 #include "comms.h"
 #include "groups.h"
-#include "purple_compat.h"
+#include "purple-3/compat.h"
 #include "receipt.h"
 #include "reply.h"
 #include "groups.h"
@@ -77,7 +77,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         JsonObject *quote = json_object_get_object_member(data, "quote");
         JsonObject *author = json_object_get_object_member(quote, "author");
         const char *uuid = json_object_get_string_member(author, "uuid");
-        PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
+        PurpleBuddy *buddy = purple_blist_find_buddy(sa->account, uuid);
         const char *alias = purple_buddy_get_alias(buddy);
         if (alias && alias[0]) {
             g_string_append_printf(*target, "%s wrote:\n", alias);
@@ -100,7 +100,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         if (remove) {
             g_string_printf(*target, "removed their %s reaction.", emoji);
         } else {
-            g_string_printf(*target, "reacted with %s (to message from %s).", emoji, purple_date_format_long(tm));
+            g_string_printf(*target, "reacted with %s (to message from %s).", emoji, purple_date_format_full(tm));
         }
     }
     
@@ -240,13 +240,10 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
         // NOTE: this stores the message "as sent" (without markup, without images)
         sa->last_message = g_strdup(plain);
         // store this as the currently active conversation
-        sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, who, sa->account);
+        sa->last_conversation = purple_conversation_find_im_by_name(who, sa->account);
         if (sa->last_conversation == NULL) {
             // no appropriate conversation was found. maybe it is a group?
-            PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(who, sa->account);
-            if (conv_chat != NULL) {
-                sa->last_conversation = conv_chat->conv;
-            }
+            sa->last_conversation = purple_conversation_find_chat_by_name(who, sa->account);
         }
     }
     
@@ -287,7 +284,9 @@ signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gp
         const gchar * number = json_object_get_string_member(address, "number");
         const gchar * uuid = json_object_get_string_member(address, "uuid");
         gchar * errmsg = g_strdup_printf("Message was not delivered to %s (%s) due to %s.", number, uuid, failure);
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         purple_conversation_write(sr->sa->last_conversation, NULL, errmsg, PURPLE_MESSAGE_ERROR, time(NULL));
+        #endif
         g_free(errmsg);
     }
 }
@@ -308,6 +307,7 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
         }
     }
     if (sa->last_conversation && sa->uuid && sa->last_message) {
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         if (sr.devices_count > 0) {
             const guint64 timestamp_micro = json_object_get_int_member(data, "timestamp");
             PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
@@ -319,6 +319,7 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
             // form purple_conv_present_error()
             purple_conversation_write(sa->last_conversation, NULL, "Message was not delivered to any devices.", PURPLE_MESSAGE_ERROR, time(NULL));
         }
+        #endif
     } else if (sr.devices_count == 0) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "A message was not delivered to any devices.\n");
     }
@@ -344,23 +345,25 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
         PurpleConversation * conv = NULL;
         if (groupId) {
             conv = signald_enter_group_chat(sa->pc, groupId, NULL);
-            purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp_milli);
+            #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
+            purple_conv_chat_write(PURPLE_CHAT_CONVERSATION(conv), who, content->str, flags, timestamp_milli);
             // TODO: use serv_got_chat_in for more traditonal behaviour
             // though it compares who against chat->nick and sets the SEND/RECV flags itself
-            signald_mark_read_chat(sa, timestamp_micro, PURPLE_CONV_CHAT(conv)->users);
+            signald_mark_read_chat(sa, timestamp_micro, purple_chat_conversation_get_users(PURPLE_CHAT_CONVERSATION(conv)));
+            #endif
         } else {
             if (flags & PURPLE_MESSAGE_RECV) {
                 // incoming message
                 purple_serv_got_im(sa->pc, who, content->str, flags, timestamp_milli);
-                // although purple_serv_got_im did most of the work, we still need to fill conv for populating the message cache
-                conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
             } else {
                 // synced message (sent by ourselves via other device)
-                conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
+                conv = purple_conversation_find_im_by_name(who, sa->account);
                 if (conv == NULL) {
-                    conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, sa->account, who);
+                    conv = purple_im_conversation_new(sa->account, who);
                 }
+                #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
                 purple_conv_im_write(PURPLE_CONV_IM(conv), who, content->str, flags, timestamp_milli);
+                #endif
             }
             signald_mark_read(sa, timestamp_micro, who);
         }
@@ -389,7 +392,9 @@ signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessa
             int ret = signald_send_message(sa, groupId, TRUE, message);
             if (ret > 0) {
                 // immediate local echo (ret == 0 indicates delayed local echo)
+                #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
                 purple_conversation_write(conv, sa->uuid, message, flags, time(NULL));
+                #endif
             }
             return ret;
         }

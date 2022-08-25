@@ -1,9 +1,10 @@
 #include "groups.h"
-#include "purple_compat.h"
+#include <purple.h>
 #include "defines.h"
 #include "comms.h"
 #include "message.h"
 #include "json-utils.h"
+#include "purple-3/compat.h"
 
 PurpleGroup * signald_get_purple_group() {
     PurpleGroup *group = purple_blist_find_group("Signal");
@@ -39,7 +40,9 @@ PurpleChat * signald_ensure_group_chat_in_blist(
     //purple_blist_node_set_bool(&chat->node, "gtk-persistent", TRUE);
 
     if (title != NULL && fetch_contacts) {
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO – as of 2022-08-28, chats cannot have aliases in purple-3
         purple_blist_alias_chat(chat, title);
+        #endif
     }
 
     // set or update avatar
@@ -47,7 +50,9 @@ PurpleChat * signald_ensure_group_chat_in_blist(
         ((! purple_buddy_icons_node_has_custom_icon ((PurpleBlistNode*)chat))
          || purple_account_get_bool(account, "use-group-avatar", TRUE))) {
         purple_buddy_icons_node_set_custom_icon_from_file ((PurpleBlistNode*)chat, avatar);
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         purple_blist_update_node_icon ((PurpleBlistNode*)chat);
+        #endif
     }
 
     return chat;
@@ -120,13 +125,14 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
 void
 signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
     GList *uuids = signald_members_to_uuids(members);
-    PurpleConvChat *conv_chat = purple_conversations_find_chat_with_account(groupId, account);
+    PurpleConversation *conv = purple_conversation_find_chat_by_name(groupId, account);
+    PurpleChatConversation *conv_chat = PURPLE_CHAT_CONVERSATION(conv);
     if (conv_chat != NULL) { // only consider active chats
-        purple_conv_chat_clear_users(conv_chat);
+        purple_chat_conversation_clear_users(conv_chat);
         for (GList * uuid_elem = uuids; uuid_elem != NULL; uuid_elem = uuid_elem->next) {
             const char* uuid = uuid_elem->data;
-            PurpleConvChatBuddyFlags flags = 0;
-            purple_conv_chat_add_user(conv_chat, uuid, NULL, flags, FALSE);
+            PurpleChatUserFlags flags = 0;
+            purple_chat_conversation_add_user(conv_chat, uuid, NULL, flags, FALSE);
         }
     }
     g_list_free_full(uuids, g_free);
@@ -153,13 +159,15 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
     // set title as topic
     PurpleConversation *conv = purple_find_chat(sa->pc, g_str_hash(groupId));
     if (conv != NULL) {
-        purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
+        purple_chat_conversation_set_topic(PURPLE_CHAT_CONVERSATION(conv), groupId, title);
     }
 
     // the user might have requested a room list, fill it
     if (sa->roomlist) {
-        PurpleRoomlistRoom *room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, groupId, NULL); // this sets the room's name
+        PurpleRoomlistRoom *room = purple_roomlist_room_new(groupId, NULL); // this sets the room's name
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         purple_roomlist_room_add_field(sa->roomlist, room, title); // this sets the room's title
+        #endif
         purple_roomlist_room_add(sa->roomlist, room);
     }
 }
@@ -217,11 +225,11 @@ PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *
     // use hash of groupId for chat id number
     PurpleConversation *conv = purple_find_chat(pc, g_str_hash(groupId));
     if (conv == NULL) {
-        conv = serv_got_joined_chat(pc, g_str_hash(groupId), groupId);
+        conv = purple_serv_got_joined_chat(pc, g_str_hash(groupId), groupId);
         purple_conversation_set_data(conv, "name", g_strdup(groupId));
-        purple_conv_chat_set_nick(PURPLE_CONV_CHAT(conv), sa->uuid); // identify ourselves in this chat
+        purple_chat_conversation_set_nick(PURPLE_CHAT_CONVERSATION(conv), sa->uuid); // identify ourselves in this chat
         if (title != NULL) {
-            purple_conv_chat_set_topic(PURPLE_CONV_CHAT(conv), groupId, title);
+            purple_chat_conversation_set_topic(PURPLE_CHAT_CONVERSATION(conv), groupId, title);
         }
         signald_request_group_info(sa, groupId);
     }
@@ -241,14 +249,10 @@ signald_join_chat(PurpleConnection *pc, GHashTable *data)
 /*
  * Information identifying a chat.
  */
-GList *
-signald_chat_info(PurpleConnection *pc)
-{
+GList * signald_chat_info(PurpleConnection *pc) {
     GList *infos = NULL;
 
-    struct proto_chat_entry *pce;
-
-    pce = g_new0(struct proto_chat_entry, 1);
+    PurpleProtocolChatEntry *pce = g_new0(PurpleProtocolChatEntry, 1);
     pce->label = "Group ID";
     pce->identifier = "name";
     pce->required = TRUE;
@@ -311,11 +315,13 @@ signald_roomlist_get_list(PurpleConnection *pc) {
     } else {
         sa->roomlist = purple_roomlist_new(sa->account);
         purple_roomlist_set_in_progress(sa->roomlist, TRUE);
+        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         GList *fields = NULL;
         fields = g_list_append(fields, purple_roomlist_field_new(
             PURPLE_ROOMLIST_FIELD_STRING, "Group Name", "topic", FALSE
         ));
         purple_roomlist_set_fields(sa->roomlist, fields);
+        #endif
         signald_request_group_list(sa);
     }
     return sa->roomlist;
@@ -336,7 +342,7 @@ static void signald_leave_group(SignaldAccount *sa, const char *groupID)
 }
 
 static void
-signald_leave_chat(PurpleBlistNode *node, gpointer userdata)
+signald_leave_chat_menu_cb(PurpleBlistNode *node, gpointer userdata)
 {
     g_return_if_fail(node != NULL);
     PurpleChat *chat = (PurpleChat *)node;
@@ -355,9 +361,9 @@ signald_chat_menu(PurpleChat *chat)
 {
     GList *menu = NULL;
 
-    PurpleMenuAction * act = purple_menu_action_new(
+    PurpleActionMenu * act = purple_action_menu_new(
         "Leave Group",
-        PURPLE_CALLBACK(signald_leave_chat),
+        G_CALLBACK(signald_leave_chat_menu_cb),
         NULL, /* userdata passed to the callback */
         NULL /* child menu items */
     );
@@ -367,7 +373,7 @@ signald_chat_menu(PurpleChat *chat)
 }
 
 GList *signald_blist_node_menu(PurpleBlistNode *node) {
-    if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+    if (PURPLE_IS_CHAT(node)) {
         return signald_chat_menu((PurpleChat *) node);
     } else {
         return NULL;
@@ -384,10 +390,10 @@ void signald_process_leave_group(SignaldAccount *sa, JsonObject *data) {
 static PurpleChat * signald_blist_find_chat(PurpleAccount *account, int id) {
     for (PurpleBlistNode *group = purple_blist_get_root(); group != NULL; group = group->next) {
         for (PurpleBlistNode *node = group->child; node != NULL; node = node->next) {
-            if (PURPLE_BLIST_NODE_IS_CHAT(node)) {
+            if (PURPLE_IS_CHAT(node)) {
                 PurpleChat *chat = (PurpleChat*)node;
-                if (account == chat->account) {
-                    const gchar *groupId = g_hash_table_lookup(chat->components, "name");
+                if (account == purple_chat_get_account(chat)) {
+                    const gchar *groupId = g_hash_table_lookup(purple_chat_get_components(chat), "name");
                     if (id == g_str_hash(groupId)) {
                         return chat;
                     }

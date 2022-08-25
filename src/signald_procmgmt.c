@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include "signald_procmgmt.h"
 #include "defines.h"
+#include "purple-3/compat.h"
 
 static int signald_usages = 0;
 
@@ -50,19 +51,19 @@ signald_signald_start(PurpleAccount *account)
             // The child, redirect it to signald
 
             // Save pid for later killing the daemon
-            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_user_dir());
+            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_cache_dir());
             signald_save_pidfile (pid_file);
             g_free(pid_file);
 
             // Start the daemon
-            gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_user_dir());
+            gchar *data = g_strdup_printf(SIGNALD_DATA_PATH, purple_data_dir());
             int signald_ok;
             const gchar * user_socket = purple_account_get_string(account, "socket", "");
             if (!user_socket[0]) {
                 user_socket = SIGNALD_DEFAULT_SOCKET;
             }
 
-            if (purple_debug_is_enabled ()) {
+            if (purple_debug_is_enabled()) {
                 signald_ok = execlp("signald", "signald", "-v", "-s", user_socket, "-d", data, NULL);
             } else {
                 signald_ok = execlp("signald", "signald", "-s", user_socket, "-d", data, NULL);
@@ -90,7 +91,7 @@ signald_connection_closed() {
         signald_usages--;
         if (0 == signald_usages) {
             // This was the last instance, kill daemon and remove pid file
-            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_user_dir());
+            gchar *pid_file = g_strdup_printf(SIGNALD_PID_FILE, purple_cache_dir());
             signald_kill_process(pid_file);
             g_free(pid_file);
         }

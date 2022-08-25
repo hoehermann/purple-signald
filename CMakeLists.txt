@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10) # lowest version this was tested with
+cmake_minimum_required(VERSION 3.24) # for COMPILE_WARNING_AS_ERROR
 
 project("purple-signald" LANGUAGES C)
 

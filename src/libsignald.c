@@ -20,7 +20,7 @@
 #include <string.h>
 #include <errno.h>
 #include <gmodule.h>
-#include "purple_compat.h"
+#include <purple.h>
 #include "structs.h"
 #include "defines.h"
 #include "comms.h"

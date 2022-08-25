@@ -1,4 +1,4 @@
-#include "purple_compat.h"
+#include <purple.h>
 #include "input.h"
 #include "defines.h"
 #include "structs.h"
@@ -10,6 +10,7 @@
 #include "login.h"
 #include "receipt.h"
 #include "json-utils.h"
+#include "purple-3/compat.h"
 
 static void
 signald_handle_input(SignaldAccount *sa, JsonNode *root)

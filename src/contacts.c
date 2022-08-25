@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "comms.h"
 #include "json-utils.h"
+#include "purple-3/compat.h"
 
 void
 signald_assume_buddy_state(PurpleAccount *account, PurpleBuddy *buddy)
@@ -9,14 +10,14 @@ signald_assume_buddy_state(PurpleAccount *account, PurpleBuddy *buddy)
     g_return_if_fail(buddy != NULL);
 
     const gchar *status_str = purple_account_get_string(account, "fake-status", SIGNALD_STATUS_STR_ONLINE);
-    purple_prpl_got_user_status(account, buddy->name, status_str, NULL);
-    purple_prpl_got_user_status(account, buddy->name, SIGNALD_STATUS_STR_MOBILE, NULL);
+    purple_protocol_got_user_status(account, purple_buddy_get_name(buddy), status_str, NULL);
+    purple_protocol_got_user_status(account, purple_buddy_get_name(buddy), SIGNALD_STATUS_STR_MOBILE, NULL);
 }
 
 void
 signald_assume_all_buddies_state(SignaldAccount *sa)
 {
-    GSList *buddies = purple_find_buddies(sa->account, NULL);
+    GSList *buddies = purple_blist_find_buddies(sa->account, NULL);
     while (buddies != NULL) {
         signald_assume_buddy_state(sa->account, buddies->data);
         buddies = g_slist_delete_link(buddies, buddies);
@@ -39,22 +40,22 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
     }
     // special case: contact to self
     if (!alias && purple_strequal(sa->uuid, uuid)) {
-        alias = purple_account_get_alias(sa->account);
+        alias = purple_account_get_private_alias(sa->account);
         if (!alias) {
             alias = purple_account_get_username(sa->account);
         }
     }
 
     // default: buddy identified by UUID
-    PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
+    PurpleBuddy *buddy = purple_blist_find_buddy(sa->account, uuid);
 
     // however, ...
     if (number && number[0]) {
         // ...if the contact's number is known...
-        PurpleBuddy *number_buddy = purple_find_buddy(sa->account, number);
+        PurpleBuddy *number_buddy = purple_blist_find_buddy(sa->account, number);
         if (number_buddy) {
             // ...and the number identifies a buddy...
-            purple_blist_rename_buddy(number_buddy, uuid); // rename (not alias) the buddy
+            purple_buddy_set_name(number_buddy, uuid); // rename (not alias) the buddy
             // remove superflous UUID from the buddy if set
             gpointer data = purple_buddy_get_protocol_data(buddy);
             if (data) {
@@ -68,7 +69,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
 
     if (!buddy) {
         // new buddy
-        PurpleGroup *g = purple_find_group(SIGNAL_DEFAULT_GROUP);
+        PurpleGroup *g = purple_blist_find_group(SIGNAL_DEFAULT_GROUP);
         if (!g) {
             g = purple_group_new(SIGNAL_DEFAULT_GROUP);
             purple_blist_add_group(g, NULL);
@@ -84,7 +85,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
     }
     if (alias) {
         //purple_blist_alias_buddy(buddy, alias); // this overrides the alias set by the local user
-        serv_got_alias(sa->pc, uuid, alias);
+        purple_serv_got_alias(sa->pc, uuid, alias);
     }
 
     // Set or update avatar

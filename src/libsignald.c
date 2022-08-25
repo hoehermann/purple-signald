@@ -52,18 +52,21 @@ signald_close (PurpleConnection *pc)
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "unsubscribe");
         json_object_set_string_member(data, "account", sa->uuid);
-        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED && !signald_send_json (sa, data)) {
-            purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Could not write message for unsubscribing.");
-            purple_debug_error(SIGNALD_PLUGIN_ID, "Could not write message for unsubscribing: %s", strerror(errno));
+        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED) { 
+            if (signald_send_json(sa, data)) {
+                // read one last time for acknowledgement of unsubscription
+                // NOTE: this will block forever in case signald stalls
+                sa->readflags = 0;
+                signald_read_cb(sa, 0, 0);
+            } else {
+                purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Could not write message for unsubscribing.");
+                purple_debug_error(SIGNALD_PLUGIN_ID, "Could not write message for unsubscribing: %s", strerror(errno));
+            }
         }
         json_object_unref(data);
         // now free UUID
         g_free(sa->uuid);
         sa->uuid = NULL;
-        // read one last time for acknowledgement of unsubscription
-        // NOTE: this will block forever in case signald stalls
-        sa->readflags = 0;
-        signald_read_cb(sa, 0, 0);
     }
 
     close(sa->fd);

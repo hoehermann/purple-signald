@@ -12,14 +12,13 @@
 #include "prpl.h"
 
 #include "../login.h"
+#include "../options.h"
+#include "../status.h"
+#include "../interface.h"
 
 struct _SignaldProtocol {
   PurpleProtocol parent;
 };
-
-#define SIGNALD_STATUS_ONLINE   "online"
-#define SIGNALD_STATUS_AWAY     "away"
-#define SIGNALD_STATUS_OFFLINE  "offline"
 
 /*
  * Protocol functions
@@ -38,26 +37,12 @@ static GMenu * signald_protocol_actions_get_menu(PurpleProtocolActions *actions)
   return menu;
 }
 
-static const char *signald_list_icon(PurpleAccount *acct, PurpleBuddy *buddy) {
-  return "signal";
-}
-
 static GList * signald_protocol_get_account_options(PurpleProtocol *protocol) {
-  PurpleAccountOption *option;
-  option = purple_account_option_string_new(
-          "Example option", /* text shown to user */
-          "example",        /* pref name */
-          "default");       /* default value */
-  return g_list_append(NULL, option);
+  return signald_add_account_options(NULL);
 }
 
-static void signald_tooltip_text(PurpleProtocolClient *client, PurpleBuddy *buddy, PurpleNotifyUserInfo *info, gboolean full) {
-    purple_notify_user_info_add_pair_plaintext(info, "User info", "TODO");
-}
-
-static GList *signald_status_types(PurpleAccount *acct) {
-  GList *types = NULL;
-  return NULL;
+static void signald_protocol_tooltip_text(PurpleProtocolClient *client, PurpleBuddy *buddy, PurpleNotifyUserInfo *info, gboolean full) {
+    signald_tooltip_text(buddy, info, full);
 }
 
 static void blist_example_menu_item(PurpleBlistNode *node, gpointer userdata) {
@@ -93,9 +78,6 @@ static gchar * signald_get_chat_name(PurpleProtocolChat *protocol_chat, GHashTab
 static GHashTable * signald_chat_info_defaults(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, const gchar *room) {
   GHashTable *defaults = NULL;
   return defaults;
-}
-
-static void signald_close(PurpleConnection *gc) {
 }
 
 static int signald_send_im(PurpleProtocolIM *im, PurpleConnection *gc, PurpleMessage *msg) {
@@ -140,15 +122,8 @@ static void signald_chat_invite(PurpleProtocolChat *protocol_chat, PurpleConnect
 static void signald_chat_leave(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id) {
 }
 
-static void receive_chat_message(PurpleConversation *from, PurpleConversation *to, int id, const char *room, gpointer userdata) {
-  //purple_serv_got_chat_in(to_gc, id, who, PURPLE_MESSAGE_RECV, message, time(NULL));
-}
-
 static gint signald_chat_send(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, PurpleMessage *msg) {
   return 0;
-}
-
-static void signald_register_user(PurpleProtocolServer *protocol_server, PurpleAccount *acct) {
 }
 
 static void signald_alias_buddy(PurpleProtocolServer *protocol_server, PurpleConnection *gc, const gchar *who, const gchar *alias) {
@@ -206,12 +181,12 @@ static void signald_protocol_actions_iface_init(PurpleProtocolActionsInterface *
 
 static void signald_protocol_client_iface_init(PurpleProtocolClientInterface *client_iface) {
   //client_iface->status_text     = signald_status_text;
-  client_iface->tooltip_text    = signald_tooltip_text;
+  client_iface->tooltip_text    = signald_protocol_tooltip_text;
   client_iface->blist_node_menu = signald_blist_node_menu;
 }
 
 static void signald_protocol_server_iface_init(PurpleProtocolServerInterface *server_iface) {
-  server_iface->register_user  = signald_register_user;
+  //server_iface->register_user  = signald_register_user; // this makes a "register on server" option appear
   server_iface->get_info       = signald_get_info;
   server_iface->set_status     = signald_set_status;
   server_iface->add_buddy      = signald_add_buddy;

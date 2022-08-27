@@ -201,7 +201,6 @@ signald_login(PurpleAccount *account)
     signald_connect_socket(sa);
 }
 
-
 void signald_subscribe(SignaldAccount *sa)
 {
     // subscribe to the configured number

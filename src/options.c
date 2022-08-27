@@ -18,15 +18,6 @@ signald_add_account_options(GList *account_options)
 {
     PurpleAccountOption *option;
 
-    /*
-    option = purple_account_option_bool_new(
-                "Link to an existing account",
-                "link",
-                TRUE
-                );
-    account_options = g_list_append(account_options, option);
-    */
-
     char hostname[HOST_NAME_MAX + 1];
     if (gethostname(hostname, HOST_NAME_MAX)) {
         strcpy(hostname, SIGNALD_DEFAULT_DEVICENAME);

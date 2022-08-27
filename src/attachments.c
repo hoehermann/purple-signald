@@ -106,12 +106,14 @@ signald_parse_attachment(SignaldAccount *sa, JsonObject *obj, GString *message)
 
 GString *
 signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
-    JsonArray *attachments = json_object_get_array_member(obj, "attachments");
-    guint len = json_array_get_length(attachments);
-    GString *attachments_message = g_string_sized_new(len * 100); // Preallocate buffer. Exact size doesn't matter. It grows automatically if it is too small
+    GString *attachments_message = g_string_new("");
 
-    for (guint i=0; i < len; i++) {
-        signald_parse_attachment(sa, json_array_get_object_element(attachments, i), attachments_message);
+    if (json_object_has_member(obj, "attachments")) {
+        JsonArray *attachments = json_object_get_array_member(obj, "attachments");
+        guint len = json_array_get_length(attachments);
+        for (guint i=0; i < len; i++) {
+            signald_parse_attachment(sa, json_array_get_object_element(attachments, i), attachments_message);
+        }
     }
 
     return attachments_message;

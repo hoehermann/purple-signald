@@ -19,10 +19,19 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
     purple_debug_info(SIGNALD_PLUGIN_ID, "received type: %s\n", type);
 
     // catch and display errors
-    JsonObject *errobj = json_object_get_object_member_or_null(obj, "error");
-    if (errobj != NULL) {
+    JsonObject * error_object = NULL;
+    if (json_object_has_member(obj, "error")) {
+        // error key is set
+        JsonNode * error_node = json_object_get_member(obj, "error");
+        // check whether error is a JSON object
+        // it can also be a boolean value, see handling below
+        if (JSON_NODE_HOLDS_OBJECT(error_node)) {
+            error_object = json_object_get_object_member(obj, "error");
+        }
+    }
+    if (error_object != NULL) {
         const char *error_type = json_object_get_string_member(obj, "error_type");
-        const char *error_message = json_object_get_string_member(errobj, "message");
+        const char *error_message = json_object_get_string_member(error_object, "message");
         if (strstr(error_message, "AuthorizationFailedException")) {
             // TODO: rather check json array error.exceptions for "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
             signald_link_or_register(sa);
@@ -35,7 +44,7 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "SQLite database busy.");
             return;
         } else {
-            const char *message = json_object_get_string_member(errobj, "message");
+            const char *message = json_object_get_string_member(error_object, "message");
             char *error_message = g_strdup_printf("%s occurred on %s: %s\n", error_type, type, message);
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, error_message);
             g_free(error_message);
@@ -134,8 +143,12 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
     } else if (purple_strequal(type, "ListenerState")) {
         // obsolete variant of WebSocketConnectionState. ignore silently.
         
+    } else if (purple_strequal(type, "ProtocolInvalidKeyIdError")) {
+        // this one has boolean "error": true
+        // TODO: get sender, show notification
+        
     } else {
-        purple_debug_error(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignored message of unknown type '%s'.\n", type);
     }
 }
 

@@ -31,6 +31,7 @@ PurpleChat * signald_ensure_group_chat_in_blist(
         chat = purple_chat_new(account, groupId, comp);
         PurpleGroup *group = signald_get_purple_group();
         purple_blist_add_chat(chat, group, NULL);
+        // TODO: find out if purple_serv_got_joined_chat(gc, …) should be called
     }
 
     // if gtk-persistent is set, the user may close the gtk conversation window without leaving the chat

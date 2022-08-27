@@ -123,7 +123,11 @@ signald_prepare_attachments_message(SignaldAccount *sa, JsonObject *obj) {
 char *
 signald_detach_images(const char *message, JsonArray *attachments) {
     GString *msg = g_string_new(""); // this shall hold the actual message body (without the <img> tags)
-    #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
+    #if PURPLE_VERSION_CHECK(3, 0, 0) // TODO
+        // TODO: actually implement extracting images
+        // pidgin-3/libpurple/protocols/silc/util.c looks helpful
+        g_string_append(msg, message);
+    #else
     GData *attribs;
     const char *start, *end, *last;
 

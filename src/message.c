@@ -361,8 +361,18 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
                 if (conv == NULL) {
                     conv = purple_im_conversation_new(sa->account, who);
                 }
-                #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
-                purple_conv_im_write(PURPLE_CONV_IM(conv), who, content->str, flags, timestamp_milli);
+                #if PURPLE_VERSION_CHECK(3, 0, 0)
+                    // from pidgin-3/libpurple/protocols/facebook/util.c
+                    const gchar * me = purple_account_get_name_for_display(sa->account);
+                    const gchar * name = purple_account_get_username(sa->account);
+                    PurpleMessage * msg = purple_message_new_outgoing(me, name, content->str, flags);
+                    GDateTime * dt = g_date_time_new_from_unix_local(timestamp_micro/1000000); // TODO: find correct conversion
+                    purple_message_set_timestamp(msg, dt);
+                    g_date_time_unref(dt);
+                    purple_conversation_write_message(conv, msg);
+                    g_object_unref(G_OBJECT(msg));
+                #else
+                    purple_conv_im_write(PURPLE_CONV_IM(conv), who, content->str, flags, timestamp_milli);
                 #endif
             }
             signald_mark_read(sa, timestamp_micro, who);

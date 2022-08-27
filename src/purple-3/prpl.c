@@ -15,6 +15,9 @@
 #include "../options.h"
 #include "../status.h"
 #include "../interface.h"
+#include "../message.h"
+#include "../groups.h"
+#include "../contacts.h"
 
 struct _SignaldProtocol {
   PurpleProtocol parent;
@@ -48,7 +51,7 @@ static void signald_protocol_tooltip_text(PurpleProtocolClient *client, PurpleBu
 static void blist_example_menu_item(PurpleBlistNode *node, gpointer userdata) {
 }
 
-static GList * signald_blist_node_menu(PurpleProtocolClient *client, PurpleBlistNode *node) {
+static GList * signald_protocol_blist_node_menu(PurpleProtocolClient *client, PurpleBlistNode *node) {
   if (PURPLE_IS_GROUP(node)) {
     PurpleActionMenu *action = purple_action_menu_new(
       "Leave group",
@@ -62,26 +65,27 @@ static GList * signald_blist_node_menu(PurpleProtocolClient *client, PurpleBlist
   }
 }
 
-static GList * signald_chat_info(PurpleProtocolChat *protocol_chat, PurpleConnection *gc) {
-  PurpleProtocolChatEntry *pce = g_new0(PurpleProtocolChatEntry, 1);
-  pce->label = "Group ID";
-  pce->identifier = "name";
-  pce->required = TRUE;
-  return g_list_append(NULL, pce);
+static void signald_protocol_add_buddy(PurpleProtocolServer *protocol_server, PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group, const gchar *message) {
+  signald_add_buddy(gc, buddy, group);
 }
 
-static gchar * signald_get_chat_name(PurpleProtocolChat *protocol_chat, GHashTable *components) {
-  const char *room = g_hash_table_lookup(components, "name");
-  return g_strdup(room);
+static GList * signald_protocol_chat_info(PurpleProtocolChat *protocol_chat, PurpleConnection *gc) {
+  return signald_chat_info(gc);
 }
 
-static GHashTable * signald_chat_info_defaults(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, const gchar *room) {
-  GHashTable *defaults = NULL;
-  return defaults;
+static gchar * signald_protocol_get_chat_name(PurpleProtocolChat *protocol_chat, GHashTable *components) {
+  return signald_get_chat_name(components);
 }
 
-static int signald_send_im(PurpleProtocolIM *im, PurpleConnection *gc, PurpleMessage *msg) {
-   return 1;
+static GHashTable * signald_protocol_chat_info_defaults(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, const gchar *room) {
+  return signald_chat_info_defaults(gc, room);
+}
+
+int signald_protocol_send_im(PurpleProtocolIM *im, PurpleConnection *gc, PurpleMessage *msg) {
+    const gchar * who = purple_message_get_recipient(msg);
+    const gchar * message = purple_message_get_contents(msg);
+    PurpleMessageFlags flags = purple_message_get_flags(msg);
+    return signald_send_im(gc, who, message, flags);
 }
 
 static void notify_typing(PurpleConnection *from, PurpleConnection *to, gpointer typing) {
@@ -92,25 +96,12 @@ static unsigned int signald_send_typing(PurpleProtocolIM *im, PurpleConnection *
   return 0;
 }
 
-static void signald_get_info(PurpleProtocolServer *protocol_server, PurpleConnection *gc, const gchar *username) {
-  PurpleNotifyUserInfo *info = purple_notify_user_info_new();
-  /* show a buddy's user info in a nice dialog box */
-  purple_notify_userinfo(
-    gc,        /* connection the buddy info came through */
-    username,  /* buddy's username */
-    info,      /* body */
-    NULL,      /* callback called when dialog closed */
-    NULL       /* userdata for callback */
-  );
+static void signald_protocol_get_info(PurpleProtocolServer *protocol_server, PurpleConnection *gc, const gchar *username) {
+  signald_get_info(gc, username);
 }
 
-static void signald_set_status(PurpleProtocolServer *protocol_server, PurpleAccount *acct, PurpleStatus *status) {
-}
-
-static void signald_add_buddy(PurpleProtocolServer *protocol_server, PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group, const gchar *message) {
-}
-
-static void signald_join_chat(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, GHashTable *components) {
+static void signald_protocol_join_chat(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, GHashTable *components) {
+  signald_join_chat(gc, components);
 }
 
 static void signald_reject_chat(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, GHashTable *components) {
@@ -119,21 +110,16 @@ static void signald_reject_chat(PurpleProtocolChat *protocol_chat, PurpleConnect
 static void signald_chat_invite(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, const gchar *message, const gchar *who) {
 }
 
-static void signald_chat_leave(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id) {
+static void signald_protocol_chat_leave(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id) {
+  signald_chat_leave(gc, id);
 }
 
-static gint signald_chat_send(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, PurpleMessage *msg) {
+static gint signald_protocol_chat_send(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, PurpleMessage *msg) {
   return 0;
 }
 
-static void signald_alias_buddy(PurpleProtocolServer *protocol_server, PurpleConnection *gc, const gchar *who, const gchar *alias) {
-}
-
-static void signald_remove_group(PurpleProtocolServer *protocol_server, PurpleConnection *gc, PurpleGroup *group) {
-}
-
-static void signald_set_chat_topic(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, const gchar *topic) {
-  return;
+static void signald_protocol_set_chat_topic(PurpleProtocolChat *protocol_chat, PurpleConnection *gc, gint id, const gchar *topic) {
+  signald_set_chat_topic(gc, id, topic);
 }
 
 static gboolean signald_finish_get_roomlist(gpointer roomlist) {
@@ -142,9 +128,8 @@ static gboolean signald_finish_get_roomlist(gpointer roomlist) {
   return FALSE;
 }
 
-static PurpleRoomlist * signald_roomlist_get_list(PurpleProtocolRoomlist *protocol_roomlist, PurpleConnection *gc) {
-  PurpleRoomlist *roomlist = purple_roomlist_new(purple_connection_get_account(gc));
-  return roomlist;
+static PurpleRoomlist * signald_protocol_roomlist_get_list(PurpleProtocolRoomlist *protocol_roomlist, PurpleConnection *gc) {
+  return signald_roomlist_get_list(gc);
 }
 
 /*
@@ -182,33 +167,33 @@ static void signald_protocol_actions_iface_init(PurpleProtocolActionsInterface *
 static void signald_protocol_client_iface_init(PurpleProtocolClientInterface *client_iface) {
   //client_iface->status_text     = signald_status_text;
   client_iface->tooltip_text    = signald_protocol_tooltip_text;
-  client_iface->blist_node_menu = signald_blist_node_menu;
+  client_iface->blist_node_menu = signald_protocol_blist_node_menu;
 }
 
 static void signald_protocol_server_iface_init(PurpleProtocolServerInterface *server_iface) {
   //server_iface->register_user  = signald_register_user; // this makes a "register on server" option appear
-  server_iface->get_info       = signald_get_info;
-  server_iface->set_status     = signald_set_status;
-  server_iface->add_buddy      = signald_add_buddy;
-  server_iface->alias_buddy    = signald_alias_buddy;
-  server_iface->remove_group   = signald_remove_group;
+  server_iface->get_info       = signald_protocol_get_info;
+  //server_iface->set_status     = signald_set_status;
+  server_iface->add_buddy      = signald_protocol_add_buddy;
+  //server_iface->alias_buddy    = signald_alias_buddy;
+  //server_iface->remove_group   = signald_remove_group;
 }
 
 static void signald_protocol_im_iface_init(PurpleProtocolIMInterface *im_iface) {
-  im_iface->send        = signald_send_im;
+  im_iface->send        = signald_protocol_send_im;
   im_iface->send_typing = signald_send_typing;
 }
 
 static void signald_protocol_chat_iface_init(PurpleProtocolChatInterface *chat_iface) {
-  chat_iface->info          = signald_chat_info;
-  chat_iface->info_defaults = signald_chat_info_defaults;
-  chat_iface->join          = signald_join_chat;
-  chat_iface->reject        = signald_reject_chat;
-  chat_iface->get_name      = signald_get_chat_name;
-  chat_iface->invite        = signald_chat_invite;
-  chat_iface->leave         = signald_chat_leave;
-  chat_iface->send          = signald_chat_send;
-  chat_iface->set_topic     = signald_set_chat_topic;
+  chat_iface->info          = signald_protocol_chat_info;
+  chat_iface->info_defaults = signald_protocol_chat_info_defaults;
+  chat_iface->join          = signald_protocol_join_chat;
+  //chat_iface->reject        = signald_reject_chat;
+  chat_iface->get_name      = signald_protocol_get_chat_name;
+  //chat_iface->invite        = signald_chat_invite;
+  //chat_iface->leave         = signald_protocol_chat_leave;
+  chat_iface->send          = signald_protocol_chat_send;
+  chat_iface->set_topic     = signald_protocol_set_chat_topic;
 }
 
 static void signald_protocol_privacy_iface_init(PurpleProtocolPrivacyInterface *privacy_iface) {
@@ -216,7 +201,7 @@ static void signald_protocol_privacy_iface_init(PurpleProtocolPrivacyInterface *
 
 static void
 signald_protocol_roomlist_iface_init(PurpleProtocolRoomlistInterface *roomlist_iface) {
-  roomlist_iface->get_list        = signald_roomlist_get_list;
+  roomlist_iface->get_list        = signald_protocol_roomlist_get_list;
 }
 
 /*

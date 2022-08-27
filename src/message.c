@@ -299,7 +299,7 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
             // though it compares who against chat->nick and sets the SEND/RECV flags itself
             signald_mark_read_chat(sa, timestamp_micro, PURPLE_CONV_CHAT(conv)->users);
         } else {
-            if (flags | PURPLE_MESSAGE_RECV) {
+            if (flags & PURPLE_MESSAGE_RECV) {
                 // incoming message
                 purple_serv_got_im(sa->pc, who, content->str, flags, timestamp_milli);
             } else {

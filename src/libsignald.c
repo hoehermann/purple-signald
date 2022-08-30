@@ -31,6 +31,7 @@
 #include "options.h"
 #include "signald_procmgmt.h"
 #include "blist.h"
+#include "reply.h"
 
 static const char *
 signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
@@ -71,6 +72,8 @@ signald_close (PurpleConnection *pc)
 
     close(sa->fd);
     sa->fd = 0;
+    
+    signald_replycache_free(sa->replycache);
 
     g_free(sa);
 

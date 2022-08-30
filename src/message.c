@@ -8,6 +8,7 @@
 #include "groups.h"
 #include "purple_compat.h"
 #include "receipt.h"
+#include "reply.h"
 
 const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
@@ -39,6 +40,7 @@ signald_set_recipient(JsonObject *obj, const gchar *key, const gchar *recipient)
 {
     g_return_if_fail(recipient);
     g_return_if_fail(obj);
+    // if contact was added manually and not yet migrated, the recipient might still be a number, not a UUID
     char * address_type = NULL;
     if (signald_is_number(recipient)) {
         address_type = "number";
@@ -47,7 +49,6 @@ signald_set_recipient(JsonObject *obj, const gchar *key, const gchar *recipient)
     }
     g_return_if_fail(obj);
     JsonObject *address = json_object_new();
-    // if contact was added manually and not yet migrated, the recipient might still be a number, not a UUID
     json_object_set_string_member(address, address_type, recipient);
     json_object_set_object_member(obj, key, address);
 }
@@ -171,6 +172,10 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
         signald_set_recipient(data, "recipientAddress", who);
     }
 
+    SignaldMessage *reply_message = signald_replycache_check(sa, message);
+    if (reply_message != NULL) {
+        signald_replycache_apply(data, reply_message);
+    }
     JsonArray *attachments = json_array_new();
     char *textonly = signald_detach_images(message, attachments);
     json_object_set_array_member(data, "attachments", attachments);
@@ -292,8 +297,9 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
         } else {
             flags |= PURPLE_MESSAGE_RECV;
         }
+        PurpleConversation * conv = NULL;
         if (groupId) {
-            PurpleConversation * conv = signald_enter_group_chat(sa->pc, groupId, NULL);
+            conv = signald_enter_group_chat(sa->pc, groupId, NULL);
             purple_conv_chat_write(PURPLE_CONV_CHAT(conv), who, content->str, flags, timestamp_milli);
             // TODO: use serv_got_chat_in for more traditonal behaviour
             // though it compares who against chat->nick and sets the SEND/RECV flags itself
@@ -302,9 +308,11 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
             if (flags & PURPLE_MESSAGE_RECV) {
                 // incoming message
                 purple_serv_got_im(sa->pc, who, content->str, flags, timestamp_milli);
+                // although purple_serv_got_im did most of the work, we still need to fill conv for populating the message cache
+                conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
             } else {
                 // synced message (sent by ourselves via other device)
-                PurpleConversation * conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
+                conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, sa->account);
                 if (conv == NULL) {
                     conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, sa->account, who);
                 }
@@ -312,6 +320,7 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
             }
             signald_mark_read(sa, timestamp_micro, who);
         }
+        signald_replycache_add_message(sa, conv, who, message_data);
     } else {
         purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
     }

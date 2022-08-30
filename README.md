@@ -31,6 +31,8 @@ See [HOWTO](HOWTO.md).
   * Emoji reactions are displayed
   * Stickers can be displayed if GDK headers were available at build-time and a [GDK webp pixbuf loader](https://github.com/aruiz/webp-pixbuf-loader) is present in the system at run-time. Stickers are not animated.
   * It is possible to leave a Signal group by leaving the Pidgin chat (close the window) after removing it from the Pidgin buddy list.
+  * The plug-in can cache a user-defined number of incoming messages so you can reply to them by starting the message with "@needle:" or "at character followed by a text followed by a colon". The newest cached messages containing the needle will be replied to.  
+  ![Reply](/doc/reply.png?raw=true "Screenshot showcasing reply feature")
 
 * Additional features contributed by [Hermann Kraus](https://github.com/herm/):
 

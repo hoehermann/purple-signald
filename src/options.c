@@ -66,6 +66,13 @@ signald_add_account_options(GList *account_options)
         account_options = g_list_append(account_options, option);
     }
 
+    option = purple_account_option_int_new(
+                "Number of incoming messages to cache for replying",
+                SIGNALD_OPTION_REPLY_CACHE,
+                0
+                );
+    account_options = g_list_append(account_options, option);
+
     option = purple_account_option_bool_new(
                 "Mark messages as read",
                 SIGNALD_OPTION_MARK_READ,

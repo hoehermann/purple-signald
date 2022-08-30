@@ -7,6 +7,7 @@
 #include "comms.h"
 #include "signald_procmgmt.h"
 #include "input.h"
+#include "reply.h"
 
 #if !(GLIB_CHECK_VERSION(2, 67, 3))
 #define g_memdup2 g_memdup
@@ -187,6 +188,8 @@ signald_login(PurpleAccount *account)
 
     sa->account = account;
     sa->pc = pc;
+    
+    sa->replycache = signald_replycache_init();
 
     // Check account settings whether signald is globally running
     // (controlled by the system or the user) or whether it should

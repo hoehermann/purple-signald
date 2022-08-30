@@ -18,6 +18,8 @@ typedef struct {
 
     char *last_message; // the last message which has been sent to signald
     PurpleConversation *last_conversation; // the conversation the message is relevant to
+    
+    GQueue *replycache; // cache of messages for "reply to" function
 
     PurpleRoomlist *roomlist;
 } SignaldAccount;

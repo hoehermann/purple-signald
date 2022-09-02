@@ -6,19 +6,6 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 
 ![Instant Message](/doc/instant_message.png?raw=true "Instant Message Screenshot")
 
-### Known Issues
-
-* Sometimes, group chats are added to the buddy list more than once.
-* In group chats, on outgoing messages the sender name may have a different color than displayed in the list of chat participants.
-* When sending an image with delayed acknowledgements, the image is not displayed locally.
-* Sending out read receipts on group chats do not work util the list of participants has been loaded. This usually affects only the first message of a chat.
-* Read receipts of messages sent to groups are displayed in the receivers' conversation – and only if the conversation is currently active.
-* After linking, contacts are not synced and may appear offline. Reconnecting helps.
-
-### Getting Started
-
-See [HOWTO](HOWTO.md).
-
 ### Features
 
 * Core features:
@@ -43,7 +30,7 @@ See [HOWTO](HOWTO.md).
 
   Note: When signald is being run as a system service, downloaded files may not be accessible directly to the user. Do not forget to add yourself to the `signald` group.
 
-* Additional features contributed by [Torsten](https://github.com/ttlmax/libpurple-signald):
+* Additional features contributed by [Torsten](https://github.com/ttlmax/):
 
   * Link with the master device
   * Automatically start signald  
@@ -54,9 +41,20 @@ See [HOWTO](HOWTO.md).
 
   * Fine-grained attachment handling (for bitlbee).
 
+### Known Issues
+
+* Sometimes, group chats are added to the buddy list more than once.
+* In group chats, on outgoing messages the sender name may have a different color than displayed in the list of chat participants.
+* When sending an image with delayed acknowledgements, the image is not displayed locally.
+* Sending out read receipts on group chats do not work util the list of participants has been loaded. This usually affects only the first message of a chat.
+* Read receipts of messages sent to groups are displayed in the receivers' conversation – and only if the conversation is currently active.
+* After linking, contacts are not synced and may appear offline. Reconnecting helps.
+
 ### Missing Features
 
-* signald configuration (i.e. initial number registration)
+* signald configuration
+* Mentions
+* Registering a new number
 * Deleting buddies from the server
 * Updating contact details
 * Contact colors
@@ -66,3 +64,39 @@ See [HOWTO](HOWTO.md).
 ### Security Considerations
 
 UUIDs are used for local file access. If someone manages to forge UUIDs, bypassing all checks in Signal and signald, the wrong local files might be accessed, but I do not see that happening realistically.
+
+### Building the plug-in
+
+    sudo apt install libpurple-dev libjson-glib-dev
+    git clone --recurse-submodules https://github.com/hoehermann/purple-signald.git purple-signald
+    mkdir -p purple-signald/build
+    cd purple-signald/build
+    cmake ..
+    make
+    sudo make install
+    
+### Getting Started with signald
+
+1. Install [signald](https://gitlab.com/signald/signald).
+1. Add your user to the `signald` group: `sudo usermod -a -G signald $USER`
+1. Logout and log-in again. Or restart your computer just to be sure. Alternatively, `su` to the current account again. The reason is that `adduser` does not change existing sessions, and *only within the su shell* you're in a new session, and you need to be in the `signald` group.
+1. Restart pidgin
+1. Add your a new account by selecting "signald" as the protocol. For the username, you *must* enter your full international telephone number formatted like `+12223334444`. Alternatively, you may enter your UUID.
+1. Scan the generated QR code with signal on your phone to link your account. The dialog tells you where to find this option.
+1. Chat someone up using your phone to verify it's working.
+1. In case it is not working, you can unlink the plug-in "device" via your main device. The plug-in will ask to scan the QR code again. In extreme cases, you may need to remove the account from purple and signald manually. The latter can be achieved via `signaldctl account delete +12223334444`.
+
+### Working with Bitlbee
+
+Note: Compatibility with Bitlbee has been provided by contributors. The main author does not offer direct support.
+
+Setup the account first as described above. Once that is successful, in the `&root` channel of Bitlbee, add the same phone number you authenticated via Signald:
+```
+account add hehoe-signald +12223334444
+rename _12223334444 name-sig
+account hehoe-signald set tag signal
+account signal set auto-accept-invitations true
+account signal set nick_format %full_name-sig
+account signal on
+```
+To create a channel for Signal, auto join it and generally manage your contacts see - https://wiki.bitlbee.org/ManagingContactList

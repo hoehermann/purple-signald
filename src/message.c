@@ -9,6 +9,7 @@
 #include "purple_compat.h"
 #include "receipt.h"
 #include "reply.h"
+#include "json-utils.h"
 
 const char *
 signald_get_uuid_from_address(JsonObject *obj, const char *address_key)
@@ -81,6 +82,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
             g_string_append_printf(*target, "%s wrote:\n", alias);
         }
         const char *text = json_object_get_string_member(quote, "text");
+        // TODO: quoted text can have metions, too. resolve them.
         gchar **lines = g_strsplit(text, "\n", 0);
         for (int i = 0; lines[i] != NULL; i++) {
             g_string_append_printf(*target, "> %s\n", lines[i]);
@@ -109,8 +111,42 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
     }
 
     // append actual message text
-    g_string_append(*target, json_object_get_string_member(data, "body"));
-
+    const char *body = json_object_get_string_member(data, "body");
+    if (body != NULL && body[0]) {
+        JsonArray *mentions = json_object_get_array_member_or_null(data, "mentions");
+        if (mentions == NULL) {
+            g_string_append(*target, body);
+        } else {
+            const char mention_glyph[] = {0xEF, 0xBF, 0xBC, 0x00}; //"￼"
+            gchar **bodyparts = g_strsplit(body, mention_glyph, -1);
+            if (bodyparts[0] != NULL) {
+                g_string_append(*target, bodyparts[0]);
+                for(int i = 0; bodyparts[i+1] != NULL; i++) {
+                    JsonObject *mention = json_array_get_object_element(mentions, i); // this assumes mentions are sorted by their start property
+                    const char *uuid = json_object_get_string_member(mention, "uuid");
+                    const char *alias = NULL;
+                    if (purple_strequal(uuid, sa->uuid)) {
+                        alias = purple_account_get_alias(sa->account);
+                        // add flag PURPLE_MESSAGE_NICK
+                    } else {
+                        PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
+                        alias = purple_buddy_get_alias(buddy);
+                    }
+                    if (alias == NULL || alias[0] == 0) {
+                        alias = uuid;
+                    }
+                    const char thin_space[] = {0xE2, 0x80, 0x89, 0x00};
+                    g_string_append(*target, thin_space);
+                    g_string_append(*target, "@");
+                    g_string_append(*target, alias);
+                    g_string_append(*target, thin_space);
+                    g_string_append(*target, bodyparts[i+1]);
+                }
+            }
+            g_strfreev(bodyparts);
+        }
+    }
+    
     return (*target)->len > 0; // message not empty
 }
 

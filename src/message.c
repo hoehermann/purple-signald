@@ -9,6 +9,7 @@
 #include "purple_compat.h"
 #include "receipt.h"
 #include "reply.h"
+#include "groups.h"
 #include "json-utils.h"
 
 const char *
@@ -107,6 +108,9 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         JsonObject *groupV2 = json_object_get_object_member(data, "groupV2");
         if (json_object_has_member(groupV2, "group_change")) {
             g_string_append(*target, "made changes to this group (settings, permissions, members). This plug-in cannot show the details.");
+            // just update the group info for now
+            signald_request_group_info(sa, json_object_get_string_member(groupV2, "id"));
+            // TODO: actually process the change
         }
     }
 

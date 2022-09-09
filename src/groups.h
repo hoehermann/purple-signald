@@ -35,3 +35,5 @@ GList *signald_blist_node_menu(PurpleBlistNode *node);
 void signald_process_leave_group(SignaldAccount *sa, JsonObject *data);
 
 void signald_chat_leave(PurpleConnection *pc, int id);
+
+void signald_request_group_info(SignaldAccount *sa, const char *groupId);

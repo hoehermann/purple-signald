@@ -17,20 +17,20 @@ void signald_replycache_free(GQueue *queue) {
     g_queue_free_full(queue, (GDestroyNotify)signald_replycache_message_free);
 }
 
-void signald_replycache_add_message(SignaldAccount *sa, PurpleConversation *conv, const char *author_uuid, JsonObject *message) {
-    const int capacity = purple_account_get_int(sa->account, SIGNALD_OPTION_REPLY_CACHE, 0);
-    if (capacity > 0 && json_object_has_member(message, "body")) {
-        const gchar *message_body = json_object_get_string_member(message, "body");
-        g_return_if_fail(message_body != NULL);
-        SignaldMessage *msg = g_new0(SignaldMessage, 1);
-        msg->conversation = conv;
-        msg->author_uuid = g_strdup(author_uuid);
-        msg->text = g_strdup(message_body);
-        msg->id = json_object_get_int_member(message, "timestamp");
-        g_queue_push_head(sa->replycache, msg);
-    }
-    while (g_queue_get_length(sa->replycache) > capacity) {
-        g_queue_pop_tail(sa->replycache);
+void signald_replycache_add_message(SignaldAccount *sa, PurpleConversation *conv, const char *author_uuid, guint64 timestamp_micro, const char *body) {
+    if (body != NULL) {
+        const int capacity = purple_account_get_int(sa->account, SIGNALD_OPTION_REPLY_CACHE, 0);
+        if (capacity > 0) {
+            SignaldMessage *msg = g_new0(SignaldMessage, 1);
+            msg->conversation = conv;
+            msg->author_uuid = g_strdup(author_uuid);
+            msg->text = g_strdup(body);
+            msg->id = timestamp_micro;
+            g_queue_push_head(sa->replycache, msg);
+        }
+        while (g_queue_get_length(sa->replycache) > capacity) {
+            g_queue_pop_tail(sa->replycache);
+        }
     }
 }
 

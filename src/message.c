@@ -291,7 +291,6 @@ signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gp
 
 void
 signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
-    time_t timestamp = json_object_get_int_member(data, "timestamp") / 1000;
     struct SignaldSendResult sr;
     sr.sa = sa;
     sr.devices_count = 0;
@@ -307,8 +306,10 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
     }
     if (sa->last_conversation && sa->uuid && sa->last_message) {
         if (sr.devices_count > 0) {
+            const guint64 timestamp_micro = json_object_get_int_member(data, "timestamp");
             PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
-            purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp);
+            purple_conversation_write(sa->last_conversation, sa->uuid, sa->last_message, flags, timestamp_micro / 1000);
+            signald_replycache_add_message(sa, sa->last_conversation, sa->uuid, timestamp_micro, sa->last_message);
             g_free(sa->last_message);
             sa->last_message = NULL;
         } else {
@@ -360,7 +361,7 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
             }
             signald_mark_read(sa, timestamp_micro, who);
         }
-        signald_replycache_add_message(sa, conv, who, message_data);
+        signald_replycache_add_message(sa, conv, who, timestamp_micro, json_object_get_string_member_or_null(message_data, "body"));
     } else {
         purple_debug_warning(SIGNALD_PLUGIN_ID, "signald_format_message returned false.\n");
     }

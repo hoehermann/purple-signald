@@ -15,7 +15,7 @@ GQueue * signald_replycache_init();
 
 void signald_replycache_free(GQueue *queue);
 
-void signald_replycache_add_message(SignaldAccount *sa, PurpleConversation *conv, const char *author_uuid, JsonObject *message_data);
+void signald_replycache_add_message(SignaldAccount *sa, PurpleConversation *conv, const char *author_uuid, guint64 timestamp_micro, const char *body);
 
 SignaldMessage * signald_replycache_check(SignaldAccount *sa, const gchar *message);
 

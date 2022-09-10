@@ -55,6 +55,16 @@ SignaldMessage * signald_replycache_check(SignaldAccount *sa, const gchar *messa
     return NULL;
 }
 
+const gchar * signald_replycache_strip_needle(const gchar * message) {
+    // find separator
+    message = strchr(message, ':') + 1;
+    // strip leading spaces
+    while (*message != 0 && *message == ' ') {
+        message++;
+    }
+    return message;
+}
+
 void signald_replycache_apply(JsonObject *data, const SignaldMessage * msg) {
     g_return_if_fail(data != NULL);
     g_return_if_fail(msg != NULL);

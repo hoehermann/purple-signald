@@ -215,6 +215,7 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
     SignaldMessage *reply_message = signald_replycache_check(sa, message);
     if (reply_message != NULL) {
         signald_replycache_apply(data, reply_message);
+        message = signald_replycache_strip_needle(message);
     }
     JsonArray *attachments = json_array_new();
     char *textonly = signald_detach_images(message, attachments);
@@ -228,8 +229,6 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
         ret = -errno;
     }
     json_object_unref(data);
-    // TODO: check if json_object_set_string_member manages copies of the data it is given
-    g_free(plain);
 
     // wait for signald to acknowledge the message has been sent
     // for displaying the outgoing message later, it is stored locally
@@ -237,7 +236,8 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
         // free last message just in case it still lingers in memory
         g_free(sa->last_message);
         // store message for later echo
-        sa->last_message = g_strdup(message);
+        // NOTE: this stores the message "as sent" (without markup, without images)
+        sa->last_message = g_strdup(plain);
         // store this as the currently active conversation
         sa->last_conversation = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, who, sa->account);
         if (sa->last_conversation == NULL) {
@@ -248,6 +248,8 @@ signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, con
             }
         }
     }
+    
+    g_free(plain);
     return ret;
 }
 

@@ -19,4 +19,6 @@ void signald_replycache_add_message(SignaldAccount *sa, PurpleConversation *conv
 
 SignaldMessage * signald_replycache_check(SignaldAccount *sa, const gchar *message);
 
+const gchar * signald_replycache_strip_needle(const gchar * message);
+
 void signald_replycache_apply(JsonObject *data, const SignaldMessage * msg);

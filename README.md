@@ -18,7 +18,7 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
   * Emoji reactions are displayed
   * Stickers can be displayed if GDK headers were available at build-time and a [GDK webp pixbuf loader](https://github.com/aruiz/webp-pixbuf-loader) is present in the system at run-time. Stickers are not animated.
   * It is possible to leave a Signal group by leaving the Pidgin chat (close the window) after removing it from the Pidgin buddy list.
-  * The plug-in can cache a user-defined number of incoming messages so you can reply to them by starting the message with "@needle:" or "at character followed by a text followed by a colon". The newest cached messages containing the needle will be replied to.  
+  * The plug-in can cache a user-defined number of incoming messages so you can reply to them by starting the message with "@needle:" (read "at character followed by a text followed by a colon"). The most recent cached message containing the needle will be replied to.  
   ![Reply](/doc/reply.png?raw=true "Screenshot showcasing reply feature")
 
 * Additional features contributed by [Hermann Kraus](https://github.com/herm/):
@@ -45,15 +45,17 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 
 * Sometimes, group chats are added to the buddy list more than once.
 * In group chats, on outgoing messages the sender name may have a different color than displayed in the list of chat participants.
-* When sending an image with delayed acknowledgements, the image is not displayed locally.
+* When using send acknowledgements, the text is displayed "as transmitted" rather than "as typed".
 * Sending out read receipts on group chats do not work util the list of participants has been loaded. This usually affects only the first message of a chat.
 * Read receipts of messages sent to groups are displayed in the receivers' conversation – and only if the conversation is currently active.
 * After linking, contacts are not synced and may appear offline. Reconnecting helps.
 
+These issues may or may not be worked on since they are hard to reproduce, non-trivial to resolve, and/or not a big problem. Open an issue if they impede your experience.
+
 ### Missing Features
 
 * signald configuration
-* Mentions
+* Sending Mentions
 * Registering a new number
 * Deleting buddies from the server
 * Updating contact details
@@ -80,7 +82,7 @@ UUIDs are used for local file access. If someone manages to forge UUIDs, bypassi
 1. Install [signald](https://gitlab.com/signald/signald).
 1. Add your user to the `signald` group: `sudo usermod -a -G signald $USER`
 1. Logout and log-in again. Or restart your computer just to be sure. Alternatively, `su` to the current account again. The reason is that `adduser` does not change existing sessions, and *only within the su shell* you're in a new session, and you need to be in the `signald` group.
-1. Restart pidgin
+1. Restart Pidgin
 1. Add your a new account by selecting "signald" as the protocol. For the username, you *must* enter your full international telephone number formatted like `+12223334444`. Alternatively, you may enter your UUID.
 1. Scan the generated QR code with signal on your phone to link your account. The dialog tells you where to find this option.
 1. Chat someone up using your phone to verify it's working.

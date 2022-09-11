@@ -30,78 +30,9 @@
 #include "groups.h"
 #include "options.h"
 #include "signald_procmgmt.h"
-#include "blist.h"
+#include "interface.h"
+#include "status.h"
 #include "reply.h"
-
-static const char *
-signald_list_icon(PurpleAccount *account, PurpleBuddy *buddy)
-{
-    return "signal";
-}
-
-static void
-signald_close (PurpleConnection *pc)
-{
-    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
-
-    // remove input watcher
-    purple_input_remove(sa->watcher);
-    sa->watcher = 0;
-
-    if (sa->uuid) {
-        // own UUID is kown, unsubscribe account
-        JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "unsubscribe");
-        json_object_set_string_member(data, "account", sa->uuid);
-        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED) { 
-            if (signald_send_json(sa, data)) {
-                // read one last time for acknowledgement of unsubscription
-                // NOTE: this will block forever in case signald stalls
-                sa->readflags = 0;
-                signald_read_cb(sa, 0, 0);
-            } else {
-                purple_connection_error (sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Could not write message for unsubscribing.");
-                purple_debug_error(SIGNALD_PLUGIN_ID, "Could not write message for unsubscribing: %s", strerror(errno));
-            }
-        }
-        json_object_unref(data);
-        // now free UUID
-        g_free(sa->uuid);
-        sa->uuid = NULL;
-    }
-
-    close(sa->fd);
-    sa->fd = 0;
-    
-    signald_replycache_free(sa->replycache);
-    
-    signald_receipts_destroy(sa);
-
-    g_free(sa);
-
-    signald_connection_closed();
-}
-
-static GList *
-signald_status_types(PurpleAccount *account)
-{
-    GList *types = NULL;
-    PurpleStatusType *status;
-
-    status = purple_status_type_new_full(PURPLE_STATUS_AVAILABLE, SIGNALD_STATUS_STR_ONLINE, NULL, TRUE, TRUE, FALSE);
-    types = g_list_append(types, status);
-
-    status = purple_status_type_new_full(PURPLE_STATUS_AWAY, SIGNALD_STATUS_STR_AWAY, NULL, FALSE, FALSE, FALSE);
-    types = g_list_prepend(types, status);
-
-    status = purple_status_type_new_full(PURPLE_STATUS_OFFLINE, SIGNALD_STATUS_STR_OFFLINE, NULL, TRUE, TRUE, FALSE);
-    types = g_list_append(types, status);
-
-    status = purple_status_type_new_full(PURPLE_STATUS_MOBILE, SIGNALD_STATUS_STR_MOBILE, NULL, FALSE, FALSE, TRUE);
-    types = g_list_prepend(types, status);
-
-    return types;
-}
 
 static void
 signald_update_contacts (PurplePluginAction* action)
@@ -119,15 +50,6 @@ signald_update_groups (PurplePluginAction* action)
   SignaldAccount *sa = purple_connection_get_protocol_data(pc);
 
   signald_request_group_list(sa);
-}
-
-static void
-signald_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboolean full)
-{
-    char * number = purple_buddy_get_protocol_data(buddy);
-    if (number && number[0]) {
-        purple_notify_user_info_add_pair_plaintext(user_info, "Number", number);
-    }
 }
 
 static GList *

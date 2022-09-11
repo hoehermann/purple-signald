@@ -28,6 +28,10 @@ add_library(${TARGET_NAME} SHARED
     structs.h
     admin.h
     admin.c
+    status.c
+    status.h
+    interface.c
+    interface.h
     reply.h
     reply.c
     json-utils.h

@@ -8,6 +8,7 @@
 #include "signald_procmgmt.h"
 #include "input.h"
 #include "reply.h"
+#include "receipt.h"
 
 #if !(GLIB_CHECK_VERSION(2, 67, 3))
 #define g_memdup2 g_memdup
@@ -212,4 +213,47 @@ void signald_subscribe(SignaldAccount *sa)
     json_object_set_string_member(data, "account", purple_account_get_username(sa->account));
     signald_send_json_or_display_error(sa, data);
     json_object_unref(data);
+}
+
+void signald_close (PurpleConnection *pc) {
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+
+    // stop sending receipts
+    signald_receipts_destroy(sa);
+    
+    // free reply cache
+    signald_replycache_free(sa->replycache);
+
+    // remove input watcher
+    purple_input_remove(sa->watcher);
+    sa->watcher = 0;
+
+    if (sa->uuid) {
+        // own UUID is kown, unsubscribe account
+        JsonObject *data = json_object_new();
+        json_object_set_string_member(data, "type", "unsubscribe");
+        json_object_set_string_member(data, "account", sa->uuid);
+        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED) { 
+            if (signald_send_json(sa, data)) {
+                // read one last time for acknowledgement of unsubscription
+                // NOTE: this will block forever in case signald stalls
+                sa->readflags = 0;
+                signald_read_cb(sa, 0, 0);
+            } else {
+                purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Could not write message for unsubscribing.");
+                purple_debug_error(SIGNALD_PLUGIN_ID, "Could not write message for unsubscribing: %s", strerror(errno));
+            }
+        }
+        json_object_unref(data);
+        // now free UUID
+        g_free(sa->uuid);
+        sa->uuid = NULL;
+    }
+
+    close(sa->fd);
+    sa->fd = 0;
+
+    g_free(sa);
+
+    signald_connection_closed();
 }

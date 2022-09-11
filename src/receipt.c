@@ -42,7 +42,11 @@ void signald_receipts_destroy(SignaldAccount *sa) {
 
 void signald_mark_read(SignaldAccount * sa, gint64 timestamp_micro, const char *uuid) {
     g_return_if_fail(uuid != NULL);
-    if (purple_account_get_bool(sa->account, SIGNALD_OPTION_MARK_READ, FALSE)) {
+    PurpleStatus *status = purple_account_get_active_status(sa->account);
+    const char *status_id = purple_status_get_id(status);
+    gboolean is_online = purple_strequal(status_id, SIGNALD_STATUS_STR_ONLINE);
+    gboolean receipts_enabled = purple_account_get_bool(sa->account, SIGNALD_OPTION_MARK_READ, FALSE);
+    if (receipts_enabled && is_online) {
         JsonArray * timestamps = g_hash_table_lookup(sa->outgoing_receipts, uuid);
         if (timestamps == NULL) {
             timestamps = json_array_new();

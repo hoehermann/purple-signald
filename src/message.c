@@ -83,7 +83,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
             g_string_append_printf(*target, "%s wrote:\n", alias);
         }
         const char *text = json_object_get_string_member(quote, "text");
-        // TODO: quoted text can have metions, too. resolve them.
+        // TODO: quoted text can have metions. resolve them.
         gchar **lines = g_strsplit(text, "\n", 0);
         for (int i = 0; lines[i] != NULL; i++) {
             g_string_append_printf(*target, "> %s\n", lines[i]);
@@ -108,15 +108,16 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         JsonObject *groupV2 = json_object_get_object_member(data, "groupV2");
         if (json_object_has_member(groupV2, "group_change")) {
             g_string_append(*target, "made changes to this group (settings, permissions, members). This plug-in cannot show the details.");
-            // just update the group info for now
-            signald_request_group_info(sa, json_object_get_string_member(groupV2, "id"));
             // TODO: actually process the change
+            // just update the entire group info for now
+            signald_request_group_info(sa, json_object_get_string_member(groupV2, "id"));
         }
     }
 
     // append actual message text
     const char *body = json_object_get_string_member(data, "body");
     if (body != NULL && body[0]) {
+        // TODO: move this into a separate function. use it here and on quoted text as well
         JsonArray *mentions = json_object_get_array_member_or_null(data, "mentions");
         if (mentions == NULL) {
             g_string_append(*target, body);
@@ -126,12 +127,12 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
             if (bodyparts[0] != NULL) {
                 g_string_append(*target, bodyparts[0]);
                 for(int i = 0; bodyparts[i+1] != NULL; i++) {
-                    JsonObject *mention = json_array_get_object_element(mentions, i); // this assumes mentions are sorted by their start property
+                    JsonObject *mention = json_array_get_object_element(mentions, i); // NOTE: this assumes mentions are sorted by their start property
                     const char *uuid = json_object_get_string_member(mention, "uuid");
                     const char *alias = NULL;
                     if (purple_strequal(uuid, sa->uuid)) {
                         alias = purple_account_get_alias(sa->account);
-                        // add flag PURPLE_MESSAGE_NICK
+                        // TODO: add flag PURPLE_MESSAGE_NICK
                     } else {
                         PurpleBuddy *buddy = purple_find_buddy(sa->account, uuid);
                         alias = purple_buddy_get_alias(buddy);
@@ -151,7 +152,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         }
     }
     
-    return (*target)->len > 0; // message not empty
+    return (*target)->len > 0; // if message is not empty, formatting was successful
 }
 
 void

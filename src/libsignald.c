@@ -74,6 +74,8 @@ signald_close (PurpleConnection *pc)
     sa->fd = 0;
     
     signald_replycache_free(sa->replycache);
+    
+    signald_receipts_destroy(sa);
 
     g_free(sa);
 

@@ -20,6 +20,9 @@ typedef struct {
     PurpleConversation *last_conversation; // the conversation the message is relevant to
     
     GQueue *replycache; // cache of messages for "reply to" function
+    
+    guint receipts_timer; // handler for timer which sends receipts
+    GHashTable *outgoing_receipts; // buffer for receipts
 
     PurpleRoomlist *roomlist;
 } SignaldAccount;

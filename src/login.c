@@ -190,6 +190,7 @@ signald_login(PurpleAccount *account)
     sa->pc = pc;
     
     sa->replycache = signald_replycache_init();
+    signald_receipts_init(sa);
 
     // Check account settings whether signald is globally running
     // (controlled by the system or the user) or whether it should

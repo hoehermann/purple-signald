@@ -5,20 +5,50 @@
 #include "message.h"
 #include <json-glib/json-glib.h>
 
+//static int signald_send_receipt(char * uuid, JsonArray * timestamps, SignaldAccount * sa)
+static int signald_send_receipt(void * vuuid, void * vtimestamps, void * vsa) {
+    char * uuid = vuuid;
+    JsonArray * timestamps = vtimestamps;
+    SignaldAccount * sa = vsa;
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "mark_read");
+    json_object_set_string_member(data, "account", sa->uuid);
+    signald_set_recipient(data, "to", uuid);
+    json_object_set_array_member(data, "timestamps", timestamps);
+    if (!signald_send_json(sa, data)) {
+        purple_debug_error(SIGNALD_PLUGIN_ID, "Unable to send receipt to %s.\n", uuid);
+    }
+    json_array_ref(timestamps); // increase ref counter so the JsonArray still exists when g_hash_table_foreach_remove calls json_array_unref
+    json_object_unref(data);
+    return TRUE;
+}
+
+//static int signald_send_receipts(SignaldAccount * sa)
+static int signald_send_receipts(void * vsa) {
+    SignaldAccount * sa = vsa;
+    g_hash_table_foreach_remove(sa->outgoing_receipts, signald_send_receipt, sa);
+    return TRUE;
+}
+
+void signald_receipts_init(SignaldAccount * sa) {
+    sa->outgoing_receipts = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_array_unref);
+    sa->receipts_timer = purple_timeout_add_seconds(10, signald_send_receipts, sa);
+}
+
+void signald_receipts_destroy(SignaldAccount *sa) {
+    purple_timeout_remove(sa->receipts_timer);
+    g_hash_table_unref(sa->outgoing_receipts);
+}
+
 void signald_mark_read(SignaldAccount * sa, gint64 timestamp_micro, const char *uuid) {
     g_return_if_fail(uuid != NULL);
     if (purple_account_get_bool(sa->account, SIGNALD_OPTION_MARK_READ, FALSE)) {
-        JsonObject *data = json_object_new();
-        json_object_set_string_member(data, "type", "mark_read");
-        json_object_set_string_member(data, "account", sa->uuid);
-        signald_set_recipient(data, "to", uuid);
-        JsonArray *timestamps = json_array_new();
-        json_array_add_int_element(timestamps, timestamp_micro);
-        json_object_set_array_member(data, "timestamps", timestamps);
-        if (!signald_send_json(sa, data)) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "Unable to send receipt for %ld.\n", timestamp_micro);
+        JsonArray * timestamps = g_hash_table_lookup(sa->outgoing_receipts, uuid);
+        if (timestamps == NULL) {
+            timestamps = json_array_new();
+            g_hash_table_insert(sa->outgoing_receipts, g_strdup(uuid), timestamps);
         }
-        json_object_unref(data);
+        json_array_add_int_element(timestamps, timestamp_micro);
     }
 }
 

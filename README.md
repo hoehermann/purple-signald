@@ -15,7 +15,8 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 
 * Additional features:
 
-  * Emoji reactions are displayed
+  * Emoji reactions are displayed.
+  * Messages can be marked as "read".
   * Stickers can be displayed if GDK headers were available at build-time and a [GDK webp pixbuf loader](https://github.com/aruiz/webp-pixbuf-loader) is present in the system at run-time. Stickers are not animated.
   * It is possible to leave a Signal group by leaving the Pidgin chat (close the window) after removing it from the Pidgin buddy list.
   * The plug-in can cache a user-defined number of incoming messages so you can reply to them by starting the message with "@needle:" (read "at character followed by a text followed by a colon"). The most recent cached message containing the needle will be replied to.  
@@ -49,6 +50,7 @@ An unofficial IRC channel exists on Libera.chat called `##purple-signald` for th
 * Sending out read receipts on group chats do not work util the list of participants has been loaded. This usually affects only the first message of a chat.
 * Read receipts of messages sent to groups are displayed in the receivers' conversation – and only if the conversation is currently active.
 * After linking, contacts are not synced and may appear offline. Reconnecting helps.
+* After a disconnect, Pidgin will not re-join group chats (must close window and re-join).
 
 These issues may or may not be worked on since they are hard to reproduce, non-trivial to resolve, and/or not a big problem. Open an issue if they impede your experience.
 

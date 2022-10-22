@@ -96,11 +96,12 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         const char *emoji = json_object_get_string_member(reaction, "emoji");
         const gboolean remove = json_object_get_boolean_member(reaction, "remove");
         const time_t targetSentTimestamp = json_object_get_int_member(reaction, "targetSentTimestamp") / 1000;
-        struct tm *tm = localtime(&targetSentTimestamp);
         if (remove) {
             g_string_printf(*target, "removed their %s reaction.", emoji);
         } else {
-            g_string_printf(*target, "reacted with %s (to message from %s).", emoji, purple_date_format_full(tm));
+            char *date_string = purple_date_format(targetSentTimestamp);
+            g_string_printf(*target, "reacted with %s (to message from %s).", emoji, date_string);
+            g_free(date_string);
         }
     }
     

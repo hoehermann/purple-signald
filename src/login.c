@@ -146,7 +146,7 @@ try_connect(SignaldAccount *sa, gchar *socket_path) {
 // TODO: find out how purple does connections in the gevent loop. use that instead of explicit sockets and threads.
 void
 signald_connect_socket(SignaldAccount *sa) {
-    purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+    purple_connection_set_state(sa->pc, PURPLE_CONNECTION_STATE_CONNECTING);
     sa->fd = -1; // socket is not connected, no valid value for fd, yet
     sa->socket_paths_count = 1; // there is one path to try to connect to
 
@@ -222,7 +222,11 @@ void signald_close (PurpleConnection *pc) {
     signald_replycache_free(sa->replycache);
 
     // remove input watcher
+    #if PURPLE_VERSION_CHECK(3, 0, 0)
+    // TODO: find replacement for purple_input_remove
+    #else
     purple_input_remove(sa->watcher);
+    #endif
     sa->watcher = 0;
 
     if (sa->uuid) {
@@ -230,7 +234,7 @@ void signald_close (PurpleConnection *pc) {
         JsonObject *data = json_object_new();
         json_object_set_string_member(data, "type", "unsubscribe");
         json_object_set_string_member(data, "account", sa->uuid);
-        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_CONNECTED) { 
+        if (purple_connection_get_state(pc) == PURPLE_CONNECTION_STATE_CONNECTED) { 
             if (signald_send_json(sa, data)) {
                 // read one last time for acknowledgement of unsubscription
                 // NOTE: this will block forever in case signald stalls

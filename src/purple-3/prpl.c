@@ -30,6 +30,18 @@ static const gchar * signald_protocol_actions_get_prefix(PurpleProtocolActions *
   return "prpl-signald";
 }
 
+static void signald_protocol_login(PurpleProtocol *, PurpleAccount *account) {
+  signald_login(account);
+}
+
+static void signald_protocol_close(PurpleProtocol *, PurpleConnection *connection) {
+  signald_close(connection);
+}
+
+static GList * signald_protocol_status_types(PurpleProtocol *, PurpleAccount *account) {
+  return signald_status_types(account);
+}
+
 static GActionGroup * signald_protocol_actions_get_action_group(PurpleProtocolActions *actions, G_GNUC_UNUSED PurpleConnection *connection) {
   GSimpleActionGroup *group = NULL;
   return G_ACTION_GROUP(group);
@@ -146,10 +158,9 @@ static void signald_protocol_init(SignaldProtocol *self) {
 static void signald_protocol_class_init(SignaldProtocolClass *klass) {
   PurpleProtocolClass *protocol_class = PURPLE_PROTOCOL_CLASS(klass);
 
-  protocol_class->login = signald_login;
-  protocol_class->close = signald_close;
-  protocol_class->status_types = signald_status_types;
-  protocol_class->list_icon = signald_list_icon;
+  protocol_class->login = signald_protocol_login;
+  protocol_class->close = signald_protocol_close;
+  protocol_class->status_types = signald_protocol_status_types;
 
   protocol_class->get_account_options = signald_protocol_get_account_options;
   //protocol_class->get_user_splits = signald_protocol_get_user_splits;
@@ -249,7 +260,7 @@ static GPluginPluginInfo * signald_query(GError **error) {
     /* This third-party plug-in should not use this flags,
      * but without them the plug-in will not be loaded in time.
      */
-    "flags", PURPLE_PLUGIN_INFO_FLAGS_AUTO_LOAD,
+    //"flags", PURPLE_PLUGIN_INFO_FLAGS_AUTO_LOAD,
     NULL
   );
 }

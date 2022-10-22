@@ -15,6 +15,12 @@
     purple_conversation_manager_find_chat(purple_conversation_manager_get_default(), account, name);
 #define purple_conversation_find_im_by_name(name, account) \
     purple_conversation_manager_find_im(purple_conversation_manager_get_default(), account, name);
+static inline char* purple_date_format(const time_t ts) {
+    GDateTime *dt = g_date_time_new_from_unix_local(ts);
+    char *fmt = g_date_time_format(dt, "%c");
+    g_date_time_unref(dt);
+    return fmt;
+}
 #define purple_debug_is_enabled() (FALSE) // TODO
 #define purple_find_chat(pc, id) \
     purple_conversation_manager_find_chat_by_id(purple_conversation_manager_get_default(), purple_connection_get_account(pc), id);
@@ -38,9 +44,9 @@
 #define purple_chat_conversation_get_users(chat) chat->users
 #define purple_chat_conversation_set_nick purple_conv_chat_set_nick
 #define purple_chat_conversation_set_topic purple_conv_chat_set_topic
-#define PURPLE_CONNECTION_CONNECTED PURPLE_CONNECTED
-#define PURPLE_CONNECTION_CONNECTING PURPLE_CONNECTING
-#define PURPLE_CONNECTION_DISCONNECTED PURPLE_DISCONNECTED
+#define PURPLE_CONNECTION_STATE_CONNECTED PURPLE_CONNECTED
+#define PURPLE_CONNECTION_STATE_CONNECTING PURPLE_CONNECTING
+#define PURPLE_CONNECTION_STATE_DISCONNECTED PURPLE_DISCONNECTED
 #define PURPLE_CONNECTION_FLAG_NO_BGCOLOR PURPLE_CONNECTION_NO_BGCOLOR
 #define PURPLE_CONNECTION_FLAG_NO_FONTSIZE PURPLE_CONNECTION_NO_FONTSIZE
 #define purple_connection_error purple_connection_error_reason
@@ -49,7 +55,7 @@
 #define purple_conversation_find_chat_by_name(name, account) purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, name, account)
 #define purple_conversation_find_im_by_name(who, account) purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, who, account)
 #define purple_data_dir() purple_user_dir()
-#define purple_date_format_full(tm) purple_date_format_long(tm)
+#define purple_date_format(ts) g_strdup(purple_date_format_full(localtime(&ts)))
 #define purple_im_conversation_new(account, from) purple_conversation_new(PURPLE_CONV_TYPE_IM, account, from)
 #define PURPLE_IS_CHAT PURPLE_BLIST_NODE_IS_CHAT
 #define purple_protocol_got_user_status purple_prpl_got_user_status

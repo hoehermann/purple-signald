@@ -69,7 +69,7 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         signald_request_sync(sa);
 
     } else if (purple_strequal(type, "unsubscribe")) {
-        purple_connection_set_state(sa->pc, PURPLE_CONNECTION_DISCONNECTED);
+        purple_connection_set_state(sa->pc, PURPLE_CONNECTION_STATE_DISCONNECTED);
 
     } else if (purple_strequal(type, "request_sync")) {
         // sync from other devices completed,
@@ -142,13 +142,13 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         JsonObject *data = json_object_get_object_member(obj, "data");
         const gchar *state = json_object_get_string_member(data, "state");
         if  (purple_strequal(state, "CONNECTED") && sa->uuid) {
-            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTED);
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_STATE_CONNECTED);
         } else if  (purple_strequal(state, "CONNECTING") && sa->uuid) {
-            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_STATE_CONNECTING);
         } else if  (purple_strequal(state, "DISCONNECTED") && sa->uuid) {
             // setting the connection state to DISCONNECTED invokes the destruction of the instance
             // we probably do not want that (signald might already be doing a reconnect)
-            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
+            purple_connection_set_state(sa->pc, PURPLE_CONNECTION_STATE_CONNECTING);
             //purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Disconnected.");
         }
         

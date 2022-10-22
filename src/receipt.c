@@ -88,8 +88,9 @@ void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
             for (GList * elem = timestamp_list; elem != NULL ; elem = elem->next) {
                 guint64 timestamp_micro = json_node_get_int(elem->data);
                 time_t timestamp = timestamp_micro / 1000;
-                struct tm *tm = localtime(&timestamp);
-                message = g_string_append(message, purple_date_format_full(tm));
+                char * date_string = purple_date_format(timestamp);
+                message = g_string_append(message, date_string);
+                g_free(date_string);
                 if (elem->next) {
                     message = g_string_append(message, ", ");
                 }

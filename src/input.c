@@ -81,7 +81,12 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         signald_parse_contact_list(sa, json_object_get_array_member(obj,"profiles"));
 
     } else if (purple_strequal(type, "InternalError")) {
-        const char * message = json_object_get_string_member(obj, "message");
+        // TODO: find out which messages do have a "data" object and which do not
+        const char * message = json_object_get_string_member_or_null(obj, "message");
+        if (message == NULL) {
+            obj = json_object_get_object_member(obj, "data");
+            message = json_object_get_string_member_or_null(obj, "message");
+        }
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
 
     } else if (purple_strequal(type, "get_profile")) {

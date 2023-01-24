@@ -132,7 +132,9 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
                     const char *uuid = json_object_get_string_member(mention, "uuid");
                     const char *alias = NULL;
                     if (purple_strequal(uuid, sa->uuid)) {
+                        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
                         alias = purple_account_get_private_alias(sa->account);
+                        #endif
                         // TODO: add flag PURPLE_MESSAGE_NICK
                     } else {
                         PurpleBuddy *buddy = purple_blist_find_buddy(sa->account, uuid);
@@ -364,7 +366,8 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
                 }
                 #if PURPLE_VERSION_CHECK(3, 0, 0)
                     // from pidgin-3/libpurple/protocols/facebook/util.c
-                    const gchar * me = purple_account_get_name_for_display(sa->account);
+                    PurpleContactInfo *info = PURPLE_CONTACT_INFO(sa->account);
+                    const gchar * me = purple_contact_info_get_name_for_display(info);
                     const gchar * name = purple_account_get_username(sa->account);
                     PurpleMessage * msg = purple_message_new_outgoing(me, name, content->str, flags);
                     GDateTime * dt = g_date_time_new_from_unix_local(timestamp_micro/1000000); // TODO: find correct conversion

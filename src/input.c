@@ -37,6 +37,14 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
             // TODO: rather check json array error.exceptions for "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
             signald_link_or_register(sa);
             return;
+        } else if (purple_strequal(type, "send")) {
+            #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
+            if (sa->last_conversation) {
+                purple_conversation_write(sa->last_conversation, NULL, error_message, PURPLE_MESSAGE_ERROR, time(NULL));
+            } else {
+                // TODO: search for conversation based on json_object_get_object_member("source") uuid OR number
+            }
+            #endif
         } else if (purple_strequal(type, "subscribe")) {
             // error while subscribing
             signald_link_or_register(sa);

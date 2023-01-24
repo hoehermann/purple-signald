@@ -28,6 +28,7 @@ static inline char* purple_date_format(const time_t ts) {
 #define purple_timeout_remove g_source_remove
 #define purple_timeout_add g_timeout_add
 #define purple_timeout_add_seconds g_timeout_add_seconds
+#define purple_account_get_username purple_account_get_user_info
 
 #else
 

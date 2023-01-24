@@ -47,7 +47,7 @@ static GActionGroup * signald_protocol_actions_get_action_group(PurpleProtocolAc
   return G_ACTION_GROUP(group);
 }
 
-static GMenu * signald_protocol_actions_get_menu(PurpleProtocolActions *actions) {
+static GMenu * signald_protocol_actions_get_menu(PurpleProtocolActions *actions, PurpleConnection *connection) {
   GMenu *menu = g_menu_new();
   return menu;
 }
@@ -207,9 +207,6 @@ static void signald_protocol_chat_iface_init(PurpleProtocolChatInterface *chat_i
   chat_iface->set_topic     = signald_protocol_set_chat_topic;
 }
 
-static void signald_protocol_privacy_iface_init(PurpleProtocolPrivacyInterface *privacy_iface) {
-}
-
 static void
 signald_protocol_roomlist_iface_init(PurpleProtocolRoomlistInterface *roomlist_iface) {
   roomlist_iface->get_list        = signald_protocol_roomlist_get_list;
@@ -228,7 +225,6 @@ G_DEFINE_DYNAMIC_TYPE_EXTENDED(
         G_IMPLEMENT_INTERFACE_DYNAMIC(PURPLE_TYPE_PROTOCOL_SERVER, signald_protocol_server_iface_init)
         G_IMPLEMENT_INTERFACE_DYNAMIC(PURPLE_TYPE_PROTOCOL_IM, signald_protocol_im_iface_init)
         G_IMPLEMENT_INTERFACE_DYNAMIC(PURPLE_TYPE_PROTOCOL_CHAT, signald_protocol_chat_iface_init)
-        G_IMPLEMENT_INTERFACE_DYNAMIC(PURPLE_TYPE_PROTOCOL_PRIVACY, signald_protocol_privacy_iface_init)
         G_IMPLEMENT_INTERFACE_DYNAMIC(PURPLE_TYPE_PROTOCOL_ROOMLIST, signald_protocol_roomlist_iface_init)
     );
 

@@ -108,7 +108,7 @@ signald_process_contact(SignaldAccount *sa, JsonNode *node)
     }
     const char *avatar = json_object_get_string_member_or_null(obj, "avatar");
     JsonObject *address = json_object_get_object_member(obj, "address");
-    const char *number = json_object_get_string_member(address, "number");
+    const char *number = json_object_get_string_member_or_null(address, "number");
     const char *uuid = json_object_get_string_member(address, "uuid");
     signald_add_purple_buddy(sa, number, name, uuid, avatar);
 }

@@ -369,7 +369,7 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
                     PurpleContactInfo *info = PURPLE_CONTACT_INFO(sa->account);
                     const gchar * me = purple_contact_info_get_name_for_display(info);
                     const gchar * name = purple_account_get_username(sa->account);
-                    PurpleMessage * msg = purple_message_new_outgoing(me, name, content->str, flags);
+                    PurpleMessage * msg = purple_message_new_outgoing(sa->account, me, name, content->str, flags);
                     GDateTime * dt = g_date_time_new_from_unix_local(timestamp_micro/1000000); // TODO: find correct conversion
                     purple_message_set_timestamp(msg, dt);
                     g_date_time_unref(dt);

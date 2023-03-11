@@ -55,6 +55,7 @@ signald_scan_qrcode(SignaldAccount *sa, gchar* qrimgdata, gsize qrimglen)
     field = purple_request_field_image_new(
                 "qr_code", "QR code",
                  qrimgdata, qrimglen);
+    // TODO: find out why this is unusably tiny on pidgin3
     purple_request_field_group_add_field(group, field);
 
     purple_request_fields(

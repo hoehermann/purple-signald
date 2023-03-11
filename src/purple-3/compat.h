@@ -28,7 +28,13 @@ static inline char* purple_date_format(const time_t ts) {
 #define purple_timeout_remove g_source_remove
 #define purple_timeout_add g_timeout_add
 #define purple_timeout_add_seconds g_timeout_add_seconds
-#define purple_account_get_username purple_account_get_user_info
+#define purple_account_get_username(account) purple_contact_info_get_username(PURPLE_CONTACT_INFO(account))
+#define PurpleRequestFields PurpleRequestPage
+#define PurpleRequestFieldGroup PurpleRequestGroup
+#define purple_request_fields_new purple_request_page_new
+#define purple_request_fields_add_group purple_request_page_add_group
+#define purple_request_field_group_new purple_request_group_new
+#define purple_request_field_group_add_field purple_request_group_add_field
 
 #else
 

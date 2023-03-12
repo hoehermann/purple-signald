@@ -172,8 +172,9 @@ signald_process_account(JsonArray *array, guint index_, JsonNode *element_node, 
     const char *username = purple_account_get_username(sa->account);
     JsonObject *address = json_object_get_object_member(obj, "address");
     const char *uuid = json_object_get_string_member(address, "uuid");
+    const char *number = json_object_get_string_member(address, "number");
     const char *account_id = json_object_get_string_member(obj, "account_id");
-    if (purple_strequal(account_id, username) || purple_strequal(uuid, username)) {
+    if (purple_strequal(account_id, username) || purple_strequal(number, username) || purple_strequal(uuid, username)) {
         // this is the current account
         sa->account_exists = TRUE;
 
@@ -196,7 +197,7 @@ void
 signald_parse_account_list(SignaldAccount *sa, JsonArray *data)
 {
     sa->account_exists = FALSE;
-    json_array_foreach_element(data, signald_process_account, sa); // lookup signald account by Purple username (number)
+    json_array_foreach_element(data, signald_process_account, sa); // lookup signald account
 
     // if Purple account does not exist in signald, link or register
     if (!sa->account_exists) {

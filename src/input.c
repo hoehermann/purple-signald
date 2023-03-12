@@ -87,7 +87,13 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
             obj = json_object_get_object_member(obj, "data");
             message = json_object_get_string_member_or_null(obj, "message");
         }
-        purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
+        if (purple_strequal(message, "org.whispersystems.signalservice.api.InvalidMessageStructureException: SyncMessage missing destination, group ID, and recipient manifest!")) {
+            // TODO: remove this special case after https://gitlab.com/signald/signald/-/issues/363 has been resolved
+            purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring InvalidMessageStructureException.\n");
+            
+        } else {
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
+        }
 
     } else if (purple_strequal(type, "get_profile")) {
         obj = json_object_get_object_member(obj, "data");

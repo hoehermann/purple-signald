@@ -40,9 +40,7 @@ signald_add_purple_buddy(SignaldAccount *sa, const char *number, const char *nam
     }
     // special case: contact to self
     if (!alias && purple_strequal(sa->uuid, uuid)) {
-        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
-        alias = purple_account_get_private_alias(sa->account);
-        #endif
+        alias = purple_account_get_alias(sa->account);
         if (!alias) {
             alias = purple_account_get_username(sa->account);
         }

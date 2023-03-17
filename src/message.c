@@ -132,9 +132,7 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
                     const char *uuid = json_object_get_string_member(mention, "uuid");
                     const char *alias = NULL;
                     if (purple_strequal(uuid, sa->uuid)) {
-                        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
-                        alias = purple_account_get_private_alias(sa->account);
-                        #endif
+                        alias = purple_account_get_alias(sa->account);
                         // TODO: add flag PURPLE_MESSAGE_NICK
                     } else {
                         PurpleBuddy *buddy = purple_blist_find_buddy(sa->account, uuid);

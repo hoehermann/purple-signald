@@ -285,9 +285,7 @@ signald_send_check_result(JsonArray* results, guint i, JsonNode* result_node, gp
         const gchar * number = json_object_get_string_member(address, "number");
         const gchar * uuid = json_object_get_string_member(address, "uuid");
         gchar * errmsg = g_strdup_printf("Message was not delivered to %s (%s) due to %s.", number, uuid, failure);
-        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         purple_conversation_write(sr->sa->last_conversation, NULL, errmsg, PURPLE_MESSAGE_ERROR, time(NULL));
-        #endif
         g_free(errmsg);
     }
 }
@@ -308,7 +306,6 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
         }
     }
     if (sa->last_conversation && sa->uuid && sa->last_message) {
-        #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
         if (sr.devices_count > 0) {
             const guint64 timestamp_micro = json_object_get_int_member(data, "timestamp");
             PurpleMessageFlags flags = PURPLE_MESSAGE_SEND | PURPLE_MESSAGE_REMOTE_SEND | PURPLE_MESSAGE_DELAYED;
@@ -320,7 +317,6 @@ signald_send_acknowledged(SignaldAccount *sa,  JsonObject *data) {
             // form purple_conv_present_error()
             purple_conversation_write(sa->last_conversation, NULL, "Message was not delivered to any devices.", PURPLE_MESSAGE_ERROR, time(NULL));
         }
-        #endif
     } else if (sr.devices_count == 0) {
         purple_debug_error(SIGNALD_PLUGIN_ID, "A message was not delivered to any devices.\n");
     }
@@ -362,20 +358,7 @@ signald_display_message(SignaldAccount *sa, const char *who, const char *groupId
                 if (conv == NULL) {
                     conv = purple_im_conversation_new(sa->account, who);
                 }
-                #if PURPLE_VERSION_CHECK(3, 0, 0)
-                    // from pidgin-3/libpurple/protocols/facebook/util.c
-                    PurpleContactInfo *info = PURPLE_CONTACT_INFO(sa->account);
-                    const gchar * me = purple_contact_info_get_name_for_display(info);
-                    const gchar * name = purple_account_get_username(sa->account);
-                    PurpleMessage * msg = purple_message_new_outgoing(sa->account, me, name, content->str, flags);
-                    GDateTime * dt = g_date_time_new_from_unix_local(timestamp_micro/1000000); // TODO: find correct conversion
-                    purple_message_set_timestamp(msg, dt);
-                    g_date_time_unref(dt);
-                    purple_conversation_write_message(conv, msg);
-                    g_object_unref(G_OBJECT(msg));
-                #else
-                    purple_conv_im_write(PURPLE_CONV_IM(conv), who, content->str, flags, timestamp_milli);
-                #endif
+                purple_conv_im_write(purple_conversation_get_im_data(conv), who, content->str, flags, timestamp_milli);
             }
             signald_mark_read(sa, timestamp_micro, who);
         }
@@ -404,9 +387,7 @@ signald_send_chat(PurpleConnection *pc, int id, const char *message, PurpleMessa
             int ret = signald_send_message(sa, groupId, TRUE, message);
             if (ret > 0) {
                 // immediate local echo (ret == 0 indicates delayed local echo)
-                #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
                 purple_conversation_write(conv, sa->uuid, message, flags, time(NULL));
-                #endif
             }
             return ret;
         }

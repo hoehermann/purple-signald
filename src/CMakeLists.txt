@@ -45,6 +45,7 @@ else()
 target_sources(${TARGET_NAME} PRIVATE
     "purple-3/prpl.c"
     "purple-3/prpl.h"
+    "purple-3/conversation.c"
 )
 endif()
 set_property(TARGET ${TARGET_NAME} PROPERTY COMPILE_WARNING_AS_ERROR ON)

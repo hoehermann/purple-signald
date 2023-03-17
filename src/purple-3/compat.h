@@ -1,16 +1,19 @@
 #pragma once
 
+#include <purple.h>
+
 #if !(GLIB_CHECK_VERSION(2, 67, 3))
 #define g_memdup2 g_memdup
 #endif
-
-#include <purple.h>
 
 #if PURPLE_VERSION_CHECK(3, 0, 0)
 
 #define purple_blist_get_root purple_blist_get_default_root
 #define purple_conversation_get_data(conv, key) g_object_get_data(G_OBJECT(conv), key)
 #define purple_conversation_set_data(conv, key, value) g_object_set_data(G_OBJECT(conv), key, value)
+#define purple_conversation_get_im_data(conv) conv
+void purple_conversation_write(PurpleConversation *conv, const char *who, const char *message, PurpleMessageFlags flags, time_t mtime);
+#define purple_conv_im_write purple_conversation_write
 #define purple_conversation_find_chat_by_name(name, account) \
     purple_conversation_manager_find_chat(purple_conversation_manager_get_default(), account, name);
 #define purple_conversation_find_im_by_name(name, account) \

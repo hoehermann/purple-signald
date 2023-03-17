@@ -98,9 +98,7 @@ void signald_process_receipt(SignaldAccount *sa, JsonObject *obj) {
             g_list_free(timestamp_list);
             
             PurpleMessageFlags flags = PURPLE_MESSAGE_NO_LOG;
-            #if !PURPLE_VERSION_CHECK(3, 0, 0) // TODO
-            purple_conv_im_write(PURPLE_CONV_IM(conv), who, message->str, flags, timestamp);
-            #endif
+            purple_conv_im_write(purple_conversation_get_im_data(conv), who, message->str, flags, timestamp);
             
             g_string_free(message, TRUE);
         }

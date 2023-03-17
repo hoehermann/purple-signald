@@ -28,6 +28,7 @@ static inline char* purple_date_format(const time_t ts) {
 #define purple_find_chat(pc, id) \
     purple_conversation_manager_find_chat_by_id(purple_conversation_manager_get_default(), purple_connection_get_account(pc), id);
 #define purple_roomlist_unref(roomlist) g_object_unref(roomlist)
+#define purple_input_remove g_source_remove
 #define purple_timeout_remove g_source_remove
 #define purple_timeout_add g_timeout_add
 #define purple_timeout_add_seconds g_timeout_add_seconds

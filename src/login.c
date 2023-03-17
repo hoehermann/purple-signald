@@ -222,11 +222,7 @@ void signald_close (PurpleConnection *pc) {
     signald_replycache_free(sa->replycache);
 
     // remove input watcher
-    #if PURPLE_VERSION_CHECK(3, 0, 0)
-    // TODO: find replacement for purple_input_remove
-    #else
     purple_input_remove(sa->watcher);
-    #endif
     sa->watcher = 0;
 
     if (sa->uuid) {

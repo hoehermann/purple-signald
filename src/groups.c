@@ -126,13 +126,15 @@ void
 signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
     GList *uuids = signald_members_to_uuids(members);
     PurpleConversation *conv = purple_conversation_find_chat_by_name(groupId, account);
-    PurpleChatConversation *conv_chat = PURPLE_CHAT_CONVERSATION(conv);
-    if (conv_chat != NULL) { // only consider active chats
-        purple_chat_conversation_clear_users(conv_chat);
-        for (GList * uuid_elem = uuids; uuid_elem != NULL; uuid_elem = uuid_elem->next) {
-            const char* uuid = uuid_elem->data;
-            PurpleChatUserFlags flags = 0;
-            purple_chat_conversation_add_user(conv_chat, uuid, NULL, flags, FALSE);
+    if (conv != NULL) {
+        PurpleChatConversation *conv_chat = PURPLE_CHAT_CONVERSATION(conv);
+        if (conv_chat != NULL) { // only consider active chats
+            purple_chat_conversation_clear_users(conv_chat);
+            for (GList * uuid_elem = uuids; uuid_elem != NULL; uuid_elem = uuid_elem->next) {
+                const char* uuid = uuid_elem->data;
+                PurpleChatUserFlags flags = 0;
+                purple_chat_conversation_add_user(conv_chat, uuid, NULL, flags, FALSE);
+            }
         }
     }
     g_list_free_full(uuids, g_free);

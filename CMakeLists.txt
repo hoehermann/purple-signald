@@ -14,6 +14,7 @@ elseif(${Purple_FOUND})
 else()
     message(FATAL "pkg-config not found. Please configure manually and set Purple_FOUND to YES.")
 endif()
+find_package(Threads REQUIRED)
 
 add_subdirectory(src)
 

@@ -162,7 +162,7 @@ signald_connect_socket(SignaldAccount *sa) {
             gchar *xdg_socket_path = g_strdup_printf("%s/%s", xdg_runtime_dir, SIGNALD_GLOBAL_SOCKET_FILE);
             try_connect(sa, xdg_socket_path);
         } else {
-            purple_debug_warning(SIGNALD_PLUGIN_ID, "Unable to read environment variable XDG_RUNTIME_DIR. Skipping the related socket location.");
+            purple_debug_warning(SIGNALD_PLUGIN_ID, "Unable to read environment variable XDG_RUNTIME_DIR. Skipping the related socket location.\n");
         }
 
         gchar * var_socket_path = g_strdup_printf("%s/%s", SIGNALD_GLOBAL_SOCKET_PATH_VAR, SIGNALD_GLOBAL_SOCKET_FILE);

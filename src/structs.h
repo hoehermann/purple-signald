@@ -3,6 +3,8 @@
 #include <purple.h>
 #include <json-glib/json-glib.h>
 
+#define SIGNALD_INPUT_BUFSIZE 500000 // TODO: research actual maximum message size
+
 typedef struct {
     PurpleAccount *account;
     PurpleConnection *pc;
@@ -15,6 +17,8 @@ typedef struct {
     int fd;
     int readflags;
     guint watcher;
+    char input_buffer[SIGNALD_INPUT_BUFSIZE];
+    char * input_buffer_position;
 
     char *last_message; // the last message which has been sent to signald
     PurpleConversation *last_conversation; // the conversation the message is relevant to

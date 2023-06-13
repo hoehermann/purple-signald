@@ -16,28 +16,27 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
 {
     SignaldAccount *sa = data;
     // this function essentially just reads bytes into a buffer until a newline is reached
+    // apparently, this callback is executed every 8k butes. therefore, input_buffer must be persistent accross calls
     // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
-    const size_t BUFSIZE = 500000; // TODO: research actual maximum message size
-    char buf[BUFSIZE];
-    char *b = buf;
-    gssize read = recv(sa->fd, b, 1, sa->readflags);
+    sa->input_buffer_position = sa->input_buffer;
+    gssize read = recv(sa->fd, sa->input_buffer_position, 1, sa->readflags); // read one byte at a time
     while (read > 0) {
-        b += read;
-        if(b[-1] == '\n') {
-            *b = 0;
-            purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", buf);
-            signald_parse_input(sa, buf);
+        sa->input_buffer_position += read;
+        if(sa->input_buffer_position[-1] == '\n') {
+            *sa->input_buffer_position = 0;
+            purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", sa->input_buffer);
+            signald_parse_input(sa, sa->input_buffer);
             // reset buffer
-            *buf = 0;
-            b = buf;
+            *sa->input_buffer = 0;
+            sa->input_buffer_position = sa->input_buffer;
         }
-        if (b-buf+1 == BUFSIZE) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "message exceeded buffer size: %s\n", buf);
-            b = buf;
+        if (sa->input_buffer_position - sa->input_buffer + 1 == SIGNALD_INPUT_BUFSIZE) {
+            purple_debug_error(SIGNALD_PLUGIN_ID, "message exceeded buffer size: %s\n", sa->input_buffer);
+            sa->input_buffer_position = sa->input_buffer;
             // NOTE: incomplete message may be passed to handler during next call
             return;
         }
-        read = recv(sa->fd, b, 1, MSG_DONTWAIT);
+        read = recv(sa->fd, sa->input_buffer_position, 1, MSG_DONTWAIT);
     }
     if (read == 0) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Connection to signald lost.");
@@ -51,8 +50,8 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             return;
         }
     }
-    if (*buf) {
-        purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", buf);
+    if (*sa->input_buffer) {
+        purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", sa->input_buffer);
     }
 }
 

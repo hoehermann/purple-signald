@@ -189,6 +189,7 @@ signald_login(PurpleAccount *account)
 
     sa->account = account;
     sa->pc = pc;
+    sa->input_buffer_position = sa->input_buffer;
     
     sa->replycache = signald_replycache_init();
     signald_receipts_init(sa);

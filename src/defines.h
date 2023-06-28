@@ -1,9 +1,13 @@
 #pragma once
 
-#define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
-#ifndef SIGNALD_PLUGIN_VERSION
-#error Must set SIGNALD_PLUGIN_VERSION in Makefile
+#ifndef PLUGIN_VERSION
+#error Must set PLUGIN_VERSION in Makefile
 #endif
+// https://github.com/LLNL/lbann/issues/117#issuecomment-334333286
+#define MAKE_STR(x) _MAKE_STR(x)
+#define _MAKE_STR(x) #x
+
+#define SIGNALD_PLUGIN_ID "prpl-hehoe-signald"
 #define SIGNALD_PLUGIN_WEBSITE "https://github.com/hoehermann/libpurple-signald"
 #define SIGNAL_DEFAULT_GROUP "Signal"
 

@@ -1,0 +1,72 @@
+cmake_minimum_required(VERSION 3.18) # for file(ARCHIVE_EXTRACT ...)
+
+# Pidgin 2.14.12 is shipped with gtk+ 2.16.6 and glib 2.28.8
+set(GTK_BUNDLE_ZIP gtk+-bundle_2.16.6-20100912_win32.zip)  # NOTE: This contains glib 2.24.2
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${GTK_BUNDLE_ZIP})
+    message(STATUS "Fetching ${GTK_BUNDLE_ZIP}...")
+    file(DOWNLOAD http://ftp.gnome.org/pub/gnome/binaries/win32/gtk+/2.16/${GTK_BUNDLE_ZIP} ${CMAKE_CURRENT_BINARY_DIR}/${GTK_BUNDLE_ZIP} SHOW_PROGRESS)
+ENDIF()
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/gtk/include/gtk-2.0/gtk/gtk.h)
+    file(ARCHIVE_EXTRACT INPUT ${CMAKE_CURRENT_BINARY_DIR}/${GTK_BUNDLE_ZIP} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/gtk)
+ENDIF()
+set(GTK_INCLUDE_DIRS 
+    ${CMAKE_CURRENT_BINARY_DIR}/gtk/include
+    ${CMAKE_CURRENT_BINARY_DIR}/gtk/include/glib-2.0
+    ${CMAKE_CURRENT_BINARY_DIR}/gtk/include/gtk-2.0/gtk
+    ${CMAKE_CURRENT_BINARY_DIR}/gtk/lib/glib-2.0/include
+)
+set(GTK_LIBRARY_DIRS 
+    ${CMAKE_CURRENT_BINARY_DIR}/gtk/lib
+)
+find_file(GLIB_LIB "glib-2.0.lib" PATHS ${GTK_LIBRARY_DIRS})
+
+set(PIDGIN_VERSION 2.14.12)
+set(PIDGIN_DIRNAME pidgin-${PIDGIN_VERSION})
+set(PIDGIN_SOURCE_ZIP ${PIDGIN_DIRNAME}.tar.bz2)
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_SOURCE_ZIP})
+    message(STATUS "Fetching ${PIDGIN_SOURCE_ZIP}...")
+    file(DOWNLOAD http://prdownloads.sourceforge.net/pidgin/${PIDGIN_SOURCE_ZIP} ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_SOURCE_ZIP} SHOW_PROGRESS)
+ENDIF()
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}/libpurple/purple.h)
+    file(ARCHIVE_EXTRACT INPUT ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_SOURCE_ZIP} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+ENDIF()
+
+set(PIDGIN_BINARY_ZIP ${PIDGIN_DIRNAME}-win32-bin.zip)
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_BINARY_ZIP})
+    message(STATUS "Fetching ${PIDGIN_BINARY_ZIP}...")
+    file(DOWNLOAD http://prdownloads.sourceforge.net/pidgin/${PIDGIN_BINARY_ZIP} ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_BINARY_ZIP} SHOW_PROGRESS)
+ENDIF()
+IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}-win32bin/libpurple.dll)
+    file(ARCHIVE_EXTRACT INPUT ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_BINARY_ZIP} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+ENDIF()
+set(LIBPURPLE_LIB ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}-win32bin/libpurple.dll)
+
+set(PURPLE_INCLUDE_DIRS
+    ${GTK_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}/libpurple
+    PARENT_SCOPE
+)
+set(PURPLE_LIBRARIES
+    ${GLIB_LIB} ${LIBPURPLE_LIB}
+    PARENT_SCOPE
+)
+set(PURPLE_DATA_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}-win32bin
+    PARENT_SCOPE
+)
+set(PURPLE_PLUGIN_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/${PIDGIN_DIRNAME}-win32bin/plugins
+    PARENT_SCOPE
+)
+
+# TODO: download https://github.com/EionRobb/skype4pidgin/raw/master/skypeweb/libjson-glib-1.0.dll
+set(JSON_LIBRARIES
+    ${CMAKE_CURRENT_BINARY_DIR}/libjson-glib-1.0.dll
+    PARENT_SCOPE
+)
+# TODO: download https://download.gnome.org/sources/json-glib/0.14/json-glib-0.14.2.tar.bz2
+# according to https://github.com/EionRobb/pidgin-opensteamworks/issues/167#issuecomment-361472782
+set(JSON_INCLUDE_DIRS
+    ${CMAKE_CURRENT_BINARY_DIR}/json-glib-0.14.2
+    PARENT_SCOPE
+)

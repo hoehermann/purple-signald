@@ -152,9 +152,9 @@ signald_process_profile_info_member(JsonObject *object, const gchar *member_name
     }
     if (JSON_NODE_HOLDS_VALUE(member_node)) {
         PurpleNotifyUserInfo *user_info = user_data;
-        GValue value = G_VALUE_INIT;
+        GValue value/* = G_VALUE_INIT*/;
         json_node_get_value(member_node, &value);
-        GValue string = G_VALUE_INIT;
+        GValue string/* = G_VALUE_INIT*/;
         g_value_init(&string, G_TYPE_STRING);
         g_value_transform(&value, &string);
         purple_notify_user_info_add_pair_plaintext(user_info, member_name,  g_value_get_string(&string));

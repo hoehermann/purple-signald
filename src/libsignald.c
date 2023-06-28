@@ -141,7 +141,7 @@ static PurplePluginInfo info = {
     PURPLE_PRIORITY_DEFAULT,        /* priority */
     SIGNALD_PLUGIN_ID,                /* id */
     "signald",                        /* name */
-    SIGNALD_PLUGIN_VERSION,            /* version */
+    MAKE_STR(PLUGIN_VERSION),            /* version */
     "",                                /* summary */
     "",                                /* description */
     "Hermann Hoehne <hoehermann@gmx.de>", /* author */

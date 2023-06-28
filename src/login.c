@@ -1,5 +1,12 @@
+#ifdef __WIN32__
+#include <winsock2.h> // for socket and read
+#include <ws2ipdef.h> // for SOCKADDR_INET 
+#include <afunix.h> // for SOCKADDR_UN
+#define MSG_DONTWAIT 0 // TODO
+#else
 #include <sys/un.h> // for sockaddr_un
 #include <sys/socket.h> // for socket and read
+#endif
 #include <errno.h>
 #include "purple_compat.h"
 #include "structs.h"
@@ -72,7 +79,7 @@ static void *
 do_try_connect(void * arg) {
     SignaldConnectionAttempt * sc = arg;
 
-    struct sockaddr_un address;
+    SOCKADDR_UN address;
     if (strlen(sc->socket_path)-1 > sizeof address.sun_path) {
         execute_on_main_thread(display_connection_error, sc, g_strdup_printf("socket path %s exceeds maximum length %lu!\n", sc->socket_path, sizeof address.sun_path));
     } else {

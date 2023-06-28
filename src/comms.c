@@ -1,5 +1,10 @@
-#include <errno.h>
+#ifdef __WIN32__
+#include <winsock2.h> // for socket and read
+#define MSG_DONTWAIT 0 // TODO
+#else
 #include <sys/socket.h> // for socket and read
+#endif
+#include <errno.h>
 #include "purple_compat.h"
 #include "structs.h"
 #include "defines.h"

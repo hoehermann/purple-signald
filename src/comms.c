@@ -18,7 +18,6 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     // this function essentially just reads bytes into a buffer until a newline is reached
     // apparently, this callback is executed every 8k butes. therefore, input_buffer must be persistent accross calls
     // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
-    sa->input_buffer_position = sa->input_buffer;
     gssize read = recv(sa->fd, sa->input_buffer_position, 1, sa->readflags); // read one byte at a time
     while (read > 0) {
         sa->input_buffer_position += read;

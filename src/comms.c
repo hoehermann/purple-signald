@@ -25,15 +25,15 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
         if(sa->input_buffer_position[-1] == '\n') {
             *sa->input_buffer_position = 0;
             purple_debug_info(SIGNALD_PLUGIN_ID, "got newline delimited message: %s", sa->input_buffer);
-            signald_parse_input(sa, sa->input_buffer);
-            // reset buffer
-            *sa->input_buffer = 0;
+            signald_parse_input(sa, sa->input_buffer, sa->input_buffer_position - sa->input_buffer - 1);
+            // reset buffer write pointer
             sa->input_buffer_position = sa->input_buffer;
         }
         if (sa->input_buffer_position - sa->input_buffer + 1 == SIGNALD_INPUT_BUFSIZE) {
-            purple_debug_error(SIGNALD_PLUGIN_ID, "message exceeded buffer size: %s\n", sa->input_buffer);
+            purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "message exceeded buffer size");
+            // reset buffer write pointer
+            // should not have any effect since the connection will be destroyed, but better safe than sorry
             sa->input_buffer_position = sa->input_buffer;
-            // NOTE: incomplete message may be passed to handler during next call
             return;
         }
         read = recv(sa->fd, sa->input_buffer_position, 1, MSG_DONTWAIT);

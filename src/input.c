@@ -164,10 +164,10 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
 }
 
 void
-signald_parse_input(SignaldAccount *sa, const char * json)
+signald_parse_input(SignaldAccount *sa, const char * json, gssize length)
 {
     JsonParser *parser = json_parser_new();
-    if (!json_parser_load_from_data(parser, json, -1, NULL)) {
+    if (!json_parser_load_from_data(parser, json, length, NULL)) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, "Error parsing input.");
         return;
     } else {

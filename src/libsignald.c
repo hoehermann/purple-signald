@@ -94,6 +94,7 @@ libpurple2_plugin_unload(PurplePlugin *plugin)
 }
 
 static PurplePluginProtocolInfo prpl_info = {
+    .struct_size = sizeof(PurplePluginProtocolInfo), // must be set for PURPLE_PROTOCOL_PLUGIN_HAS_FUNC to work across versions
     // base protocol information
     .options = OPT_PROTO_NO_PASSWORD | OPT_PROTO_IM_IMAGE,
     .list_icon = signald_list_icon,
@@ -116,8 +117,10 @@ static PurplePluginProtocolInfo prpl_info = {
     .roomlist_get_list = signald_roomlist_get_list,
     .blist_node_menu = signald_blist_node_menu,
     #if PURPLE_VERSION_CHECK(2,14,0)
-    //.get_cb_alias // if our interface was blocking, this could fetch a group chat participant's friendly name
+    .get_cb_alias = signald_group_chat_get_participant_alias,
     //.chat_send_file
+    #else
+    #pragma message "Warning: libpurple is too old. Group chat participants may appear without friendly names."
     #endif
 };
 

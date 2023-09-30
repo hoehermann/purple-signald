@@ -72,13 +72,11 @@ static void *
 do_try_connect(void * arg) {
     SignaldConnectionAttempt * sc = arg;
 
-    struct sockaddr_un address;
+    struct sockaddr_un address = {.sun_family = AF_UNIX};
     if (strlen(sc->socket_path)-1 > sizeof address.sun_path) {
         execute_on_main_thread(display_connection_error, sc, g_strdup_printf("socket path %s exceeds maximum length %lu!\n", sc->socket_path, sizeof address.sun_path));
     } else {
-        // convert path to sockaddr
-        memset(&address, 0, sizeof(struct sockaddr_un));
-        address.sun_family = AF_UNIX;
+        // fill path into sockaddr
         strcpy(address.sun_path, sc->socket_path);
 
         // create a socket
@@ -101,6 +99,7 @@ do_try_connect(void * arg) {
                 sc->sa->fd = fd;
                 sc->sa->readflags = MSG_DONTWAIT;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
+                sc->sa->socket_path = g_strdup(sc->socket_path);
             }
             if (sc->sa->fd < 0) {
                 // no concurrent connection attempt has been successful by now

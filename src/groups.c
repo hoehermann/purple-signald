@@ -4,6 +4,8 @@
 #include "comms.h"
 #include "message.h"
 #include "json-utils.h"
+#include <sys/un.h> // for sockaddr_un
+#include <sys/socket.h> // for socket and read
 
 PurpleGroup * signald_get_purple_group() {
     PurpleGroup *group = purple_blist_find_group("Signal");
@@ -139,7 +141,7 @@ signald_process_groupV2_obj(SignaldAccount *sa, JsonObject *obj)
     const char *title = json_object_get_string_member(obj, "title");
     const char *avatar = json_object_get_string_member_or_null(obj, "avatar");
 
-    purple_debug_info (SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n", groupId, title);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Processing group ID %s, %s\n", groupId, title);
 
     if (purple_account_get_bool(sa->account, "auto-accept-invitations", FALSE)) {
         signald_accept_groupV2_invitation(sa, groupId, json_object_get_array_member(obj, "pendingMembers"));
@@ -415,5 +417,61 @@ signald_chat_leave(PurpleConnection *pc, int id) {
         const gchar * groupID = purple_conversation_get_name(conv);
         signald_leave_group(sa, groupID);
     }
+}
+
+char *signald_group_chat_get_participant_alias(PurpleConnection *gc, int id, const char *who) {
+    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_group_chat_get_participant_alias called for %s\n", who);
+    char *out = NULL;
+    
+    SignaldAccount *sa = purple_connection_get_protocol_data(gc);
+    
+    // TODO: combine with signald_get_info to remove redundancy
+    JsonObject *data = json_object_new();
+    json_object_set_string_member(data, "type", "get_profile");
+    json_object_set_string_member(data, "account", sa->uuid);
+    JsonObject *address = json_object_new();
+    json_object_set_string_member(address, "uuid", who);
+    json_object_set_object_member(data, "address", address);
+    // TODO: combine with signald_send_json to remove redundancy
+    json_object_set_string_member(data, "version", "v1");
+    char *json = json_object_to_string(data);
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Prepared: „%s“\n", json);
+    
+    struct sockaddr_un socket_address = {
+        .sun_family = AF_UNIX,
+    };
+    strcpy(socket_address.sun_path, sa->socket_path);
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    connect(fd, (struct sockaddr *) &socket_address, sizeof(struct sockaddr_un));
+    write(fd, json, strlen(json));
+    write(fd, "\n", 1);
+    g_free(json);
+    
+    json_object_unref(data);
+    
+    char buffer[4096];
+    char *buffer_ptr = buffer;
+    while(recv(fd, buffer_ptr, 1, MSG_DONTWAIT) == 1 && *buffer_ptr != '\n') {
+        buffer_ptr++;
+    }
+    *buffer_ptr = '\0';
+    purple_debug_info(SIGNALD_PLUGIN_ID, "Received: „%s“\n", buffer);
+    const size_t length = buffer_ptr - buffer;
+    
+    close(fd);
+    
+    {
+        JsonParser *parser = json_parser_new();
+        json_parser_load_from_data(parser, buffer, length, NULL);
+        JsonNode *root = json_parser_get_root(parser);
+        JsonObject *obj = json_node_get_object(root);
+        JsonObject *data = json_object_get_object_member(obj, "data");
+        const char *name = json_object_get_string_member_or_null(data, "name");
+        purple_debug_info(SIGNALD_PLUGIN_ID, "name is „%s“\n", name);
+        out = g_strdup(name);
+        g_object_unref(parser);
+    }
+    
+    return out;
 }
 

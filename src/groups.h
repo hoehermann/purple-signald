@@ -37,3 +37,5 @@ void signald_process_leave_group(SignaldAccount *sa, JsonObject *data);
 void signald_chat_leave(PurpleConnection *pc, int id);
 
 void signald_request_group_info(SignaldAccount *sa, const char *groupId);
+
+char *signald_group_chat_get_participant_alias(PurpleConnection *gc, int id, const char *who);

@@ -13,6 +13,7 @@ typedef struct {
 
     gboolean account_exists; // whether account exists in signald
 
+    gchar *socket_path; // path to current socket
     int socket_paths_count;
     int fd;
     int readflags;

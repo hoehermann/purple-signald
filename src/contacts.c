@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "comms.h"
 #include "json-utils.h"
+#include "groups.h"
 
 void
 signald_assume_buddy_state(PurpleAccount *account, PurpleBuddy *buddy)
@@ -123,12 +124,22 @@ signald_parse_contact_list(SignaldAccount *sa, JsonArray *profiles)
 }
 
 /*
- * Purple function: Request information about a buddy.
- *
- * See @signald_process_profile on how the answer is parsed.
+ * Purple UI function: Request information about a contact for showing it to the user.
+ * 
+ * See @signald_request_profile for details.
  */
-void
-signald_get_info(PurpleConnection *pc, const char *who) {
+void signald_get_info(PurpleConnection *pc, const char *who) {
+    SignaldAccount *sa = purple_connection_get_protocol_data(pc);
+    sa->show_profile = g_strdup(who);
+    signald_request_profile(pc, who);
+}
+
+/*
+ * Request information about a contact for internal use (e.g. display of friendly name in group chat).
+ *
+ * See @signald_process_profile on how the answer is used.
+ */
+void signald_request_profile(PurpleConnection *pc, const char *who) {
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     g_return_if_fail(sa->uuid);
     JsonObject *data = json_object_new();
@@ -162,18 +173,32 @@ signald_process_profile_info_member(JsonObject *object, const gchar *member_name
 }
 
 /*
- * Recursively flattens profile information into a sequence of key value pairs for information display.
+ * Process contact profile information.
+ * 
+ * May be either displayed to the user via @signald_show_profile or used to update non-buddy group chat participant name, see @signald_update_participant_name.
  */
-void
-signald_process_profile(SignaldAccount *sa, JsonObject *obj) {
+void signald_process_profile(SignaldAccount *sa, JsonObject *obj) {
     JsonObject *address = json_object_get_object_member(obj, "address");
     g_return_if_fail(address);
     const char *uuid = json_object_get_string_member(address, "uuid");
     g_return_if_fail(uuid && uuid[0]);
+    
+    if (sa->show_profile) {
+        g_free(sa->show_profile);
+        sa->show_profile = NULL;
+        signald_show_profile(sa->pc, uuid, obj);
+    } else {
+        signald_update_participant_name(uuid, obj);
+    }
+}
 
+/*
+ * Recursively flattens profile information into a sequence of key-value pairs for information display.
+ */
+void signald_show_profile(PurpleConnection *pc, const char *uuid, JsonObject *obj) {
     PurpleNotifyUserInfo *user_info = purple_notify_user_info_new();
     json_object_foreach_member(obj, signald_process_profile_info_member, (gpointer) user_info);
-    purple_notify_userinfo(sa->pc, uuid, user_info, NULL, NULL);
+    purple_notify_userinfo(pc, uuid, user_info, NULL, NULL);
     purple_notify_user_info_destroy(user_info);
 }
 

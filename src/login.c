@@ -99,7 +99,6 @@ do_try_connect(void * arg) {
                 sc->sa->fd = fd;
                 sc->sa->readflags = MSG_DONTWAIT;
                 sc->sa->watcher = purple_input_add(fd, PURPLE_INPUT_READ, signald_read_cb, sc->sa);
-                sc->sa->socket_path = g_strdup(sc->socket_path);
             }
             if (sc->sa->fd < 0) {
                 // no concurrent connection attempt has been successful by now

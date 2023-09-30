@@ -38,4 +38,4 @@ void signald_chat_leave(PurpleConnection *pc, int id);
 
 void signald_request_group_info(SignaldAccount *sa, const char *groupId);
 
-char *signald_group_chat_get_participant_alias(PurpleConnection *gc, int id, const char *who);
+void signald_update_participant_name(const char *uuid, JsonObject *obj);

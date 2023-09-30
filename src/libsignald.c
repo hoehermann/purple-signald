@@ -117,7 +117,7 @@ static PurplePluginProtocolInfo prpl_info = {
     .roomlist_get_list = signald_roomlist_get_list,
     .blist_node_menu = signald_blist_node_menu,
     #if PURPLE_VERSION_CHECK(2,14,0)
-    .get_cb_alias = signald_group_chat_get_participant_alias,
+    //.get_cb_alias // TODO: find out how to use this
     //.chat_send_file
     #else
     #pragma message "Warning: libpurple is too old. Group chat participants may appear without friendly names."

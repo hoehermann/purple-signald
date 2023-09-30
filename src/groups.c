@@ -4,8 +4,7 @@
 #include "comms.h"
 #include "message.h"
 #include "json-utils.h"
-#include <sys/un.h> // for sockaddr_un
-#include <sys/socket.h> // for socket and read
+#include "contacts.h"
 
 PurpleGroup * signald_get_purple_group() {
     PurpleGroup *group = purple_blist_find_group("Signal");
@@ -119,6 +118,7 @@ signald_accept_groupV2_invitation(SignaldAccount *sa, const char *groupId, JsonA
  */
 // TODO: a soft "remove who left, add who was added" would be nicer than
 // this blunt-force "remove everyone and re-add" approach
+// TODO: use purple_conv_chat_add_users since purple_conv_chat_add_user uses it anyway
 void
 signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonArray *members) {
     GList *uuids = signald_members_to_uuids(members);
@@ -129,6 +129,12 @@ signald_chat_set_participants(PurpleAccount *account, const char *groupId, JsonA
             const char* uuid = uuid_elem->data;
             PurpleConvChatBuddyFlags flags = 0;
             purple_conv_chat_add_user(conv_chat, uuid, NULL, flags, FALSE);
+            
+            if (!purple_find_buddy(account, uuid)) {
+                // this UUID is not known – request the profile for display of friendly name
+                PurpleConnection *pc = purple_account_get_connection(account);
+                signald_request_profile(pc, uuid);
+            }
         }
     }
     g_list_free_full(uuids, g_free);
@@ -419,59 +425,28 @@ signald_chat_leave(PurpleConnection *pc, int id) {
     }
 }
 
-char *signald_group_chat_get_participant_alias(PurpleConnection *gc, int id, const char *who) {
-    purple_debug_info(SIGNALD_PLUGIN_ID, "signald_group_chat_get_participant_alias called for %s\n", who);
-    char *out = NULL;
-    
-    SignaldAccount *sa = purple_connection_get_protocol_data(gc);
-    
-    // TODO: combine with signald_get_info to remove redundancy
-    JsonObject *data = json_object_new();
-    json_object_set_string_member(data, "type", "get_profile");
-    json_object_set_string_member(data, "account", sa->uuid);
-    JsonObject *address = json_object_new();
-    json_object_set_string_member(address, "uuid", who);
-    json_object_set_object_member(data, "address", address);
-    // TODO: combine with signald_send_json to remove redundancy
-    json_object_set_string_member(data, "version", "v1");
-    char *json = json_object_to_string(data);
-    purple_debug_info(SIGNALD_PLUGIN_ID, "Prepared: „%s“\n", json);
-    
-    struct sockaddr_un socket_address = {
-        .sun_family = AF_UNIX,
-    };
-    strcpy(socket_address.sun_path, sa->socket_path);
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    connect(fd, (struct sockaddr *) &socket_address, sizeof(struct sockaddr_un));
-    write(fd, json, strlen(json));
-    write(fd, "\n", 1);
-    g_free(json);
-    
-    json_object_unref(data);
-    
-    char buffer[4096];
-    char *buffer_ptr = buffer;
-    while(recv(fd, buffer_ptr, 1, MSG_DONTWAIT) == 1 && *buffer_ptr != '\n') {
-        buffer_ptr++;
+/*
+ * Updates a non-buddy group chat participant's name.
+ */
+ // note: with get_cb_alias, libpurple defines a function for this feature, but I could not figure out how to make Pidgin invoke it
+void signald_update_participant_name(const char *uuid, JsonObject *obj) {
+    const char *alias = json_object_get_string_member_or_null(obj, "name");
+    // TODO: consider other name-like fields
+    if (alias && alias[0]) {
+        // iterate over all conversations
+        for (GList * conversations_elem = purple_get_conversations(); conversations_elem != NULL; conversations_elem = conversations_elem->next) {
+            PurpleConversation *conv = conversations_elem->data;
+            PurpleConversationUiOps *ops = purple_conversation_get_ui_ops(conv);
+            if (ops != NULL && ops->chat_update_user != NULL && purple_conversation_get_type(conv) == PURPLE_CONV_TYPE_CHAT) {
+                // this conversation is a group chat and the UI can update users
+                PurpleConvChat *chat = purple_conversation_get_chat_data(conv);
+                PurpleConvChatBuddy *cbuddy = purple_conv_chat_cb_find(chat, uuid);
+                if (cbuddy && !cbuddy->buddy) {
+                    g_free(cbuddy->alias);
+                    cbuddy->alias = g_strdup(alias);
+                    ops->chat_update_user(conv, uuid); // notify UI about change
+                }
+            }
+        }
     }
-    *buffer_ptr = '\0';
-    purple_debug_info(SIGNALD_PLUGIN_ID, "Received: „%s“\n", buffer);
-    const size_t length = buffer_ptr - buffer;
-    
-    close(fd);
-    
-    {
-        JsonParser *parser = json_parser_new();
-        json_parser_load_from_data(parser, buffer, length, NULL);
-        JsonNode *root = json_parser_get_root(parser);
-        JsonObject *obj = json_node_get_object(root);
-        JsonObject *data = json_object_get_object_member(obj, "data");
-        const char *name = json_object_get_string_member_or_null(data, "name");
-        purple_debug_info(SIGNALD_PLUGIN_ID, "name is „%s“\n", name);
-        out = g_strdup(name);
-        g_object_unref(parser);
-    }
-    
-    return out;
 }
-

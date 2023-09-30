@@ -13,7 +13,6 @@ typedef struct {
 
     gboolean account_exists; // whether account exists in signald
 
-    gchar *socket_path; // path to current socket
     int socket_paths_count;
     int fd;
     int readflags;
@@ -30,4 +29,6 @@ typedef struct {
     GHashTable *outgoing_receipts; // buffer for receipts
 
     PurpleRoomlist *roomlist;
+    
+    char *show_profile; // name of the user-requested profile (NULL in case of system-requested profile)
 } SignaldAccount;

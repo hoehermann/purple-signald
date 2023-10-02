@@ -18,7 +18,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
     // this function essentially just reads bytes into a buffer until a newline is reached
     // apparently, this callback is executed every 8k butes. therefore, input_buffer must be persistent accross calls
     // using getline would be cool, but I do not want to find out what happens if I wrap this fd into a FILE* while the purple handle is connected to it
-    gssize read = recv(sa->fd, sa->input_buffer_position, 1, sa->readflags); // read one byte at a time
+    gssize read = recv(sa->fd, sa->input_buffer_position, 1, sa->readflags); // read one byte at a time (sometimes blocking according to sa->readflags)
     while (read > 0) {
         sa->input_buffer_position += read;
         if(sa->input_buffer_position[-1] == '\n') {
@@ -35,7 +35,7 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             sa->input_buffer_position = sa->input_buffer;
             return;
         }
-        read = recv(sa->fd, sa->input_buffer_position, 1, MSG_DONTWAIT);
+        read = recv(sa->fd, sa->input_buffer_position, 1, MSG_DONTWAIT); // try to read another byte (continue the while loop)
     }
     if (read == 0) {
         purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, "Connection to signald lost.");
@@ -49,7 +49,8 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             return;
         }
     }
-    if (*sa->input_buffer) {
+    if (sa->input_buffer_position > sa->input_buffer) {
+        *(sa->input_buffer_position+1) = '\0'; // not cool: this debug output changes buffer content
         purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", sa->input_buffer);
     }
 }

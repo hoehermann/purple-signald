@@ -49,10 +49,6 @@ signald_read_cb(gpointer data, gint source, PurpleInputCondition cond)
             return;
         }
     }
-    if (sa->input_buffer_position > sa->input_buffer) {
-        *(sa->input_buffer_position+1) = '\0'; // not cool: this debug output changes buffer content
-        purple_debug_info(SIGNALD_PLUGIN_ID, "left in buffer: %s\n", sa->input_buffer);
-    }
 }
 
 gboolean

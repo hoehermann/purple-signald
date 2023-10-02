@@ -144,7 +144,7 @@ try_connect(SignaldAccount *sa, gchar *socket_path) {
  * Tries multiple possible default socket location at once in background.
  * In case the user has explicitly defined a socket location, only that one is considered.
  */
-// TODO: find out how purple does connections in the gevent loop. use that instead of explicit sockets and threads.
+// TODO: find out how purple does connections in the gevent loop. use that instead of explicit threads.
 void
 signald_connect_socket(SignaldAccount *sa) {
     purple_connection_set_state(sa->pc, PURPLE_CONNECTION_CONNECTING);
@@ -169,9 +169,14 @@ signald_connect_socket(SignaldAccount *sa) {
     }
 }
 
-void
-signald_login(PurpleAccount *account)
-{
+/*
+ * Connects to signald.
+ * 
+ * The overall procedure is implemented in a rather convoluted manner. 
+ * For enhanced user experience, multiple possible socket paths are tried in parallel.
+ * The easy way would be connecting to /run/signald/signald.sock on the main thread and tell users to adjust their set-ups.
+ */
+void signald_login(PurpleAccount *account) {
     PurpleConnection *pc = purple_account_get_connection(account);
 
     // this protocol does not support anything special right now

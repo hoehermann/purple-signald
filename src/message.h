@@ -11,6 +11,9 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
 void
 signald_process_message(SignaldAccount *sa, JsonObject *obj);
 
+void
+signald_process_typing(SignaldAccount *sa, JsonObject *obj);
+
 int
 signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, const char *message);
 

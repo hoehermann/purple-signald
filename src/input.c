@@ -116,7 +116,7 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         if (json_object_has_member(obj, "receipt_message")) {
             signald_process_receipt(sa, obj);
         } else if (json_object_has_member(obj, "typing_message")) {
-            purple_debug_info(SIGNALD_PLUGIN_ID, "Ignoring typing message.\n");
+            signald_process_typing(sa, obj);
         } else {
             signald_process_message(sa, obj);
         }

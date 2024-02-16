@@ -199,6 +199,25 @@ signald_process_message(SignaldAccount *sa, JsonObject *obj)
     }
 }
 
+void
+signald_process_typing(SignaldAccount *sa, JsonObject *obj)
+{
+    JsonObject *message_data = json_object_get_object_member(obj, "typing_message");
+    JsonObject *source = json_object_get_object_member(obj, "source");
+    const gchar *sender_uuid = json_object_get_string_member(source, "uuid");
+
+    if (message_data == NULL) {
+        purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring typing message without usable payload.\n");
+    } else if (json_object_has_member(message_data, "action")) {
+        const gchar *action = json_object_get_string_member(message_data, "action");
+        if (strcmp(action, "STARTED") == 0) {
+	  purple_serv_got_typing(sa->pc, sender_uuid, 0, PURPLE_IM_TYPING);
+	} else if (strcmp(action, "STOPPED") == 0) {
+	  purple_serv_got_typing(sa->pc, sender_uuid, 0, PURPLE_IM_NOT_TYPING);
+      }
+    }
+}
+
 int
 signald_send_message(SignaldAccount *sa, const gchar *who, gboolean is_chat, const char *message)
 {

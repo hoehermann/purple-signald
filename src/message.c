@@ -152,6 +152,8 @@ signald_format_message(SignaldAccount *sa, JsonObject *data, GString **target, g
         }
     }
     
+    // TODO: Pidgin uses HTML to style messages, but signald is plain-text-ish. Use purple_markup_escape_text somewhere.
+
     return (*target)->len > 0; // if message is not empty, formatting was successful
 }
 

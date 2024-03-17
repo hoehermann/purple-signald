@@ -196,6 +196,7 @@ signald_parse_groupV2_list(SignaldAccount *sa, JsonArray *groups)
 void
 signald_request_group_info(SignaldAccount *sa, const char *groupId)
 {
+    return; // this currently fails.
     g_return_if_fail(sa->uuid);
 
     JsonObject *data = json_object_new();

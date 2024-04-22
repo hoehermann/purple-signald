@@ -93,8 +93,13 @@ signald_handle_input(SignaldAccount *sa, JsonNode *root)
         } else if (purple_strequal(message, "org.signal.libsignal.metadata.InvalidMetadataMessageException: org.signal.libsignal.protocol.InvalidMessageException: invalid sealed sender message: derived ephemeral key did not match key provided in message")) {
             // this means a message could not be fully processed and henceforth will not be displayed
             // the connection should not be terminated, though
-            // I rely on signald to retry in the background
-            purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring InvalidMetadataMessageException.\n");
+            //purple_debug_warning(SIGNALD_PLUGIN_ID, "Ignoring InvalidMetadataMessageException.\n");
+            const gchar * username = purple_account_get_username(sa->account);
+            PurpleConversation * conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, username, sa->account);
+            if (conv == NULL) {
+                conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, sa->account, username);
+            }
+            purple_conversation_write(conv, NULL, "InvalidMessageException happened in signald. Please check your primary device if you have one. The message is lost for this client. I am sorry.", PURPLE_MESSAGE_ERROR, time(NULL));
         } else {
             purple_connection_error(sa->pc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, message);
         }

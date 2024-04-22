@@ -224,8 +224,13 @@ PurpleConversation * signald_enter_group_chat(PurpleConnection *pc, const char *
     SignaldAccount *sa = purple_connection_get_protocol_data(pc);
     // use hash of groupId for chat id number
     PurpleConversation *conv = purple_find_chat(pc, g_str_hash(groupId));
-    if (conv == NULL) {
+    if (conv == NULL || (conv != NULL && purple_conversation_get_data(conv, "want-to-rejoin"))) {
         conv = serv_got_joined_chat(pc, g_str_hash(groupId), groupId);
+        if (purple_conversation_get_data(conv, "want-to-rejoin")) {
+            // now that we did rejoin, remove the flag
+            // directly accessing conv->data feels wrong, but there is no interface to do so
+            g_hash_table_remove(conv->data, "want-to-rejoin");
+        }
         purple_conversation_set_data(conv, "name", g_strdup(groupId));
         purple_conv_chat_set_nick(PURPLE_CONV_CHAT(conv), sa->uuid); // identify ourselves in this chat
         if (title != NULL) {

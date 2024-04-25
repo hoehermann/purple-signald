@@ -1,3 +1,7 @@
+# WARNING
+
+Currently, due to issues within signald, incoming messages can get lost.
+
 A libpurple/Pidgin plugin for [signald](https://gitlab.com/signald/signald) (signal, formerly textsecure).
 
 signald is written by Finn Herzfeld.

@@ -1,6 +1,10 @@
 # WARNING
 
-Currently, due to issues within signald, incoming messages can get lost.
+Currently, due to issues within signald, incoming messages can get lost. Since the issue has been persisting for months, the author of purple-signald developed an alternative: 
+
+→ [purple-presage](https://github.com/hoehermann/purple-presage)
+
+## purple-signald
 
 A libpurple/Pidgin plugin for [signald](https://gitlab.com/signald/signald) (signal, formerly textsecure).
 
